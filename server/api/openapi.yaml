@@ -1,0 +1,84 @@
+openapi: 3.0.3
+info:
+  title: Yuanpu Server API
+  version: 0.1.0
+  description: >-
+    Knowledge center API. /v1 is the compatibility boundary. This skeleton only
+    exposes public operational endpoints; account and business APIs are not implemented.
+servers:
+  - url: http://127.0.0.1:8788
+paths:
+  /v1/health:
+    get:
+      operationId: getHealth
+      summary: Process liveness; does not imply database readiness
+      responses:
+        '200':
+          description: Process is running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /v1/ready:
+    get:
+      operationId: getReady
+      summary: Database connectivity and migration readiness
+      responses:
+        '200':
+          description: Database is reachable and migrations are current
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+        '503':
+          description: Database is unconfigured, unavailable, or needs migrations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status, service, version, apiVersion]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        service:
+          type: string
+          enum: [yuanpu-server]
+        version:
+          type: string
+        apiVersion:
+          type: integer
+          enum: [1]
+    ReadyResponse:
+      type: object
+      additionalProperties: false
+      required: [status, schemaVersion]
+      properties:
+        status:
+          type: string
+          enum: [ready]
+        schemaVersion:
+          type: integer
+          minimum: 1
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message, requestId]
+          properties:
+            code:
+              type: string
+              description: Stable machine-readable error code
+            message:
+              type: string
+            requestId:
+              type: string

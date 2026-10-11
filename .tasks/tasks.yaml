@@ -2626,3 +2626,36 @@ tasks:
         - {type: "assert", check: "integration fusion preserved parallel work", status: "passed", summary: "Merge resolved 6 conflicts with the file-preview refinement (both routes/bridge methods/icons kept); stash pop fused the in-flight session-trajectory WIP by widening activityTab to 'trajectory'|'subagents'|'files'|'review', keeping the WIP's runContent and this card's reviewContent side by side; the WIP remains uncommitted in the main worktree exactly as before."}
         - {type: "memory", check: "task handoff", status: "passed", summary: ".tasks/memory/TASK-072.md records the capture/persistence/read mechanisms, fusion notes, the addInitScript Proxy serialization pitfall for browser stubs, and follow-ups (pre-existing mcp test, bash/subagent capture, ledger cleanup)."}
       follow_up_candidates: []
+  - id: TASK-073
+    title: "搭建独立 Go Server 与 TypeScript Client 骨架"
+    status: done
+    goal: "在现有仓库建立可独立运行、部署和验证的知识中心骨架，以同一 OpenAPI 契约连接 Go 服务与 TS SDK。"
+    scope:
+      in: ["server Go module、HTTP 健康/就绪检查、配置与进程退出", "PostgreSQL/pgvector 迁移基础、Docker Compose", "OpenAPI 及 Go/TS 类型生成、yuanpu-server-client SDK", "构建检查、真实连通验证、文档与 CI Go 环境"]
+      out: ["账号权限和 Wiki 业务", "替换旧目录与制品接口", "桌面管理 UI", "改写本地 Agent 或 Pi 上游"]
+    constraints: ["用户已确认 docs/todos/yuanpu-server.md 的设计；本次只完成第一步骨架", "旧 Node 目录继续使用 8787，Go 中心默认 8788", "保留用户已有桌面开发、Python 制品和 Word 编辑器改动", "不推送远程；不将健康检查视为完整业务验收"]
+    acceptance:
+      - type: command
+        run: "pnpm check:server"
+      - type: command
+        run: "pnpm smoke:server:compose"
+      - type: command
+        run: "pnpm check"
+      - type: assertion
+        expect: "Go 与 TS 由同一 OpenAPI 生成类型；真实 SDK 可调用健康和就绪接口，拒绝旧目录响应"
+      - type: assertion
+        expect: "迁移可重复执行，篡改历史与未来 schema 被拒绝；未配置数据库时返回明确的 503"
+      - type: assertion
+        expect: "退出二进制或开发启动器均回收 HTTP 服务；容器验证清理自己创建的资源"
+    dependencies: []
+    risk_level: L2
+    result:
+      owner: "codex-server-skeleton"
+      attempts: 1
+      branch: "main"
+      evidence:
+        - {type: "command", check: "pnpm check:server", status: "passed", summary: "Go/TS generation consistency, Go vet/tests/build, SDK typecheck and 6 tests, real binary/dev-runner lifecycle smoke passed on macOS arm64."}
+        - {type: "command", check: "pnpm smoke:server:compose", status: "passed", summary: "Linux arm64 container build, real PostgreSQL/pgvector concurrent and idempotent migrations, integrity checks, SDK calls, database outage/recovery and server restart passed using the configured GOPROXY; temporary resources cleaned."}
+        - {type: "command", check: "pnpm check", status: "failed", summary: "Build, Yuanpu typechecks and new center checks passed. Existing Runtime builtin-agent-context.test.mjs:58 skill-order assertion still fails (211/212); confirmed in pre-task Word editor check log, affected Runtime sources unchanged."}
+        - {type: "verification", check: "scope and handoff", status: "passed", summary: ".tasks/verification/TASK-073/results.md records evidence, platform limits and next steps. Legacy catalog and user changes retained; no account/Wiki/UI functionality claimed."}
+      follow_up_candidates: ["单独处理 Runtime 内置技能排序断言的既有失败", "第一阶段账号、团队与资源范围权限", "Windows/Linux amd64/NAS 及托管 CI 验证"]

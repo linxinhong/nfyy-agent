@@ -7,10 +7,11 @@ Electron 图形界面与 Node.js SEA Runtime 解耦的 pnpm monorepo。工程组
 - `apps/app`：React/Vite renderer，只能访问 preload 暴露的窄接口。
 - `apps/desktop`：Electron main/preload，负责窗口、Runtime 生命周期与桌面端更新。
 - `apps/runtime`：Node SEA sidecar，承载 Agent 与本地服务，可以独立于桌面壳更新。
-- `server`：Yuanpu 技能市场目录服务，提供搜索与详情 API。
+- `server`：独立 Go 中心服务骨架（8788）与迁移期间的 Node 技能目录服务（8787）；见 [开发与部署说明](server/README.md)。
 - `packages/agent` 等：从 Pi 上游按固定 commit 同步的原样源码包。
 - `packages/yuanpu-protocol`：Renderer、Electron 和 Runtime 共用的协议版本与类型。
 - `packages/yuanpu-runtime`：Yuanpu 后端实现，包含配置、Pi 适配、能力注册表、MCP 与能力包管理。
+- `packages/yuanpu-server-client`：中心服务的 TS SDK，接口类型由 OpenAPI 生成。
 
 Electron 首次使用安装包中携带的 Runtime。独立更新会下载到 Electron `userData/runtime/.staging`，校验文件大小和 SHA-256，执行 `--version` 冒烟测试，并在下次启动时原子切换。Runtime API 只监听 `127.0.0.1` 的随机端口。
 
@@ -18,7 +19,7 @@ Electron 首次使用安装包中携带的 Runtime。独立更新会下载到 El
 
 Python 能力包与统一能力入口的设计见 [设计文档](docs/python-capabilities.md)，实施顺序与验收见 [任务入口](.tasks/README.md)。当前已打通开发态 Python MCP 示例与 Node SEA 调用链；面向最终用户的跨平台冻结制品、安装和更新仍由后续任务交付。
 
-要求 Node.js 24.15+ 和 pnpm 11。
+要求 Node.js 24.15+ 和 pnpm 11。开发 Go 中心服务或运行完整 `pnpm check` 还需要 Go 1.26+；Compose 验证需要 Docker。
 
 ```bash
 pnpm install
@@ -27,6 +28,8 @@ pnpm dev
 ```
 
 `pnpm dev` 会构建 Runtime 和 Electron main/preload，同时启动技能市场服务、Vite 和 Electron。
+
+`pnpm dev:server` 独立启动 Go 中心；`pnpm check:server` 验证 Go 服务与 TS SDK；`pnpm smoke:server:compose` 在临时容器中验证真实数据库迁移和部署，结束后清理自己的测试数据。
 
 ## 本地 Agent 配置
 

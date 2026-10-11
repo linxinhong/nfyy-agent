@@ -1,5 +1,7 @@
 # 技能目录服务
 
+2026-10-11：同目录新增独立 Go 中心服务骨架，默认端口 8788；本文描述的 Node 目录服务继续运行在 8787。当前尚未迁移目录与制品 API。新服务入口与开发命令见 [Server README](../server/README.md)，演进边界见 [中心服务待办](todos/yuanpu-server.md)。
+
 根目录 `server/` 是 YuanpuAgent 的最小技能目录服务。它负责搜索与技能元数据，不参与本机 Runtime，也不执行安装命令。
 
 ## 本地运行

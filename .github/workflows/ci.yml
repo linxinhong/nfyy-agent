@@ -30,6 +30,13 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
+      - name: Setup Go
+        # The independent center and its contract generator use the Go module version.
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
