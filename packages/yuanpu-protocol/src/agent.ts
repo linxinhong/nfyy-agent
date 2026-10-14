@@ -1,3 +1,5 @@
+import type { RunProgress, RunToolStep } from './run-progress.js';
+
 export const AGENT_CONTRACT_VERSION = 1;
 
 export type AgentEntryPoint = 'desktop' | 'im' | 'scheduler';
@@ -61,8 +63,34 @@ export interface AgentRunRequest {
   delivery: AgentDeliveryTarget;
 }
 
+export type DesktopCanvasWidgetSize = 'small' | 'medium' | 'large' | 'wide';
+export type DesktopCanvasBuiltinWidget = 'clock' | 'schedules' | 'knowledge' | 'skills' | 'conversation';
+
+/**
+ * Widget changes requested by the desktop canvas agent. The runtime only records them;
+ * the renderer applies them and keeps ownership of positions the user arranged.
+ */
+export type DesktopCanvasAction =
+  | { type: 'show'; target: string; size?: DesktopCanvasWidgetSize }
+  | { type: 'put_html'; id: string; title: string; html: string; size?: DesktopCanvasWidgetSize }
+  | { type: 'dock'; id: string }
+  | { type: 'remove'; id: string };
+
+/** What the canvas currently shows, sent with each canvas message as untrusted context. */
+export interface DesktopCanvasWidgetSummary {
+  id: string;
+  type: DesktopCanvasBuiltinWidget | 'html';
+  title: string;
+  docked: boolean;
+  w: number;
+  h: number;
+}
+
 export interface AgentRunOutput {
   message: string;
+  /** Present only for runs of the desktop canvas conversation. */
+  desktopActions?: DesktopCanvasAction[];
+  steps?: RunToolStep[];
   tools: Array<{ name: string; status: 'completed' | 'failed' }>;
   /** Bounded text returned by executed tools. Call IDs are stable within the Pi session. */
   toolResults?: Array<{ entryId: string; toolCallId: string; name: string; status: 'completed' | 'failed';
@@ -74,6 +102,8 @@ export interface AgentRunOutput {
 
 export interface AgentRunRecord {
   runId: string;
+  /** Observed foreground execution only; optional for older hosts. */
+  progress?: RunProgress;
   owner: {
     entryPoint: AgentEntryPoint;
     identity: AgentHostIdentity;

@@ -15,5 +15,6 @@ export * from './builtin/browser/source.js';
 export * from './builtin/browser/client.js';
 export * from './builtin/web/http.js';
 export * from './builtin/goals/index.js';
+export * from './builtin/desktop-canvas/index.js';
 export * from './builtin/workflows/index.js';
 export * from './builtin/workflows/checkpoints.js';

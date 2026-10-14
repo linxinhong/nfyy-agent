@@ -1,22 +1,17 @@
 {
   "repository": "https://github.com/earendil-works/pi.git",
-  "commit": "3390bd93630965a12a0a1a5c36ce890ec22f7e1d",
-  "version": "0.86.1",
-  "packages": [
-    "agent",
-    "ai",
-    "chord",
-    "client",
-    "coding-agent",
-    "durable",
-    "evals",
-    "protocol",
-    "server",
-    "session-backends",
-    "telemetry",
-    "tui"
+  "distribution": "npm",
+  "version": "1.0.4",
+  "tag": "v1.0.4",
+  "directPackages": [
+    "@earendil-works/pi-coding-agent",
+    "@earendil-works/pi-ai",
+    "@earendil-works/pi-durable",
+    "@earendil-works/chord"
   ],
-  "unavailablePackages": [
-    "storage"
-  ]
+  "resolution": "Exact direct versions and pnpm overrides for the Pi dependency family; pnpm-lock.yaml records integrity.",
+  "previousVendoredSnapshot": {
+    "version": "0.86.1",
+    "commit": "3390bd93630965a12a0a1a5c36ce890ec22f7e1d"
+  }
 }

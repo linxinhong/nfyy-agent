@@ -16,6 +16,9 @@ test('Work Pi session loads bundled AGENTS.md before workspace context and disco
   const workspace = join(root, 'workspace');
   await mkdir(workspace);
   await writeFile(join(workspace, 'AGENTS.md'), '# Workspace instructions\n\nPROJECT_CONTEXT_MARKER\n');
+  const workspaceSkill = join(workspace, '.pi', 'skills', 'low-ai-ui-design');
+  await mkdir(workspaceSkill, { recursive: true });
+  await writeFile(join(workspaceSkill, 'SKILL.md'), '---\nname: low-ai-ui-design\ndescription: Workspace UI fixture\n---\nWorkspace UI rules.\n');
 
   let systemPrompt = '';
   const requests = [];
@@ -52,6 +55,7 @@ test('Work Pi session loads bundled AGENTS.md before workspace context and disco
   assert.match(systemPrompt, /markdown-visuals/);
   assert.match(systemPrompt, /browser-control/);
   assert.match(systemPrompt, /<name>tailscale<\/name>/);
+  assert.match(systemPrompt, /<name>low-ai-ui-design<\/name>/);
   assert.match(systemPrompt, /Save user-facing artifacts with relative paths under cwd, not \/tmp/);
   assert.match(systemPrompt, /Do not create a file, start a server, or navigate the browser merely to display a diagram/);
   assert.ok(systemPrompt.indexOf('Yuanpu Agent conversation guide') < systemPrompt.indexOf('PROJECT_CONTEXT_MARKER'));

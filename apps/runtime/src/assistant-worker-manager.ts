@@ -4,7 +4,7 @@ import { isSea } from 'node:sea';
 import { resolveAssistantModelConfig, type AssistantModelSelection } from './assistant-model.js';
 import type { AssistantSourceHost } from '@yuanpu-agent/assistant';
 import type { AssistantSuggestion } from '@yuanpu-agent/assistant';
-import type { AssistantMemoryView, AssistantWorkspaceSnapshot } from '@yuanpu-agent/protocol';
+import type { AssistantMemoryView, AssistantWorkspaceSnapshot, RunProgress } from '@yuanpu-agent/protocol';
 import type { AssistantDelegationBrief, AssistantDelegationRecord,
   AssistantEvidenceRef } from '@yuanpu-agent/protocol';
 import type { AssistantDelegationService } from './assistant-delegation-service.js';
@@ -16,6 +16,7 @@ export interface AssistantTaskRecord {
   message?: string;
   error?: string;
   updatedAt: string;
+  progress?: RunProgress;
 }
 
 interface WorkerCommand { executable: string; args: string[] }
@@ -251,6 +252,9 @@ export class AssistantWorkerManager {
   }
 
   task(id: string): Promise<AssistantTaskRecord | undefined> { return this.request({ kind: 'task', id }); }
+  taskRecords(ids: string[]): Promise<AssistantTaskRecord[]> {
+    return this.suggestionOperation({ kind: 'task-records', ids }) as Promise<AssistantTaskRecord[]>;
+  }
   private suggestionOperation(message: Record<string, unknown>): Promise<unknown> {
     if (!this.ready || !this.child?.connected) return Promise.reject(new Error('Assistant Worker is unavailable.'));
     const correlationId = randomUUID();

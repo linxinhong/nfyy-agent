@@ -1,0 +1,21 @@
+{
+  "name": "@yuanpu-agent/word-editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scoped Node host and browser frame adapter for an externally supplied Tencent Docs editor_sdk.",
+  "type": "module",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./renderer": { "types": "./dist/renderer.d.ts", "default": "./dist/renderer.js" }
+  },
+  "files": ["dist", "README.md", "examples", "scripts", "test/fixtures"],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "smoke:native": "node scripts/smoke-native.mjs",
+    "demo": "node examples/demo.mjs",
+    "import:engine": "node scripts/import-engine.mjs"
+  },
+  "engines": { "node": ">=24.15.0 <25" }
+}

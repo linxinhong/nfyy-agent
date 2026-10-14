@@ -374,8 +374,13 @@ export class AssistantHostStore {
       const result: DesktopTranscriptMessage[] = [{
         id: `${row.request_id}:user`, role: 'user', text: row.text, at: row.created_at,
       }];
-      if (row.status === 'completed' && row.response_text) result.push({
-        id: `${row.request_id}:assistant`, role: 'assistant', text: row.response_text, at: row.updated_at,
+      if (['completed', 'failed', 'cancelled', 'interrupted'].includes(row.status)) result.push({
+        id: `${row.request_id}:assistant`, role: 'assistant',
+        text: row.response_text ?? (row.status === 'cancelled' ? '任务已取消。' : row.status === 'interrupted' ? '助理任务已中断。' : '助理处理失败。'),
+        at: row.updated_at,
+        run: { runId: row.request_id, source: 'runtime',
+          status: row.status === 'completed' ? 'succeeded' : row.status === 'accepted' ? 'queued' : row.status,
+          createdAt: row.created_at, updatedAt: row.updated_at, events: [], tools: [] },
       });
       return result;
     });

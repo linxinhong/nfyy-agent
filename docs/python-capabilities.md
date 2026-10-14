@@ -21,7 +21,7 @@
 | `packages/yuanpu-runtime/src/pi/index.ts` | Pi 保留 read/write/edit/bash，并加载可信扩展；工具结果转为 JSON 文本 |
 | `apps/runtime/src/index.ts` | 已支持通过显式环境配置装配受管 Python MCP source；生产制品路径由分发任务接管 |
 | `packages/yuanpu-runtime/src/packages/index.ts` | npm/Git 安装与 Pi settings 同步；不能把 Python 包目录直接加入 Pi extensions |
-| `server/src/catalog.ts`、`server/src/index.ts` | 静态目录搜索/详情，不是完整二进制制品发布服务 |
+| `server/backend/internal/catalog/http.go` | Go 中心提供静态目录搜索/详情和受限能力包分发；生产发布管理仍待建设 |
 | `apps/desktop/src/runtime-manager.ts` | SEA 独立更新已有校验、暂存和版本切换路径；此次保留现有存储位置 |
 
 ## 决策与所有权
@@ -92,11 +92,11 @@ SHA-256 只保证与元数据一致，不证明来源。生产安装使用可信
 
 ## 兼容与界面流程
 
-既有 Pi 包继续原加载路径；python-mcp 包只注册为 capability source，不写入 Pi extensions。旧 pi-mcp-adapter 保留为可信扩展，不自动卸载或修改其配置；若同一连接还要迁入 Yuanpu，展示冲突并由用户选择唯一托管方，确认前不重复注册。
+既有 Pi 包继续原加载路径；python-mcp 包只注册为 capability source，不写入 Pi extensions。Pi 1.0 迁移会退役受管的 `pi-mcp-adapter`，由 Pi 内置 MCP 读取保留的配置；同名连接若要改由签名能力包托管，需先在“MCP 服务”中停用，安装端也检查重复托管。
 
 界面沿用“技能市场/本地技能”，详情展示来源、权限、平台和运行状态。新安装需要用户信任确认；更新可在详情中触发，失败显示仍在用的版本及重试动作。敏感调用在对话中进入“待确认”，显示能力、目标、参数摘要和允许一次/拒绝；拒绝回到对话，不陷入自动反复申请。
 
-TASK-007 已在现有技能页和对话页实现该流程：Runtime 验签 manifest 后，安装确认展示其中的真实权限；更新失败保留并显示活动版本，支持重试和历史版本回滚；签名 schema 驱动的配置独立于版本目录保存；敏感调用以内联卡片提供“允许一次/拒绝”，刷新后由 Runtime 的待审批记录恢复，允许后由宿主直接执行原始绑定调用。旧 `pi-mcp-adapter` 只有在签名连接名与其配置重合时才出现托管选择，停用旧适配器不会删除其独立配置。交互方案和浏览器证据保存在 `.tasks/ui/task-007-skill-ui/`。
+TASK-007 已在现有技能页和对话页实现该流程：Runtime 验签 manifest 后，安装确认展示其中的真实权限；更新失败保留并显示活动版本，支持重试和历史版本回滚；签名 schema 驱动的配置独立于版本目录保存；敏感调用以内联卡片提供“允许一次/拒绝”，刷新后由 Runtime 的待审批记录恢复，允许后由宿主直接执行原始绑定调用。当前版本的 MCP 插件退役与配置保留规则见 [Pi 集成说明](pi-integration.md)。交互方案和浏览器证据保存在 `.tasks/ui/task-007-skill-ui/`。
 
 ## 实施与验收
 

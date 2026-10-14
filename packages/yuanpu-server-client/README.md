@@ -1,6 +1,6 @@
 # @yuanpu-agent/server-client
 
-Yuanpu 中心服务的 TypeScript SDK 骨架，适用于具备 Fetch、AbortSignal.timeout/any 的环境。桌面应用应在 Runtime/宿主中调用，并经既有 preload 边界向界面提供业务能力。
+Yuanpu 中心服务的 TypeScript SDK，适用于具备 Fetch、AbortSignal.timeout/any 的环境。桌面应用应在 Runtime/宿主中调用，并经既有 preload 边界向界面提供业务能力。
 
 ```ts
 import { createServerClient, ServerApiError } from '@yuanpu-agent/server-client';
@@ -11,6 +11,8 @@ const client = createServerClient({
 });
 
 console.log(await client.health());
+console.log((await client.wikiPreview()).entries.map((entry) => entry.title));
+console.log((await client.searchCatalog('Python')).items.map((item) => item.displayName));
 try {
   console.log(await client.ready());
 } catch (error) {
@@ -27,6 +29,10 @@ try {
 - `baseUrl` 可含反向代理路径前缀，不能包含用户名、密码、查询参数或 fragment。
 - HTTP 业务错误由 `ServerApiError` 表示；网络、超时和取消错误保留底层错误。
 - SDK 校验健康/就绪响应的必要字段，拒绝将旧目录服务或错误协议版本当成中心服务。
-- 账号 API 尚未实现；当前没有登录、令牌存储或认证能力。
+- `login()` 返回 bearer token；由宿主安全保存并创建带 `token` 的客户端实例。SDK 不持久化令牌，也不自动续期。
+- 成员和团队管理使用 `listUsers/createUser/updateUser` 与 `listTeams/createTeam`；权限由服务端判定。
+- 资讯、Wiki、AI 能力的草稿与审核使用 `listResources/getResource/createResource/editResource/submitResource/approveResource/rejectResource/withdrawResource/reviewQueue`；这些方法尚未接入正式网站和桌面界面。
+- `wikiPreview()` 只读取公开示例词条，不是正式组织 Wiki 读写接口。
+- `searchCatalog(query)` 与 `getCatalogItem(id)` 读取 Go 中心的公开技能目录；能力包安装仍由桌面 Runtime 完成。
 
-`src/schema.gen.ts` 来自 [OpenAPI](../../server/api/openapi.yaml)，不要手改。运行 `pnpm generate:server` 同时更新 Go 和 TS 类型，再执行 `pnpm check:server`。
+`src/schema.gen.ts` 来自 [OpenAPI](../../server/backend/api/openapi.yaml)，不要手改。运行 `pnpm generate:server` 同时更新 Go 和 TS 类型，再执行 `pnpm check:server`。

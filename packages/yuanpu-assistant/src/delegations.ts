@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { AgentHarnessTool } from '@earendil-works/pi-agent-core/node';
+import type { AssistantTool } from './tools.js';
 import type { AssistantDelegationBrief, AssistantDelegationRecord } from '@yuanpu-agent/protocol';
 import { Type, type Static } from 'typebox';
 
@@ -152,7 +152,7 @@ const parameters = Type.Object({
 /** One tool per Assistant Session; task IDs derive from durable tool-call IDs for replay safety. */
 export function createAssistantDelegationTool(coordinator: AssistantDelegationCoordinator,
   assistantSessionId: string,
-  automationTaskId?: () => string | undefined): AgentHarnessTool<object | undefined, typeof parameters> {
+  automationTaskId?: () => string | undefined): AssistantTool<typeof parameters> {
   return {
     name: 'delegate_and_verify', label: 'Delegate and verify',
     description: 'Delegate a bounded professional task to an isolated executor. Start requires a skill, goal, completion criteria, scoped references and authorization. Query or follow up using the same task ID. Completed execution is not proof that the work is verified.',

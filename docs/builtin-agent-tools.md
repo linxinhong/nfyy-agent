@@ -115,6 +115,20 @@ Worker 有内存和时间限制，但这不是运行敌对代码的安全沙箱�
 本轮未移植：上游 TUI、small/medium/big 路由配置、可重用工作流命令库、编辑脚本恢复、
 无限任务量、token 预算、自动重试、judgePanel/loopUntilDry、完成主动推送。
 
+## 4. Desktop Canvas
+
+桌面视图底部的输入框只对应一个固定会话：命名空间 `desktop`、会话 `canvas`，工作目录为默认工作目录。
+`desktop_show`、`desktop_put_html`、`desktop_dock`、`desktop_remove` 只注册在这个会话的 Pi session 上，
+工作会话、助理和定时任务都看不到。判断依据是运行的 entryPoint、namespace 与 conversationId，不接受客户端声明。
+
+工具不直接操作界面，只把动作记入本次运行的 `output.desktopActions`，由渲染层在运行结束后执行。
+每次运行最多 16 个动作，单个 HTML 挂件不超过 64 KiB。HTML 在 `sandbox=""` 的 iframe 中渲染，
+不执行脚本、不能访问本机数据。挂件位置归用户：Agent 只能决定显示哪些挂件、内容和尺寸档位，
+不能删除内置挂件，也不能把内置挂件改成 HTML。
+
+每条桌面消息附带当前挂件清单（id、类型、标题、尺寸、是否收进 Dock），作为数据而非指令传给 Agent，
+不包含挂件内容。清单由 Runtime 按固定字段重新构造，最多 64 项。
+
 ## 保存与验证
 
 目标与工作流位于 `~/.yuanpu/workflows/agent-tools/<workspace+session hash>/`：

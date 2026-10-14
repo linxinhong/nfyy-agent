@@ -15,6 +15,8 @@ export function AssistantReply({
   onAddToConversation,
   onOpenImageInSidebar,
   resolveWorkspaceImage,
+  pending = false,
+  onReview,
 }: {
   text: string;
   surface: 'work' | 'assistant';
@@ -23,6 +25,8 @@ export function AssistantReply({
   onAddToConversation?: (markdown: string) => void;
   onOpenImageInSidebar?: (image: ImagePreview) => void;
   resolveWorkspaceImage?: (path: string) => Promise<string | null>;
+  pending?: boolean;
+  onReview?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [errorNotice, setErrorNotice] = useState('');
@@ -53,16 +57,16 @@ export function AssistantReply({
   }
 
   return <div className="assistant-reply">
-    {run && <ReplyRunDetails run={run} />}
+    {run && <ReplyRunDetails run={run} onReview={onReview} />}
     <MessageContent text={text} onOpenFilePath={onOpenFilePath} onAddToConversation={onAddToConversation}
       onOpenImageInSidebar={onOpenImageInSidebar} resolveWorkspaceImage={resolveWorkspaceImage} />
-    <div className="reply-toolbar" role="toolbar" aria-label="回复操作">
+    {!pending && <div className="reply-toolbar" role="toolbar" aria-label="回复操作">
       <button type="button" className={copied ? 'copied' : ''} aria-label={copied ? '已复制' : '复制'} data-tooltip={copied ? '已复制' : '复制'} onClick={() => void copy()}><AppIcon name={copied ? 'check' : 'copy'} /></button>
       <button type="button" className={savedMemory ? 'saved' : ''} aria-label={savedMemory ? '取消保存到记忆' : '保存到记忆'} aria-pressed={savedMemory}
         data-tooltip={savedMemory ? '取消保存到记忆' : '保存到记忆'} onClick={() => toggleSaved('memory')}><AppIcon name={savedMemory ? 'bookmark-filled' : 'bookmark'} /></button>
       <button type="button" className={savedKnowledge ? 'saved' : ''} aria-label={savedKnowledge ? '取消保存到知识库' : '保存到知识库'} aria-pressed={savedKnowledge}
         data-tooltip={savedKnowledge ? '取消保存到知识库' : '保存到知识库'} onClick={() => toggleSaved('knowledge')}><AppIcon name={savedKnowledge ? 'knowledge-filled' : 'knowledge'} /></button>
       {errorNotice && <span className="reply-action-notice" role="alert">{errorNotice}</span>}
-    </div>
+    </div>}
   </div>;
 }

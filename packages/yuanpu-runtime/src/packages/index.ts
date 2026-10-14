@@ -53,6 +53,11 @@ interface PluginState {
   plugins: Record<string, InstalledPlugin>;
 }
 
+const builtinMcpPlugin: InstalledPlugin = {
+  name: 'pi-mcp', version: '1.0.4', description: 'Pi 内置 MCP 服务连接',
+  source: 'builtin:pi-mcp', installPath: '', enabled: true, installedAt: '',
+};
+
 interface PackageJson {
   name?: string;
   version?: string;
@@ -272,7 +277,34 @@ export class PluginManager {
     if (state.schemaVersion !== STATE_SCHEMA_VERSION || !state.plugins || typeof state.plugins !== 'object') {
       throw new Error(`无效的插件状态文件：${this.statePath}`);
     }
+    const legacy = state.plugins['pi-mcp-adapter'];
+    if (legacy) {
+      if (!legacy.enabled) {
+        for (const path of [join(this.agentRoot, 'mcp.json'), join(resolve(this.workingDirectory), '.pi', 'mcp.json')]) {
+          if (!await pathExists(path)) continue;
+          const config = await readJson<Record<string, unknown>>(path);
+          if (isRecord(config.mcpServers)) {
+            await writeFile(`${path}.pre-pi-1.bak`, await readFile(path), { flag: 'wx', mode: 0o600 })
+              .catch((error: NodeJS.ErrnoException) => { if (error.code !== 'EEXIST') throw error; });
+            const mcpServers = Object.fromEntries(Object.entries(config.mcpServers)
+              .map(([name, value]) => [name, isRecord(value) ? { ...value, enabled: false } : value]));
+            await writeJsonAtomic(path, { ...config, mcpServers });
+          }
+        }
+      }
+      delete state.plugins['pi-mcp-adapter'];
+      await writeJsonAtomic(this.statePath, state);
+      await this.syncPiSettings(state);
+      // Configuration lives in agent/mcp.json, outside this managed installation.
+      if (isInside(this.installedRoot, legacy.installPath)) {
+        await rm(this.containerRoot(legacy.installPath), { recursive: true, force: true });
+      }
+    }
     return state;
+  }
+
+  async initialize(): Promise<void> {
+    await this.exclusive(async () => this.syncPiSettings(await this.readState()));
   }
 
   private async syncPiSettings(state: PluginState): Promise<void> {
@@ -290,6 +322,7 @@ export class PluginManager {
         : entry && typeof entry === 'object' && typeof (entry as { source?: unknown }).source === 'string'
           ? (entry as { source: string }).source
           : undefined;
+      if (source && /^npm:pi-mcp-adapter(?:@|$)/.test(source)) return false;
       return !source || !isInside(this.installedRoot, source);
     });
     const enabled = Object.values(state.plugins)
@@ -309,7 +342,7 @@ export class PluginManager {
   }
 
   private async configAdapter(plugin: InstalledPlugin): Promise<ConfigAdapter | undefined> {
-    if (plugin.name === 'pi-mcp-adapter') {
+    if (plugin.name === 'pi-mcp') {
       const schema = {
         type: 'object',
         properties: {
@@ -321,7 +354,7 @@ export class PluginManager {
       return {
         kind: 'mcp',
         title: 'MCP 服务',
-        description: '配置外部 MCP 服务；服务器会在实际使用工具时按需连接。',
+        description: '由 Pi 内置 MCP 连接服务，通过工具搜索按需发现工具。修改后在新会话中生效。',
         required: false,
         supportsWorkspace: true,
         path: (scope) => scope === 'user'
@@ -410,7 +443,8 @@ export class PluginManager {
       });
       if (!response.ok) throw new Error(`技能市场搜索失败：HTTP ${response.status}`);
       const body = await response.json() as { items?: PluginSearchResult[] };
-      return (body.items ?? []).slice(0, Math.min(Math.max(limit, 1), 20)).map((item) => ({
+      return (body.items ?? []).filter((item) => item.name !== 'pi-mcp-adapter')
+        .slice(0, Math.min(Math.max(limit, 1), 20)).map((item) => ({
         ...item,
         source: item.source.startsWith('artifact:')
           ? `artifact:${new URL(item.source.slice('artifact:'.length), response.url).toString()}`
@@ -439,7 +473,7 @@ export class PluginManager {
       }>;
     };
     return (body.objects ?? []).flatMap(({ package: pkg }) => {
-      if (!pkg?.name || !pkg.version) return [];
+      if (!pkg?.name || !pkg.version || pkg.name === 'pi-mcp-adapter') return [];
       return [{
         name: pkg.name,
         version: pkg.version,
@@ -486,7 +520,7 @@ export class PluginManager {
 
   async getConfig(name: string, scope: PluginConfigScope): Promise<PluginConfigDocument> {
     return this.exclusive(async () => {
-      const plugin = (await this.readState()).plugins[name];
+      const plugin = name === 'pi-mcp' ? builtinMcpPlugin : (await this.readState()).plugins[name];
       if (!plugin) throw new Error(`未安装插件：${name}`);
       const adapter = await this.configAdapter(plugin);
       if (!adapter) throw new Error(`${name} 未声明可由 YuanpuAgent 管理的配置。`);
@@ -496,7 +530,7 @@ export class PluginManager {
 
   async validateConfig(input: PluginConfigInput): Promise<PluginConfigValidation> {
     return this.exclusive(async () => {
-      const plugin = (await this.readState()).plugins[input.name];
+      const plugin = input.name === 'pi-mcp' ? builtinMcpPlugin : (await this.readState()).plugins[input.name];
       if (!plugin) throw new Error(`未安装插件：${input.name}`);
       const adapter = await this.configAdapter(plugin);
       if (!adapter) throw new Error(`${input.name} 未声明可由 YuanpuAgent 管理的配置。`);
@@ -509,7 +543,7 @@ export class PluginManager {
 
   async saveConfig(input: PluginConfigInput): Promise<PluginConfigDocument> {
     return this.exclusive(async () => {
-      const plugin = (await this.readState()).plugins[input.name];
+      const plugin = input.name === 'pi-mcp' ? builtinMcpPlugin : (await this.readState()).plugins[input.name];
       if (!plugin) throw new Error(`未安装插件：${input.name}`);
       const adapter = await this.configAdapter(plugin);
       if (!adapter) throw new Error(`${input.name} 未声明可由 YuanpuAgent 管理的配置。`);
@@ -525,7 +559,7 @@ export class PluginManager {
 
   async resetConfig(name: string, scope: PluginConfigScope): Promise<PluginConfigDocument> {
     return this.exclusive(async () => {
-      const plugin = (await this.readState()).plugins[name];
+      const plugin = name === 'pi-mcp' ? builtinMcpPlugin : (await this.readState()).plugins[name];
       if (!plugin) throw new Error(`未安装插件：${name}`);
       const adapter = await this.configAdapter(plugin);
       if (!adapter) throw new Error(`${name} 未声明可由 YuanpuAgent 管理的配置。`);
@@ -539,6 +573,9 @@ export class PluginManager {
 
   async install(source: string): Promise<InstalledPlugin> {
     return this.exclusive(async () => {
+      if (/^npm:pi-mcp-adapter(?:@|$)/.test(source.trim())) {
+        throw new Error('MCP 已由 Pi 内置支持，请直接配置 MCP 服务。');
+      }
       const installSource = assertInstallSource(source.trim());
       await this.ensure();
       const transactionRoot = join(this.stagingRoot, randomUUID());
@@ -562,6 +599,7 @@ export class PluginManager {
         const pluginNode = await findRootPlugin(transactionRoot);
         const packageJson = pluginNode.package;
         if (!packageJson.name || !packageJson.version) throw new Error('插件缺少 name 或 version。');
+        if (packageJson.name === 'pi-mcp-adapter') throw new Error('MCP 已由 Pi 内置支持，请直接配置 MCP 服务。');
         if (!await hasPiResources(packageJson, pluginNode.path)) {
           throw new Error(`${packageJson.name} 不是可识别的 Pi 插件包。`);
         }

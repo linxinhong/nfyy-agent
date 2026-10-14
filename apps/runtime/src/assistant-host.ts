@@ -273,8 +273,8 @@ export class AssistantHostService {
   async getDesktopRun(requestId: string): Promise<AgentRunRecord | undefined> {
     const request = this.store.get(requestId);
     if (!request || request.channel !== 'desktop' || request.principalId !== this.store.desktop().principalId) return undefined;
+    const task = await this.worker.task(requestId).catch(() => undefined);
     if (request.status === 'accepted' || request.status === 'running') {
-      const task = await this.worker.task(requestId).catch(() => undefined);
       if (task && task.status !== 'running') this.finish(requestId, task);
       else this.dispatch(requestId);
     }
@@ -290,7 +290,8 @@ export class AssistantHostService {
       inputDigest: createHash('sha256').update(latest.text).digest('hex'),
       status: mappedStatus(latest.status), externalEffectState: 'none',
       createdAt: latest.createdAt, updatedAt: latest.updatedAt,
-      ...(latest.responseText ? { output: { message: latest.responseText, tools: [] } } : {}),
+      ...(task?.progress ? { progress: task.progress } : {}),
+      ...(latest.responseText ? { output: { message: latest.responseText, tools: [], steps: task?.progress?.steps } } : {}),
       ...(latest.errorCode ? { failure: { code: latest.errorCode,
         message: latest.errorCode, retryable: false } } : {}),
     };
@@ -307,6 +308,20 @@ export class AssistantHostService {
     const wecom = this.store.transcript(link.conversationId)
       .map((message) => ({ ...message, channel: 'wecom' as const }));
     return [...desktop, ...wecom].sort((a, b) => a.at.localeCompare(b.at));
+  }
+
+  /** IDs come only from the authorized host transcript, never from renderer-supplied task paths. */
+  async transcriptWithProgress(all = false): Promise<DesktopTranscriptMessage[]> {
+    const messages = all ? this.timeline() : this.transcript();
+    const ids = messages.flatMap((message) => message.run?.runId ? [message.run.runId] : []).slice(-200);
+    if (!ids.length) return messages;
+    const records = await this.worker.taskRecords(ids).catch(() => []);
+    const byId = new Map(records.map((record) => [record.id, record]));
+    return messages.map((message) => {
+      const record = message.run?.runId ? byId.get(message.run.runId) : undefined;
+      return message.run && record?.progress
+        ? { ...message, run: { ...message.run, steps: record.progress.steps } } : message;
+    });
   }
 
   sourceChanges(afterEventId = 0): Array<{ eventId: number; change: AssistantSourceChange }> {

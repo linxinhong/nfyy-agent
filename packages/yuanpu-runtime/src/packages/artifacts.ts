@@ -512,14 +512,16 @@ export class CapabilityArtifactManager {
 
 export interface McpOwnershipConflict {
   name: string;
-  owners: Array<'yuanpu' | 'pi-mcp-adapter-user' | 'pi-mcp-adapter-workspace'>;
+  owners: Array<'yuanpu' | 'pi-mcp-user' | 'pi-mcp-workspace'>;
 }
 
 async function configuredMcpNames(path: string): Promise<string[]> {
   try {
     const value = JSON.parse(await readFile(path, 'utf8')) as { mcpServers?: unknown };
     return value.mcpServers && typeof value.mcpServers === 'object'
-      ? Object.keys(value.mcpServers)
+      ? Object.entries(value.mcpServers).filter(([, config]) => config && typeof config === 'object'
+        && (config as { enabled?: boolean; disabled?: boolean }).enabled !== false
+        && (config as { disabled?: boolean }).disabled !== true).map(([name]) => name)
       : [];
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
@@ -540,10 +542,10 @@ export async function detectMcpOwnershipConflicts(input: {
   };
   input.yuanpuConnections.forEach((name) => add(name, 'yuanpu'));
   (await configuredMcpNames(join(input.agentRoot, 'mcp.json')))
-    .forEach((name) => add(name, 'pi-mcp-adapter-user'));
+    .forEach((name) => add(name, 'pi-mcp-user'));
   (await configuredMcpNames(join(input.workspaceRoot, '.pi', 'mcp.json')))
-    .forEach((name) => add(name, 'pi-mcp-adapter-workspace'));
+    .forEach((name) => add(name, 'pi-mcp-workspace'));
   return [...owners.entries()]
-    .filter(([, values]) => values.size > 1)
+    .filter(([, values]) => values.has('yuanpu') && values.size > 1)
     .map(([name, values]) => ({ name, owners: [...values] }));
 }

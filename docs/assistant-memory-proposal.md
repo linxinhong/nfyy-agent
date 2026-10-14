@@ -94,6 +94,8 @@ Hermes 的小文件字符上限是为了限制每次提示词成本，不是 Yua
 
 ### TASK-037 通信适配结论与契约
 
+> 2026-10-11 更新：下文 Pi 0.86.1 Unix client/server 探针是历史可行性证据，并未进入生产。迁移 npm Pi 1.0.4 时已移除该实验测试，源码可从提交 `af5333b` 查阅；Work 存储独立性测试保留在 `work-session-storage.test.mjs`。当前助理采用 `pi-durable`，通信仍走已实现的宿主 HTTP/IPC 和企微路径，见 [Pi 集成与迁移说明](pi-integration.md)。
+
 `packages/yuanpu-protocol/src/assistant.ts` 定义助理 IPC v1，独立于现有桌面 HTTP `PROTOCOL_VERSION=4`。添加字段时保持旧字段语义和读取兼容；更改必填字段、身份含义或状态终态时提升 `ASSISTANT_CONTRACT_VERSION`，宿主与 Worker 启动握手拒绝不支持的版本。持久来源、记忆和评估各保留自己的 `sourceVersion`、`version`、`reviewVersion`，不是用 IPC 版本覆盖内容版本。迁移旧记录时写新格式和来源引用，旧 Pi 会话原件只读保留；不在旧会话文件上原地改格式。
 
 宿主在接入层核验桌面本地身份或企微配对，生成 `AssistantPrincipal`；持久化 `AssistantConversationBinding`，决定独立 `conversationId`、`sessionId`、受众和回复目标。入站消息不能指定身份、Session、受众或投递路由。`validateAssistantIngress` 对照宿主可信身份和会话绑定，个人受众 ID 必须等于可信 `principalId`；去重键包含渠道、账号、组织、会话、线程和平台消息 ID。宿主先持久化已接受请求和去重键，再交给 Worker；断线后按 `requestId` 查询结果，已有请求不得重放执行。相同 Session 的输入由 Worker 串行，取消绑定具体 run。默认桌面和企微各有聊天 Session，同一 `assistantId` 共享经受众过滤的助理记忆；只有用户明确续接且受众相同才绑定同一 Session。

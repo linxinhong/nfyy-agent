@@ -31,7 +31,7 @@ public trust metadata, the 0.1.0 bootstrap bundle and a sanitized result. They c
 source checkout and the first three build commands above; extract the artifact, then
 pass the directory containing `metadata/fixture.json` to the journey command. The
 journey needs `apps/runtime/dist-native/bin/YuanpuAgentRuntime-<target>[.exe]`,
-`apps/desktop/dist/runtime-manager.cjs`, `server/dist/index.mjs`, and
+`apps/desktop/dist/runtime-manager.cjs`, the Go server built from `server/backend/`, and
 `packages/yuanpu-runtime/dist/index.mjs` from those matching builds. Check the fixture
 source commit/target against the CI run before reusing it. GitHub's ZIP upload may not
 preserve executable mode on POSIX; restore executable mode on the extracted 0.1.0

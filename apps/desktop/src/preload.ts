@@ -3,6 +3,16 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 
 const bridge: DesktopBridge = {
   runtimeInfo: () => ipcRenderer.invoke('runtime:info'),
+  getServerCenterStatus: () => ipcRenderer.invoke('server:center:status'),
+  getServerWikiPreview: () => ipcRenderer.invoke('server:center:wiki-preview'),
+  searchServerCatalog: (query) => ipcRenderer.invoke('server:center:catalog', query),
+  restoreServerCenterSession: () => ipcRenderer.invoke('server:center:restore'),
+  logoutServerCenter: () => ipcRenderer.invoke('server:center:logout'),
+  getServerCenterCredentialStatus: () => ipcRenderer.invoke('server:center:credential-status'),
+  saveServerCenterAPIKey: (apiKey) => ipcRenderer.invoke('server:center:save-api-key', apiKey),
+  removeServerCenterAPIKey: () => ipcRenderer.invoke('server:center:remove-api-key'),
+  listServerResources: (query) => ipcRenderer.invoke('server:center:resources', query),
+  getServerResource: (id) => ipcRenderer.invoke('server:center:resource', id),
   getHotkeySettings: () => ipcRenderer.invoke('settings:hotkeys:get'),
   saveHotkeySetting: (input) => ipcRenderer.invoke('settings:hotkeys:save', input),
   getModelSettings: () => ipcRenderer.invoke('settings:models:get'),
@@ -14,6 +24,7 @@ const bridge: DesktopBridge = {
   chat: (message) => ipcRenderer.invoke('runtime:chat', message),
   submitDesktopMessage: (message, surface, conversationId, clientMessageId, modelSelection, approvalMode) =>
     ipcRenderer.invoke('runtime:chat:submit', message, surface, conversationId, clientMessageId, modelSelection, approvalMode),
+  submitDesktopCanvasMessage: (message, widgets) => ipcRenderer.invoke('desktop:canvas:submit', message, widgets),
   getDesktopTranscript: (surface, conversationId, beforeId, limit) =>
     ipcRenderer.invoke('desktop:transcript', surface, conversationId, beforeId, limit),
   listWorkConversations: () => ipcRenderer.invoke('work:conversations:list'),

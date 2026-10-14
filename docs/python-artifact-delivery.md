@@ -59,7 +59,7 @@ Tag Release 采用 fail-closed 门禁：私钥、公钥、key ID、下载基址�
 
 跨进程排他锁防止并发安装。新旧版本使用不同目录，不覆盖正在运行的 Windows 文件；健康检查或状态切换失败时活动版本仍指向旧目录。显式 `rollback()` 只切换已有且入口仍存在的历史版本。离线查询活动版本只读取本地状态。
 
-Python 制品不会写入 Pi `settings.packages`。`detectMcpOwnershipConflicts()` 只报告 Yuanpu 和旧 `pi-mcp-adapter` 对同名连接的重复托管，不修改或删除旧配置。
+Python 制品不会写入 Pi `settings.packages`。`detectMcpOwnershipConflicts()` 检查 Yuanpu 与 Pi 内置 MCP 对同名连接的重复托管，安装端会拒绝冲突；请先在“MCP 服务”中停用相应连接。旧 `pi-mcp-adapter` 已由 [Pi 1.0 迁移](pi-integration.md) 退役，连接配置仍保留。
 
 ## Catalog 发布入口
 
@@ -70,6 +70,7 @@ Python 制品不会写入 Pi `settings.packages`。`detectMcpOwnershipConflicts(
 
 服务端通过 `YUANPU_ARTIFACT_ROOT` 指向已经签名的输出目录；服务只原样返回 manifest 和不可变制品，不代替客户端验签。生产发布时构建使用的签名 URL 必须与实际制品地址一致。
 开发 manifest 使用相对的 `artifacts/<filename>`；安装器以实际 manifest URL 为基址解析，但验签仍针对原始相对 URL，不会通过改写字段破坏签名。
+`pnpm dev` 将本地 `apps/python-capabilities/dist-artifact` 交给 Go 中心，并将其 `bundle/trust-root.json` 公钥交给桌面 Runtime；首次缺少 manifest 或信任根时先运行 `build:python-artifact`。可通过 `YUANPU_ARTIFACT_ROOT` 与 `YUANPU_CAPABILITY_TRUST_ROOT_FILE` 显式覆盖；自定义路径缺失会停止启动，不自动重建或替换。开发启动仍使用正常的 manifest 验签和安装校验。
 Artifact endpoint 只允许返回 manifest 中列出的文件名，发布目录中即使误放私钥或环境文件也不会被下载；畸形 URL 编码返回 400，不会抛出未处理异常。
 
 ## CI 平台

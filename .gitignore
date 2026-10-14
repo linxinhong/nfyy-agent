@@ -9,7 +9,6 @@ __pycache__/
 .venv/
 .pyinstaller/
 .DS_Store
-packages/ai/src/providers/data/
 
 .worktrees/
 .zvec-grep/

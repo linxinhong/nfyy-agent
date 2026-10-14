@@ -36,36 +36,21 @@ const previewPlugins: PluginSearchResult[] = [
     components: ['skill', 'extension'],
     permissions: ['filesystem', 'background'],
   },
-  {
-    name: 'pi-mcp-adapter',
-    displayName: 'MCP 服务连接',
-    version: '2.34.0',
-    description: '连接外部 MCP 服务，扩展更多工具和数据源。',
-    publisher: 'community',
-    source: 'npm:pi-mcp-adapter@2.34.0',
-    components: ['connector', 'extension'],
-    permissions: ['network', 'credentials', 'background'],
-  },
+
 ];
 
-const previewInstalled: InstalledPlugin[] = [{
-  name: 'pi-mcp-adapter',
-  version: '2.34.0',
-  description: '连接外部 MCP 服务，扩展更多工具和数据源。',
-  source: 'npm:pi-mcp-adapter@2.34.0',
-  installPath: '~/.yuanpu/packages/installed/pi-mcp-adapter',
-  enabled: true,
-  installedAt: '2026-09-21T00:00:00.000Z',
-  configurable: true,
-  configStatus: 'valid',
-}];
+const builtinMcp: InstalledPlugin = {
+  name: 'pi-mcp', version: '1.0.4', description: 'Pi 内置 MCP 服务连接',
+  source: 'builtin:pi-mcp', installPath: '', enabled: true, installedAt: '', configurable: true,
+};
+const previewInstalled: InstalledPlugin[] = [];
 
 function previewConfig(scope: PluginConfigScope): PluginConfigDocument {
   return {
-    pluginName: 'pi-mcp-adapter',
+    pluginName: 'pi-mcp',
     kind: 'mcp',
     title: 'MCP 服务',
-    description: '配置外部 MCP 服务；服务器会在实际使用工具时按需连接。',
+    description: '使用 Pi 内置 MCP 连接服务，通过工具搜索按需发现工具。',
     scope,
     path: scope === 'user' ? '~/.yuanpu/agent/mcp.json' : '<workspace>/.pi/mcp.json',
     supportsWorkspace: true,
@@ -241,13 +226,13 @@ function PluginConfigPage({
       <div className="config-layout">
         <aside className="config-plugin-summary">
           <div className="installed-title">
-            <h1>{plugin.name}</h1>
+            <h1>{plugin.name === 'pi-mcp' ? 'MCP 服务' : plugin.name}</h1>
             <span className={plugin.enabled ? 'enabled' : 'disabled'}>{plugin.enabled ? '已启用' : '已停用'}</span>
           </div>
           <p>{plugin.description}</p>
           <dl>
             <div><dt>版本</dt><dd>v{plugin.version}</dd></div>
-            <div><dt>来源</dt><dd>{plugin.source.startsWith('npm:') ? 'npm' : 'Git'}</dd></div>
+            <div><dt>来源</dt><dd>{plugin.source.startsWith('builtin:') ? '内置' : plugin.source.startsWith('npm:') ? 'npm' : 'Git'}</dd></div>
             <div><dt>配置状态</dt><dd>{plugin.configStatus === 'invalid' ? '需要修复' : '有效'}</dd></div>
           </dl>
           <p className="config-summary-note">配置独立于安装目录保存，升级技能时不会丢失。</p>
@@ -289,19 +274,26 @@ function PluginConfigPage({
                   <div className="mcp-server-title">
                     <input aria-label="MCP 服务名称" defaultValue={name} onBlur={(event) => renameServer(name, event.target.value.trim())} />
                     <span>{http ? 'http' : 'stdio'}</span>
-                    <label><input type="checkbox" checked={server.disabled !== true} onChange={(event) => updateServer(name, { ...server, disabled: !event.target.checked })} /> 启用</label>
+                    <label><input type="checkbox" checked={server.enabled !== false && server.disabled !== true} onChange={(event) => {
+                      const next: Record<string, unknown> = { ...server, enabled: event.target.checked };
+                      delete next.disabled;
+                      updateServer(name, next);
+                    }} /> 启用</label>
                     <button type="button" className="icon-danger" aria-label={`删除 ${name}`} onClick={() => removeServer(name)}>×</button>
                   </div>
                   <div className="transport-switch">
                     <button type="button" className={!http ? 'active' : ''} onClick={() => {
-                      const next: Record<string, unknown> = { ...server, command: typeof server.command === 'string' ? server.command : 'npx' };
+                      const next: Record<string, unknown> = { ...server, type: 'stdio', command: typeof server.command === 'string' ? server.command : 'npx' };
                       delete next.url;
+                      delete next.headers;
+                      delete next.oauth;
                       updateServer(name, next);
                     }}>本地命令</button>
                     <button type="button" className={http ? 'active' : ''} onClick={() => {
-                      const next: Record<string, unknown> = { ...server, url: typeof server.url === 'string' ? server.url : 'https://' };
+                      const next: Record<string, unknown> = { ...server, type: 'http', url: typeof server.url === 'string' ? server.url : 'https://' };
                       delete next.command;
                       delete next.args;
+                      delete next.env;
                       updateServer(name, next);
                     }}>HTTP</button>
                   </div>
@@ -438,25 +430,14 @@ export function SkillPage({ active }: { active: boolean }) {
     setTrustCandidate(undefined);
     setPending(source);
     setError(undefined);
-    const legacyAdapter = installedByName.get('pi-mcp-adapter');
-    let legacyDisabled = false;
     try {
       if (isArtifactSource(source) && !candidate.artifactManifestDigest) {
         throw new Error('能力清单快照缺失，请重新搜索并确认权限。');
       }
-      if (isArtifactSource(source) && legacyAdapter?.enabled) {
-        const conflicts = await desktop.listMcpOwnershipConflicts(
-          source,
-          candidate.artifactManifestDigest!,
-        );
-        if (conflicts.length > 0) {
-          const names = conflicts.map((conflict) => conflict.name).join('、');
-          const useYuanpu = window.confirm(
-            `检测到旧 pi-mcp-adapter 正在托管同名连接：${names}。\n\n选择“确定”将停用旧适配器并由 Yuanpu 托管；旧配置会完整保留，但旧适配器中的其他连接也会暂停。选择“取消”则保持旧适配器且不安装。`,
-          );
-          if (!useYuanpu) return;
-          await desktop.setPluginEnabled(legacyAdapter.name, false);
-          legacyDisabled = true;
+      if (isArtifactSource(source)) {
+        const conflicts = await desktop.listMcpOwnershipConflicts(source, candidate.artifactManifestDigest!);
+        if (conflicts.length) {
+          throw new Error(`内置 MCP 已配置同名连接：${conflicts.map((item) => item.name).join('、')}。请先在 MCP 服务中停用这些连接，再安装能力包。`);
         }
       }
       await desktop.installPlugin(source, candidate.artifactManifestDigest);
@@ -469,9 +450,6 @@ export function SkillPage({ active }: { active: boolean }) {
       setTab('installed');
     } catch (installError) {
       const message = formatError(installError);
-      if (legacyDisabled && legacyAdapter) {
-        await desktop.setPluginEnabled(legacyAdapter.name, true).catch(() => undefined);
-      }
       setError(message);
       setInstallFailures((current) => ({ ...current, [source]: message }));
       if (message.includes('能力清单已变化')) {
@@ -567,6 +545,7 @@ export function SkillPage({ active }: { active: boolean }) {
           <h1>技能</h1>
           <p>为 YuanpuAgent 添加工作能力</p>
         </div>
+        <button type="button" onClick={() => setEditingPlugin(builtinMcp)}>MCP 服务</button>
         <span>已安装 {installed.length}</span>
       </header>
 

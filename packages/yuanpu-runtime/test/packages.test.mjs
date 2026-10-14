@@ -141,7 +141,7 @@ test('rejects floating npm versions and unpinned git sources', async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-test('manages pi-mcp-adapter config without writing plaintext secrets', async (t) => {
+test('retires pi-mcp-adapter and configures built-in MCP without writing plaintext secrets', async (t) => {
   const root = await temporaryHome();
   t.after(() => rm(root, { recursive: true, force: true }));
   const pluginsRoot = join(root, 'plugins');
@@ -166,16 +166,16 @@ test('manages pi-mcp-adapter config without writing plaintext secrets', async (t
   }));
 
   const manager = new PluginManager(pluginsRoot, root, undefined, workspace);
-  const [plugin] = await manager.list();
-  assert.equal(plugin.configurable, true);
-  assert.equal(plugin.configStatus, 'valid');
+  assert.deepEqual(await manager.list(), []);
+  await assert.rejects(readFile(join(installPath, 'package.json')), { code: 'ENOENT' });
+  await assert.rejects(manager.install('npm:pi-mcp-adapter@2.34.0'), /内置/);
 
-  const initial = await manager.getConfig('pi-mcp-adapter', 'user');
+  const initial = await manager.getConfig('pi-mcp', 'user');
   assert.equal(initial.path, join(root, 'mcp.json'));
   assert.deepEqual(initial.value, { mcpServers: {} });
 
   const plaintext = await manager.validateConfig({
-    name: 'pi-mcp-adapter',
+    name: 'pi-mcp',
     scope: 'user',
     value: { mcpServers: { private: { url: 'https://example.test', token: 'plain-secret' } } },
   });
@@ -187,20 +187,44 @@ test('manages pi-mcp-adapter config without writing plaintext secrets', async (t
       docs: { url: 'https://example.test/mcp', headers: { authorization: '${DOCS_TOKEN}' } },
     },
   };
-  await manager.saveConfig({ name: 'pi-mcp-adapter', scope: 'user', value });
+  await manager.saveConfig({ name: 'pi-mcp', scope: 'user', value });
   assert.deepEqual(JSON.parse(await readFile(join(root, 'mcp.json'), 'utf8')), value);
 
   await assert.rejects(
-    manager.saveConfig({ name: 'pi-mcp-adapter', scope: 'user', value: { invalid: true } }),
+    manager.saveConfig({ name: 'pi-mcp', scope: 'user', value: { invalid: true } }),
     /mcpServers/,
   );
   assert.deepEqual(JSON.parse(await readFile(join(root, 'mcp.json'), 'utf8')), value);
 
-  await manager.saveConfig({ name: 'pi-mcp-adapter', scope: 'workspace', value: { mcpServers: {} } });
+  await manager.saveConfig({ name: 'pi-mcp', scope: 'workspace', value: { mcpServers: {} } });
   assert.deepEqual(
     JSON.parse(await readFile(join(workspace, '.pi', 'mcp.json'), 'utf8')),
     { mcpServers: {} },
   );
+});
+
+test('retiring a disabled adapter preserves disabled connections and their original config', async (t) => {
+  const root = await temporaryHome();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const plugins = join(root, 'packages');
+  const installPath = join(plugins, 'installed', 'old-adapter', 'node_modules', 'pi-mcp-adapter');
+  await mkdir(installPath, { recursive: true });
+  const original = JSON.stringify({ mcpServers: { private: { command: 'do-not-run', env: { KEY: '${TEST_KEY}' } } } });
+  await writeFile(join(root, 'mcp.json'), original);
+  await writeFile(join(root, 'settings.json'), JSON.stringify({ packages: [installPath,
+    'npm:pi-mcp-adapter@2.34.0', 'npm:other-package@1.0.0'] }));
+  await writeFile(join(plugins, 'state.json'), JSON.stringify({ schemaVersion: 1, plugins: {
+    'pi-mcp-adapter': { name: 'pi-mcp-adapter', version: '2.34.0', installPath, enabled: false },
+  } }));
+  const manager = new PluginManager(plugins, root);
+  await manager.initialize();
+  const config = await manager.getConfig('pi-mcp', 'user');
+  assert.equal(config.value.mcpServers.private.enabled, false);
+  assert.equal(await readFile(join(root, 'mcp.json.pre-pi-1.bak'), 'utf8'), original);
+  assert.deepEqual(JSON.parse(await readFile(join(root, 'settings.json'), 'utf8')).packages, ['npm:other-package@1.0.0']);
+  await manager.saveConfig({ name: 'pi-mcp', scope: 'user', value: { mcpServers: {} } });
+  await manager.initialize();
+  assert.deepEqual((await manager.getConfig('pi-mcp', 'user')).value, { mcpServers: {} });
 });
 
 test('loads a Yuanpu config schema without storing config in the install directory', async (t) => {

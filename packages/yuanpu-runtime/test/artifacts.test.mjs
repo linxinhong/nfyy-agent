@@ -258,24 +258,25 @@ test('retains immutable versions for Windows-safe rollback and recovers from fai
   assert.equal(await readFile(join(root, 'packages', 'artifacts', 'builtin.python.echo', '2.0.0', `${process.platform}-${process.arch}`, 'server'), 'utf8'), 'x'.repeat(12));
 });
 
-test('reports duplicate ownership without changing legacy pi-mcp-adapter configuration', async (t) => {
+test('reports duplicate ownership without changing built-in MCP configuration', async (t) => {
   const root = await fixtureRoot(t);
   await mkdir(join(root, 'agent'), { recursive: true });
   await mkdir(join(root, 'workspace', '.pi'), { recursive: true });
-  await writeFile(join(root, 'agent', 'mcp.json'), JSON.stringify({ mcpServers: { docs: {}, legacy: {} } }));
-  await writeFile(join(root, 'workspace', '.pi', 'mcp.json'), JSON.stringify({ mcpServers: { docs: {} } }));
+  const config = { mcpServers: { docs: {}, legacy: {}, disabled: { enabled: false } } };
+  await writeFile(join(root, 'agent', 'mcp.json'), JSON.stringify(config));
+  await writeFile(join(root, 'workspace', '.pi', 'mcp.json'), JSON.stringify({ mcpServers: {
+    docs: {}, legacy: {}, disabled: { enabled: false },
+  } }));
   const conflicts = await detectMcpOwnershipConflicts({
-    yuanpuConnections: ['docs'],
+    yuanpuConnections: ['docs', 'disabled'],
     agentRoot: join(root, 'agent'),
     workspaceRoot: join(root, 'workspace'),
   });
   assert.deepEqual(conflicts, [{
     name: 'docs',
-    owners: ['yuanpu', 'pi-mcp-adapter-user', 'pi-mcp-adapter-workspace'],
+    owners: ['yuanpu', 'pi-mcp-user', 'pi-mcp-workspace'],
   }]);
-  assert.deepEqual(JSON.parse(await readFile(join(root, 'agent', 'mcp.json'), 'utf8')), {
-    mcpServers: { docs: {}, legacy: {} },
-  });
+  assert.deepEqual(JSON.parse(await readFile(join(root, 'agent', 'mcp.json'), 'utf8')), config);
 });
 
 test('concurrent first readers initialize state once without truncation', async (t) => {

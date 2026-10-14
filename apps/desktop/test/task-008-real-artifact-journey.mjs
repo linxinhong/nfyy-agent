@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { RuntimeManager } from '../dist/runtime-manager.cjs';
-import { createCatalogServer } from '../../../server/dist/index.mjs';
+import { forwardGoCatalog, startGoCatalog } from './go-catalog-fixture.mjs';
 import { ManagedMcpCapabilitySource } from '../../../packages/yuanpu-runtime/dist/index.mjs';
 
 const fixtureRoot = resolve(process.argv[2] || '.');
@@ -23,7 +23,7 @@ const name = 'builtin.python.echo';
 const originalEnv = { ...process.env };
 const errors = [];
 const options = { artifactRoot: join(fixtureRoot, '0.1.0') };
-const catalog = createCatalogServer(undefined, options);
+let catalog;
 let fault;
 const server = createServer(async (request, response) => {
   if (fault === 'signature' && request.url?.endsWith('/manifest')) {
@@ -35,7 +35,7 @@ const server = createServer(async (request, response) => {
     response.writeHead(200, { 'content-type': 'application/gzip' });
     response.end('interrupted synthetic download');
   } else {
-    catalog.emit('request', request, response);
+    await forwardGoCatalog(catalog.origin, request, response);
   }
 });
 let manager;
@@ -81,6 +81,7 @@ async function callInstalled(expectedVersion) {
 }
 
 try {
+  catalog = await startGoCatalog(options.artifactRoot);
   await mkdir(join(home, 'app'), { recursive: true });
   await mkdir(workspace, { recursive: true });
   await mkdir(join(root, 'empty-path'), { recursive: true });
@@ -112,6 +113,8 @@ try {
   cases.push('signed-install-configure-call-0.1.0');
 
   options.artifactRoot = join(fixtureRoot, '0.2.0');
+  await catalog.close();
+  catalog = await startGoCatalog(options.artifactRoot);
   fault = 'signature';
   await assert.rejects(manager.installPlugin(item.source, item.artifactManifestDigest), /signature|签名/i);
   await active('0.1.0');
@@ -168,6 +171,7 @@ try {
 } finally {
   await manager?.stop();
   if (serverOpen) await new Promise((done) => server.close(done));
+  await catalog?.close();
   for (const key of ['YUANPU_HOME', 'YUANPU_CATALOG_URL', 'PATH']) {
     if (originalEnv[key] === undefined) delete process.env[key];
     else process.env[key] = originalEnv[key];

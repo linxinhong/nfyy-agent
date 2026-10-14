@@ -10,7 +10,7 @@ import {
   type YuanpuChatSession,
 } from '@yuanpu-agent/runtime-kit';
 import { registerWorkWriteArtifact } from './work-artifact.js';
-import type { SessionTrajectory } from '@yuanpu-agent/protocol';
+import { settleRunProgress, type RunProgress, type SessionTrajectory } from '@yuanpu-agent/protocol';
 
 interface RuntimeAgentExecutorOptions {
   getCapabilityClient(): CapabilityToolClient;
@@ -21,6 +21,14 @@ interface RuntimeAgentExecutorOptions {
   /** 桌面工作会话的 edit/write 文件快照出口；持久化失败由实现方兜底，不阻塞会话。 */
   onWorkFileChanges?: (context: { runId: string; conversationId: string; piSessionId: string },
     changes: readonly CapturedWorkFileChange[]) => void;
+}
+
+/** The desktop canvas is one fixed desktop conversation; only its session receives canvas widget tools. */
+export const DESKTOP_CANVAS_CONVERSATION_ID = 'canvas';
+
+function isDesktopCanvasRun(run: AgentRunExecutionInput['run']): boolean {
+  return run.owner.entryPoint === 'desktop' && run.context.conversation.namespace === 'desktop'
+    && run.context.conversation.conversationId === DESKTOP_CANVAS_CONVERSATION_ID;
 }
 
 interface PooledSession {
@@ -64,6 +72,15 @@ export class RuntimeAgentExecutor implements AgentRunExecutor {
     };
   }
 
+  /** Live text and tool steps of one run while it executes (kept briefly after it finishes). */
+  progress(runId: string): RunProgress | undefined {
+    for (const live of this.#live.values()) {
+      if (live.runId !== runId) continue;
+      return { text: live.text.slice(-20_000), steps: (live.steps ?? []).map((step) => ({ ...step })) };
+    }
+    return undefined;
+  }
+
   async subagentRuns(sessionId: string) {
     const pooled = this.#sessions.get(sessionId);
     return pooled ? await pooled.promise.then((value) => value.listSubagentRuns()).catch(() => []) : [];
@@ -81,6 +98,7 @@ export class RuntimeAgentExecutor implements AgentRunExecutor {
           ...this.#options.chat,
           cwd: input.run.context.workspaceId,
           browserControlAvailable: input.run.context.conversation.conversationId.startsWith('work:'),
+          desktopCanvas: isDesktopCanvasRun(input.run),
           builtinAgentRoot: input.run.context.conversation.conversationId.startsWith('work:')
             ? this.#options.chat.builtinAgentRoot : undefined,
           includeGlobalMemory: input.run.owner.entryPoint === 'desktop'
@@ -101,7 +119,7 @@ export class RuntimeAgentExecutor implements AgentRunExecutor {
       this.#sessions.set(sessionKey, pooled);
     }
     pooled.active += 1;
-    const live: NonNullable<SessionTrajectory['live']> = { runId: input.run.runId, text: '', tools: [] };
+    const live: NonNullable<SessionTrajectory['live']> = { runId: input.run.runId, text: '', tools: [], steps: [] };
     this.#live.set(sessionKey, live);
     try {
       const result = await (await pooled.promise).prompt(input.input, {
@@ -112,6 +130,11 @@ export class RuntimeAgentExecutor implements AgentRunExecutor {
           if (event.type === 'text') {
             live.text = (live.text + event.delta).slice(-200_000);
             return;
+          }
+          if (event.step) {
+            const index = live.steps!.findIndex((step) => step.id === event.step!.id);
+            if (index >= 0) live.steps![index] = { ...event.step };
+            else if (live.steps!.length < 200) live.steps!.push({ ...event.step });
           }
           const tool = live.tools.find((item) => item.id === event.id);
           if (tool) tool.status = event.status;
@@ -149,8 +172,9 @@ export class RuntimeAgentExecutor implements AgentRunExecutor {
           piSessionId: input.piSessionId,
         }, result.fileChanges);
       }
-      const output = { message: result.message, tools: result.tools,
+      const output = { message: result.message, tools: result.tools, steps: result.steps,
         ...(result.toolResults ? { toolResults: result.toolResults } : {}),
+        ...(result.desktopActions && isDesktopCanvasRun(input.run) ? { desktopActions: result.desktopActions } : {}),
         ...(artifacts.length ? { artifacts } : {}) };
       if (result.pendingApprovalRequestId) {
         const approval = this.#options.approvals.get(result.pendingApprovalRequestId);
@@ -176,6 +200,8 @@ export class RuntimeAgentExecutor implements AgentRunExecutor {
       }
       return { kind: 'completed', output };
     } finally {
+      live.steps = settleRunProgress({ text: live.text, steps: live.steps ?? [] },
+        input.signal?.aborted ? 'cancelled' : 'interrupted').steps;
       live.finishedAt = new Date().toISOString();
       pooled.active -= 1;
       this.#disposeIfRetired(pooled);

@@ -6,6 +6,7 @@ import { googleGenerativeAIApi } from '@earendil-works/pi-ai/api/google-generati
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy';
 import type { AssistantHost } from '@yuanpu-agent/assistant';
+import { withYuanpuModelCompatibility } from '@yuanpu-agent/runtime-kit';
 
 export interface AssistantModelConfig {
   model: Model<Api>;
@@ -30,7 +31,7 @@ export async function resolveAssistantModelConfig(selection: AssistantModelSelec
   if (!model) throw new Error(`Unknown assistant model ${selection.provider}/${selection.model}.`);
   const credentials = await runtime.getAuth(model);
   if (!credentials) throw new Error(`No credentials for assistant model ${selection.provider}/${selection.model}.`);
-  return { model, auth: credentials.auth };
+  return { model: withYuanpuModelCompatibility(model), auth: credentials.auth };
 }
 
 function streams(api: Api): ProviderStreams {

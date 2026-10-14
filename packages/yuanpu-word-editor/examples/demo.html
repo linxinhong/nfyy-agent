@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yuanpu Word 编辑器</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px system-ui, sans-serif; background: #f4f5f7; color: #20252d; }
+  header { display: flex; align-items: center; gap: 12px; height: 58px; padding: 0 20px; background: white; border-bottom: 1px solid #e0e4e8; }
+  strong { margin-right: auto; }
+  button, input { font: inherit; padding: 7px 12px; border: 1px solid #ccd2da; border-radius: 6px; background: white; }
+  button { cursor: pointer; }
+  #save { background: #2563eb; border-color: #2563eb; color: white; }
+  #status { min-width: 90px; color: #596474; }
+  #editor { height: calc(100vh - 58px); }
+  #notice { position: fixed; bottom: 16px; left: 20px; padding: 10px 14px; background: #20252d; color: white; border-radius: 6px; display: none; }
+</style>
+<header>
+  <strong id="title">Yuanpu Word 编辑器</strong>
+  <span id="status">正在打开…</span>
+  <button id="save">保存</button>
+  <input id="destination" value="edited-copy.docx" aria-label="另存为文件名">
+  <button id="save-as">另存为</button>
+</header>
+<main id="editor"></main>
+<div id="notice" role="status"></div>
+<script type="module">
+  import { mountWordEditor } from '/renderer.js';
+  const token = '__TOKEN__';
+  const status = document.querySelector('#status');
+  const notice = document.querySelector('#notice');
+  let dirty = false;
+  let timer;
+  async function api(path, body) {
+    const response = await fetch(`/api/${path}`, { method: body ? 'POST' : 'GET',
+      headers: { 'X-Editor-Token': token, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined });
+    const value = await response.json();
+    if (!response.ok) throw Object.assign(new Error(value.error), { code: value.code });
+    return value;
+  }
+  function show(message) {
+    notice.textContent = message; notice.style.display = 'block';
+    clearTimeout(timer); timer = setTimeout(() => notice.style.display = 'none', 4000);
+  }
+  function updateDirty(value) {
+    dirty = value;
+    const text = value ? '未保存' : '已保存';
+    if (status.textContent !== text) status.textContent = text;
+  }
+  async function save() {
+    try { await api('save', {}); updateDirty(false); show('已保存到本地 DOCX'); }
+    catch (error) { show(error.message); }
+  }
+  try {
+    const descriptor = await api('document');
+    document.querySelector('#title').textContent = descriptor.title;
+    mountWordEditor(document.querySelector('#editor'), descriptor, { onSaveRequest: save, onDirtyChange: updateDirty });
+    status.textContent = '文档载入中…';
+    document.querySelector('#save').addEventListener('click', save);
+    document.querySelector('#save-as').addEventListener('click', async () => {
+      try {
+        const next = await api('save-as', { path: document.querySelector('#destination').value });
+        document.querySelector('#title').textContent = next.title;
+        updateDirty(false); show(`已另存为 ${next.path}`);
+      } catch (error) { show(error.message); }
+    });
+    // Engine status also works with SDK builds that do not emit WorkBuddy host messages.
+    setInterval(async () => {
+      try { updateDirty((await api('status')).dirty); }
+      catch (error) { status.textContent = error.code === 'document_not_ready' ? '文档载入中…' : '连接中断'; }
+    }, 1000);
+    window.addEventListener('beforeunload', (event) => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
+  } catch (error) { show(error.message); status.textContent = '打开失败'; }
+</script>
+</html>

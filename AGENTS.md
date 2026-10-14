@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This pnpm monorepo targets Node.js 24. `apps/app` contains the React/Vite renderer; `apps/desktop` owns Electron main/preload code and Runtime updates; `apps/runtime` builds the Node SEA sidecar; and `apps/python-capabilities` contains the managed Python MCP example. Yuanpu-owned shared code lives in `packages/yuanpu-protocol` and `packages/yuanpu-runtime`. Other `packages/*` directories are synchronized Pi upstream packages—keep them unchanged unless explicitly syncing upstream. The root `server/` is the skill catalog. Architecture notes live in `docs/`; task evidence lives in `.tasks/`.
+This pnpm monorepo targets Node.js 24. `apps/app` contains the React/Vite renderer; `apps/desktop` owns Electron main/preload code and Runtime updates; `apps/runtime` builds the Node SEA sidecar; and `apps/python-capabilities` contains the managed Python MCP example. Yuanpu-owned shared code lives in `packages/yuanpu-*`. Pi comes from pinned npm packages; when upgrading Pi or changing its adapters, read `docs/pi-integration.md` for persistence, MCP and SEA compatibility checks. `server/backend` is the Go center and skill catalog; `server/web` is its independent website. Architecture notes live in `docs/`; task evidence lives in `.tasks/`.
 
 Keep tests beside their module in `test/` directories. Generated `dist/`, `dist-native/`, `dist-artifact/`, and `release/` directories are build output, not source.
 
@@ -13,7 +13,7 @@ Keep tests beside their module in `test/` directories. Generated `dist/`, `dist-
 - `pnpm check`: run the full build, Yuanpu TypeScript checks, and all tests. Use this before submitting changes.
 - `pnpm build:native && pnpm smoke:native`: build the current-platform SEA and exercise the frozen Python MCP plus staged Runtime update.
 - `pnpm package:desktop`: produce the current-platform Electron installer/archive under `apps/desktop/release/`.
-- `pnpm dev:catalog`: run only the local skill catalog.
+- `pnpm dev:server`: run the Go center and skill catalog.
 
 ## Coding Style & Naming Conventions
 

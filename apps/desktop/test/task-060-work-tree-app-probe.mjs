@@ -297,7 +297,7 @@ try {
   assert.equal(persisted.working_directory, moved.workingDirectory);
   assert.equal(binding.workspace_id, moved.workingDirectory);
   assert.equal(persisted.pi_session_id.length > 0, true);
-  const { SessionManager } = await import('../../../packages/coding-agent/dist/index.js');
+  const { SessionManager } = await import('@earendil-works/pi-coding-agent');
   const jsonl = SessionManager.findById(moved.workingDirectory, persisted.pi_session_id, join(home, 'agent', 'sessions'));
   assert.ok(jsonl);
   const saved = await readFile(jsonl, 'utf8');

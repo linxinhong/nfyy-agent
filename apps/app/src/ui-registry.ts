@@ -1,4 +1,4 @@
-export type UiDestination = 'work' | 'assistant' | 'skills' | 'schedules' | 'knowledge' | 'settings';
+export type UiDestination = 'desktop' | 'work' | 'assistant' | 'skills' | 'schedules' | 'knowledge' | 'server' | 'settings';
 
 export interface UiContribution<T> {
   id: UiDestination;

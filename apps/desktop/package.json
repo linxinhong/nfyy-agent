@@ -15,10 +15,12 @@
   },
   "dependencies": {
     "@yuanpu-agent/protocol": "workspace:*",
+    "@yuanpu-agent/server-client": "workspace:*",
     "electron-updater": "^6.3.9"
   },
   "devDependencies": {
     "electron": "^43.2.0",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "@earendil-works/pi-coding-agent": "1.0.4"
   }
 }

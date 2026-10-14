@@ -4,11 +4,13 @@
     "icon": "brand/app-icon.png"
   },
   "navigation": {
+    "desktop": true,
     "work": true,
     "assistant": true,
     "skills": true,
     "schedules": true,
-    "knowledge": true
+    "knowledge": true,
+    "server": true
   },
   "welcome": {
     "work": {

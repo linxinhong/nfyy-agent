@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import test from 'node:test';
+
+test('engine import verifies the pin and stages a standalone copy with its own manifest', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'word-engine-import-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const source = join(root, 'source-engine');
+  const storage = join(root, 'independent-storage');
+  const bytes = Buffer.from('synthetic engine artifact');
+  await writeFile(source, bytes);
+  const script = fileURLToPath(new URL('../scripts/import-engine.mjs', import.meta.url));
+  const bad = spawnSync(process.execPath, [script, source, '0'.repeat(64), storage], { encoding: 'utf8' });
+  assert.notEqual(bad.status, 0);
+  await assert.rejects(access(storage));
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  const result = spawnSync(process.execPath, [script, source, digest, storage], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  const manifest = JSON.parse(await readFile(join(storage, 'engine.json'), 'utf8'));
+  assert.equal(manifest.engineSha256, digest);
+  assert.notEqual(manifest.enginePath, source);
+  assert.deepEqual(await readFile(manifest.enginePath), bytes);
+  await rm(source);
+  assert.deepEqual(await readFile(manifest.enginePath), bytes);
+});

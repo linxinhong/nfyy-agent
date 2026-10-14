@@ -1,0 +1,23 @@
+{
+  "name": "@yuanpu-agent/server-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 8789",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 8789",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@yuanpu-agent/server-client": "workspace:*",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.0.4",
+    "vite": "^6.4.3"
+  }
+}

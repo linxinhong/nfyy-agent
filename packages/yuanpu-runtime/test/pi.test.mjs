@@ -18,7 +18,7 @@ test('Pi receives only the two Yuanpu external capability tools', () => {
     async execute(input) { return { content: null, capability: input.name, riskLevel: 'R0' }; },
   };
   const tools = createYuanpuCapabilityTools(client);
-  assert.equal(PI_UPSTREAM_VERSION, '0.86.1');
+  assert.equal(PI_UPSTREAM_VERSION, '1.0.4');
   assert.deepEqual(tools.map((tool) => tool.name), ['search_capabilities', 'execute_capability']);
 });
 

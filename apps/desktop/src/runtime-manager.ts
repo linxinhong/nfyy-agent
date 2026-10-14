@@ -698,6 +698,16 @@ export class RuntimeManager {
     });
   }
 
+  submitDesktopCanvasMessage(message: string,
+    widgets: import('@yuanpu-agent/protocol').DesktopCanvasWidgetSummary[]): Promise<AgentRunReceipt> {
+    if (typeof message !== 'string' || !message.trim()) throw new Error('A non-empty message is required.');
+    return this.request(RUNTIME_ROUTES.desktopCanvasSubmit, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message, widgets }),
+    });
+  }
+
   getDesktopTranscript(surface: DesktopTranscriptSurface, conversationId?: string,
     beforeId?: string, limit?: number): Promise<DesktopTranscriptMessage[]> {
     const query = new URLSearchParams({ surface });

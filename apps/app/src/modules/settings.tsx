@@ -5,6 +5,7 @@ import { ConnectionManagement } from '../management.js';
 import { ModelSettingsPanel } from './model-settings.js';
 import { HotkeySettingsPanel } from './hotkey-settings.js';
 import { TailscaleSettingsPanel } from './tailscale-settings.js';
+import { ServerCenterSettingsPanel } from './server-center-settings.js';
 import { applyThemePreference, readThemePreference, type RendererTheme } from '../shared/theme-preference.js';
 import {
   applyFontPreference,
@@ -77,9 +78,10 @@ function AssistantLinkSettings({ active }: { active: boolean }) {
 
 export function SettingsPage({ active, configRoot }: { active: boolean; configRoot: string }) {
   const [searchParams] = useSearchParams();
-  const [section, setSection] = useState<'general' | 'models' | 'connections' | 'tailscale' | 'hotkeys'>('general');
+  const [section, setSection] = useState<'general' | 'models' | 'connections' | 'tailscale' | 'hotkeys' | 'server-center'>('general');
   useEffect(() => {
     if (active && searchParams.get('section') === 'connections') setSection('connections');
+    if (active && searchParams.get('section') === 'server-center') setSection('server-center');
   }, [active, searchParams]);
   const [theme, setTheme] = useState<RendererTheme>(readThemePreference);
   const selectTheme = (nextTheme: RendererTheme) => {
@@ -96,16 +98,17 @@ export function SettingsPage({ active, configRoot }: { active: boolean; configRo
       <button type="button" className={section === 'general' ? 'selected' : ''} onClick={() => setSection('general')}>通用</button>
       <button type="button" className={section === 'models' ? 'selected' : ''} onClick={() => setSection('models')}>模型</button>
       <button type="button" className={section === 'hotkeys' ? 'selected' : ''} onClick={() => setSection('hotkeys')}>快捷键</button>
+      <button type="button" className={section === 'server-center' ? 'selected' : ''} onClick={() => setSection('server-center')}>元朴中心</button>
       <button type="button" className={section === 'connections' ? 'selected' : ''} onClick={() => setSection('connections')}>企业微信连接</button>
       <button type="button" className={section === 'tailscale' ? 'selected' : ''} onClick={() => setSection('tailscale')}>Tailscale</button>
     </aside>
     <div className="settings-content">
       <div className={`settings-general ${section === 'general' ? '' : 'view-hidden'}`} aria-hidden={section !== 'general'}><h2>通用</h2>
-        <div className="theme-setting"><h3>界面主题</h3><p>选择界面配色。MindLink 为临时测试主题。</p>
+        <div className="theme-setting"><h3>界面主题</h3><p>选择界面外观。</p>
           <div className="theme-options" role="group" aria-label="界面主题">
             <button type="button" aria-pressed={theme === 'yuanpu-light'} onClick={() => selectTheme('yuanpu-light')}>浅色</button>
             <button type="button" aria-pressed={theme === 'yuanpu-dark'} onClick={() => selectTheme('yuanpu-dark')}>深色</button>
-            <button type="button" aria-pressed={theme === 'mindlink'} onClick={() => selectTheme('mindlink')}>MindLink 测试主题</button>
+            <button type="button" aria-pressed={theme === 'mindlink'} onClick={() => selectTheme('mindlink')}>元朴主题</button>
           </div>
         </div>
         <div className="theme-setting"><h3>界面字体大小</h3><p>仅缩放界面文字，不影响聊天正文；档位不改变布局尺寸。</p>
@@ -145,6 +148,9 @@ export function SettingsPage({ active, configRoot }: { active: boolean; configRo
       </div>
       <div className={section === 'hotkeys' ? '' : 'view-hidden'} aria-hidden={section !== 'hotkeys'}>
         <HotkeySettingsPanel active={active && section === 'hotkeys'} />
+      </div>
+      <div className={section === 'server-center' ? '' : 'view-hidden'} aria-hidden={section !== 'server-center'}>
+        <ServerCenterSettingsPanel active={active && section === 'server-center'} />
       </div>
     </div>
   </section>;

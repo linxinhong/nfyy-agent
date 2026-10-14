@@ -31,6 +31,46 @@ test('unknown historical outcomes do not invent success or duration', () => {
   assert.equal(summarizeTranscript([entry('a', 'assistant', '00', { content: 'legacy reply' })])[0].run, undefined);
 });
 
+test('desktop groups repeated tool rounds into one run and retains bounded evidence by call ID', () => {
+  const entries = [
+    entry('u', 'user', '00', { content: 'Inspect twice' }),
+    { id: 'timing', type: 'custom', customType: 'yuanpu_model_timing', data: { runId: 'run-one' } },
+    entry('a1', 'assistant', '01', { content: [{ type: 'text', text: 'Checking' },
+      { type: 'thinking', thinking: 'PRIVATE_REASONING' },
+      { type: 'toolCall', id: 'read-one', name: 'read', arguments: { path: 'one.md', apiKey: 'PRIVATE_KEY' } }], stopReason: 'toolUse' }),
+    entry('r1', 'toolResult', '02', { toolCallId: 'read-one', toolName: 'read', content: 'first', isError: false }),
+    entry('a2', 'assistant', '03', { content: [{ type: 'toolCall', id: 'read-two', name: 'read', arguments: { path: 'two.md' } }], stopReason: 'toolUse' }),
+    entry('wrong', 'toolResult', '04', { toolCallId: 'read-two', toolName: 'other', content: 'WRONG_RESULT' }),
+    entry('r2', 'toolResult', '05', { toolCallId: 'read-two', toolName: 'read', content: 'second failed', isError: true }),
+    entry('final', 'assistant', '06', { content: 'Done', stopReason: 'stop' }),
+  ];
+  const messages = summarizeTranscript(entries, { includeToolDetails: true });
+  assert.equal(messages.length, 2);
+  assert.equal(messages[1].text, 'Checking\n\nDone');
+  assert.equal(messages[1].run.runId, 'run-one');
+  assert.equal(messages[1].run.status, 'succeeded');
+  assert.deepEqual(messages[1].run.steps.map(({ id, status, result }) => ({ id, status, result })), [
+    { id: 'read-one', status: 'completed', result: 'first' },
+    { id: 'read-two', status: 'failed', result: 'second failed' },
+  ]);
+  assert.doesNotMatch(JSON.stringify(messages), /PRIVATE_|WRONG_RESULT/);
+  assert.doesNotMatch(JSON.stringify(summarizeTranscript(entries)), /one.md|second failed|PRIVATE_/);
+});
+
+test('desktop incomplete and cancelled runs never invent a successful tool result', () => {
+  const entries = [entry('u', 'user', '00', { content: 'Start' }),
+    entry('call', 'assistant', '01', { content: [{ type: 'toolCall', id: 'unfinished', name: 'bash', arguments: { command: 'sleep 10' } }], stopReason: 'toolUse' })];
+  const interrupted = summarizeTranscript(entries, { includeToolDetails: true })[1];
+  assert.equal(interrupted.run.status, 'interrupted');
+  assert.equal(interrupted.run.steps[0].status, 'interrupted');
+  const cancelled = summarizeTranscript([...entries,
+    entry('stop', 'assistant', '02', { content: '', stopReason: 'aborted' })], { includeToolDetails: true })[1];
+  assert.equal(cancelled.run.status, 'cancelled');
+  assert.equal(cancelled.run.steps[0].status, 'cancelled');
+  assert.equal(summarizeTranscript([entry('old', 'assistant', '00', { content: 'legacy' })],
+    { includeToolDetails: true })[0].run.status, 'result_unknown');
+});
+
 test('a saved browser screenshot is shown in the completed reply after restoring history', () => {
   const details = { sourceInstanceId: 'builtin.host.browser',
     capability: 'ypcap:YnVpbHRpbi5ob3N0LmJyb3dzZXI:YnJvd3Nlcl9zY3JlZW5zaG90',

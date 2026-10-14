@@ -2,7 +2,7 @@
 
 ## 知识中心 Server / Client 骨架（2026-10-11）
 
-用户确认在当前仓库根目录 `server/` 建设独立 Go 知识中心，本地 Agent 继续使用 TypeScript。设计与分阶段待办见 [中心服务方案](../docs/todos/yuanpu-server.md)，当前开发范围为 TASK-073 的 Server / Client 骨架，状态与证据以 [任务注册表](tasks.yaml) 为准。Go 中心默认 8788，旧 Node 目录继续在 8787 运行；账号权限、Wiki、目录迁移和桌面业务接入由后续步骤实施。开发与部署命令见 [Server README](../server/README.md)。
+用户确认在当前仓库根目录 `server/` 建设独立 Go 知识中心，本地 Agent 继续使用 TypeScript。设计与分阶段待办见 [中心服务方案](../docs/todos/yuanpu-server.md)，骨架任务 TASK-073 的状态与证据以 [任务注册表](tasks.yaml) 为准。Go 中心默认 8788，独立网站默认 8789；技能目录已迁入 Go。网站与桌面“元朴中心”现可登录阅读已发布资源，并浏览公开 Wiki 和能力目录；投稿、审核和能力安装仍属后续步骤。开发与部署命令见 [Server README](../server/README.md)。
 
 本轮不改变本地 Agent 随 App 启停的边界，也不实施下文的云端权威助理迁移。检索依据：ZG 查询 server/catalog 与本地 Runtime 边界，结果 freshness 为 fresh；再以 scoped rg 核对目录 HTTP 消费者、构建脚本和当前源码。未创建或重建索引。
 

@@ -1,9 +1,11 @@
 export const PROTOCOL_VERSION = 8;
 
 import type { NotificationNavigationTarget } from './host-events.js';
+import type { RunToolStep } from './run-progress.js';
 import type { AssistantMemoryView, AssistantSuggestion, AssistantSuggestionInbox,
   AssistantWorkspaceSnapshot, AssistantDelegationRecord, AssistantSourceRevocationReceipt } from './assistant.js';
-import type { AgentRunCancellationReceipt, AgentRunReceipt, AgentRunRecord, AgentRunRequest, AgentRunStatus } from './agent.js';
+import type { AgentRunCancellationReceipt, AgentRunReceipt, AgentRunRecord, AgentRunRequest, AgentRunStatus,
+  DesktopCanvasWidgetSummary } from './agent.js';
 import type {
   ScheduleHistoryRecord,
   ScheduleInput,
@@ -12,6 +14,7 @@ import type {
 } from './scheduler.js';
 
 export * from './agent.js';
+export * from './run-progress.js';
 export * from './assistant.js';
 export * from './host-events.js';
 export * from './hotkeys.js';
@@ -22,6 +25,7 @@ export const RUNTIME_ROUTES = {
   greeting: '/v1/greeting',
   chat: '/v1/chat',
   chatSubmit: '/v1/chat/submit',
+  desktopCanvasSubmit: '/v1/desktop/canvas/submit',
   agentRuns: '/v1/agent/runs',
   privateImRuns: '/v1/im/private-runs',
   hostEvents: '/v1/host/events',
@@ -309,7 +313,7 @@ export interface BrowserGuestAttachPayload {
   conversationId: string;
 }
 
-/** Public execution summary. Never includes reasoning, tool arguments or results. */
+/** Public execution summary with optional bounded, redacted tool evidence. Never includes reasoning. */
 export interface DesktopReplyRunInfo {
   runId?: string;
   source?: 'runtime' | 'transcript';
@@ -318,6 +322,7 @@ export interface DesktopReplyRunInfo {
   updatedAt: string;
   events: Array<{ id: number; title: string; detail?: string; at: string }>;
   tools: Array<{ name: string; status: 'completed' | 'failed' }>;
+  steps?: RunToolStep[];
 }
 
 export interface DesktopTranscriptMessage {
@@ -349,7 +354,7 @@ export interface SessionTrajectory {
     rows: SessionTrajectoryRow[]; rounds: number; calls: number }>;
   context?: { tokens: number | null; contextWindow: number; percent: number | null;
     breakdown?: { systemPrompt: number; tools: number; messages: number; other: number } };
-  live?: { runId: string; text: string; finishedAt?: string; tools: Array<{ id: string; name: string; summary: string;
+  live?: { runId: string; text: string; finishedAt?: string; steps?: RunToolStep[]; tools: Array<{ id: string; name: string; summary: string;
     category: string; status: 'running' | 'completed' | 'failed'; at: string }> };
 }
 
@@ -375,6 +380,69 @@ export interface RuntimeInfo {
   configRoot: string;
   workingDirectory?: string;
   notificationsEnabled: boolean;
+}
+
+export interface ServerCenterStatus {
+  url: string;
+  state: 'offline' | 'incompatible' | 'running' | 'ready';
+  checkedAt: string;
+  version?: string;
+  apiVersion?: number;
+  schemaVersion?: number;
+  issueCode?: string;
+  requestId?: string;
+}
+
+export interface ServerWikiPreview {
+  preview: true;
+  entries: Array<{
+    id: string;
+    title: string;
+    summary: string;
+    body: string;
+    level: string;
+    experience: number;
+    updatedAt: string;
+    links: string[];
+  }>;
+}
+
+/** Public capability metadata and account-scoped content returned by Yuanpu Server. */
+export interface ServerCenterCatalogItem {
+  id: string;
+  displayName: string;
+  version: string;
+  description: string;
+  publisher: string;
+  source: string;
+  components: string[];
+  permissions: string[];
+}
+
+export interface ServerCenterUser {
+  id: string;
+  email: string;
+  name: string;
+  role: 'admin' | 'reviewer' | 'team_lead' | 'member';
+}
+
+export interface ServerCenterResource {
+  id: string;
+  kind: 'news' | 'wiki' | 'capability';
+  visibility: 'team' | 'organization';
+  title: string;
+  summary: string;
+  body: string;
+  revision: number;
+}
+
+export type ServerCenterResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; code: 'UNAUTHORIZED' | 'FORBIDDEN' | 'UNAVAILABLE' };
+
+export interface ServerCenterCredentialStatus {
+  configured: boolean;
+  storageAvailable: boolean;
 }
 
 export interface RuntimeGreeting {
@@ -470,7 +538,7 @@ export interface CapabilityApprovalDecisionResult {
 
 export interface McpOwnershipConflict {
   name: string;
-  owners: Array<'yuanpu' | 'pi-mcp-adapter-user' | 'pi-mcp-adapter-workspace'>;
+  owners: Array<'yuanpu' | 'pi-mcp-user' | 'pi-mcp-workspace'>;
 }
 
 export function capabilityApprovalSigningPayload(
@@ -588,6 +656,16 @@ export interface PluginConfigValidation {
 
 export interface DesktopBridge {
   runtimeInfo(): Promise<RuntimeInfo>;
+  getServerCenterStatus(): Promise<ServerCenterStatus>;
+  getServerWikiPreview(): Promise<ServerWikiPreview>;
+  searchServerCatalog(query: string): Promise<ServerCenterCatalogItem[]>;
+  restoreServerCenterSession(): Promise<ServerCenterResult<ServerCenterUser>>;
+  logoutServerCenter(): Promise<void>;
+  getServerCenterCredentialStatus(): Promise<ServerCenterCredentialStatus>;
+  saveServerCenterAPIKey(apiKey: string): Promise<ServerCenterResult<ServerCenterUser>>;
+  removeServerCenterAPIKey(): Promise<void>;
+  listServerResources(query: string): Promise<ServerCenterResult<ServerCenterResource[]>>;
+  getServerResource(id: string): Promise<ServerCenterResult<ServerCenterResource>>;
   getHotkeySettings(): Promise<import('./hotkeys.js').HotkeySettings>;
   saveHotkeySetting(input: import('./hotkeys.js').SaveHotkeyInput): Promise<import('./hotkeys.js').HotkeySettings>;
   getModelSettings(): Promise<ModelSettings>;
@@ -600,6 +678,8 @@ export interface DesktopBridge {
   submitDesktopMessage(message: string, surface?: DesktopConversationSurface, conversationId?: string,
     clientMessageId?: string, modelSelection?: AgentRunRequest['modelSelection'],
     approvalMode?: AgentRunRequest['approvalMode']): Promise<AgentRunReceipt>;
+  /** Sends a message to the desktop canvas agent, the only conversation with canvas widget tools. */
+  submitDesktopCanvasMessage(message: string, widgets: DesktopCanvasWidgetSummary[]): Promise<AgentRunReceipt>;
   getDesktopTranscript(surface: DesktopTranscriptSurface, conversationId?: string,
     beforeId?: string, limit?: number): Promise<DesktopTranscriptMessage[]>;
   listWorkConversations(): Promise<WorkConversation[]>;

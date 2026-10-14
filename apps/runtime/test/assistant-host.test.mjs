@@ -25,6 +25,7 @@ function setup() {
   let prompts = 0;
   const worker = {
     task: async (id) => { if (!available) throw new Error('offline'); return records.get(id); },
+    taskRecords: async (ids) => ids.map((id) => records.get(id)).filter(Boolean),
     prompt: async (id, text, _deadline, sessionId) => {
       if (!available) throw new Error('offline');
       prompts++;
@@ -69,6 +70,27 @@ test('two desktop clients attach one durable request; offline worker recovers wi
     assert.equal((await reattached.getDesktopRun(receipt.runId)).status, 'succeeded');
     assert.equal(reattached.transcript().length, 2);
     reattached.close();
+  } finally { env.service.close(); env.metadata.close(); }
+});
+
+test('Assistant history restores persisted tool evidence using only authorized transcript task IDs', async () => {
+  const env = setup();
+  try {
+    const receipt = env.service.submitDesktop('inspect work');
+    await tick();
+    await env.service.getDesktopRun(receipt.runId);
+    const record = env.records.get(receipt.runId);
+    record.progress = { text: 'answer:inspect work', steps: [{ id: 'candidate-call',
+      name: 'assistant_work_candidates', status: 'completed', startedAt: now, result: '[]' }] };
+    env.records.set('unrelated', { id: 'unrelated', progress: { text: 'PRIVATE', steps: [] } });
+    const requested = [];
+    env.worker.taskRecords = async (ids) => { requested.push(...ids); return ids.map((id) => env.records.get(id)); };
+    const history = await env.service.transcriptWithProgress();
+    assert.deepEqual(requested, [receipt.runId]);
+    assert.equal(history[1].run.steps[0].id, 'candidate-call');
+    assert.equal(history[1].run.status, 'succeeded');
+    assert.doesNotMatch(JSON.stringify(history), /PRIVATE/);
+    assert.equal((await env.service.getDesktopRun(receipt.runId)).progress.steps[0].result, '[]');
   } finally { env.service.close(); env.metadata.close(); }
 });
 

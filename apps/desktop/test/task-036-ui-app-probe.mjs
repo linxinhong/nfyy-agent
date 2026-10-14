@@ -8,7 +8,7 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-import { createCatalogServer } from '../../../server/dist/index.mjs';
+import { forwardGoCatalog, startGoCatalog } from './go-catalog-fixture.mjs';
 
 const rendererUrl = process.env.TASK_036_RENDERER_URL;
 if (!rendererUrl || !/^http:\/\/127\.0\.0\.1:\d+\/$/.test(rendererUrl)) {
@@ -109,16 +109,16 @@ const screenshots = approvalFixture ? join(root, 'screenshots') : resolve(deskto
 let mode = 'success';
 let approvalDecision = 'approved';
 const catalogOptions = fullUiFixture ? { artifactRoot: join(fullUiFixture, '0.1.0') } : undefined;
-const catalog = catalogOptions ? createCatalogServer(undefined, catalogOptions) : undefined;
+let catalog;
 let catalogFault;
-const catalogServer = catalog ? createServer(async (request, response) => {
+const catalogServer = catalogOptions ? createServer(async (request, response) => {
   if (catalogFault === 'signature' && request.url?.endsWith('/manifest')) {
     const manifest = JSON.parse(await readFile(join(catalogOptions.artifactRoot, 'manifest.json'), 'utf8'));
     manifest.signature.value = Buffer.alloc(64).toString('base64');
     response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(manifest));
     return;
   }
-  catalog.emit('request', request, response);
+  await forwardGoCatalog(catalog.origin, request, response);
 }) : undefined;
 const provider = createServer(async (request, response) => {
   if (request.method !== 'POST' || request.url !== '/v1/chat/completions') {
@@ -186,6 +186,7 @@ try {
     require(${JSON.stringify(desktopMain)});
   `);
   const providerPort = await listen(provider);
+  if (catalogOptions) catalog = await startGoCatalog(catalogOptions.artifactRoot);
   const catalogPort = catalogServer ? await listen(catalogServer) : undefined;
   const config = live
     ? JSON.parse(await readFile(join(homedir(), '.yuanpu/app/config.json'), 'utf8'))
@@ -399,6 +400,8 @@ try {
     await shot('task008-current-ui-configured');
 
     catalogOptions.artifactRoot = join(fullUiFixture, '0.2.0');
+    await catalog.close();
+    catalog = await startGoCatalog(catalogOptions.artifactRoot);
     await renderer.evaluate(`Array.from(document.querySelectorAll('[role="tab"]')).find(button => button.textContent === '技能市场').click()`);
     await renderer.evaluate(`document.querySelector('form.plugin-search').requestSubmit()`);
     await eventually(() => renderer.evaluate(`Array.from(document.querySelectorAll('.plugin-card')).some(card => card.textContent.includes('Python 示例能力') && card.textContent.includes('v0.2.0'))`), 'Updated signed version missing from current marketplace.', 30_000);
@@ -463,6 +466,7 @@ try {
     catalogServer.closeAllConnections();
     await new Promise((resolveClose) => catalogServer.close(resolveClose));
   }
+  await catalog?.close();
   if (runtimePid && exists(runtimePid)) {
     const command = execFileSync('ps', ['-p', String(runtimePid), '-o', 'command='], { encoding: 'utf8' });
     if (command.includes(join(root, 'apps', 'runtime', 'dist', 'index.cjs'))) process.kill(runtimePid, 'SIGKILL');

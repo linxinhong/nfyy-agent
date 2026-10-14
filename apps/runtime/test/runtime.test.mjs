@@ -539,14 +539,14 @@ test('runtime server exposes its protocol and greeting', async (context) => {
     body: JSON.stringify({ name: 'pi-mcp-adapter', enabled: true }),
   });
   const pluginConfig = await fetch(
-    `http://${ready.host}:${ready.port}/v1/plugins/config?name=pi-mcp-adapter&scope=user`,
+    `http://${ready.host}:${ready.port}/v1/plugins/config?name=pi-mcp&scope=user`,
     { headers },
   ).then((response) => response.json());
   const savePluginConfig = await fetch(`http://${ready.host}:${ready.port}/v1/plugins/config/save`, {
     method: 'POST',
     headers: { ...headers, 'content-type': 'application/json' },
     body: JSON.stringify({
-      name: 'pi-mcp-adapter',
+      name: 'pi-mcp',
       scope: 'user',
       value: { mcpServers: { docs: { url: 'https://example.test/mcp' } } },
     }),
@@ -680,7 +680,7 @@ test('runtime server exposes its protocol and greeting', async (context) => {
   assert.equal(artifactInstall.status, 500);
   assert.match(artifactInstallError.error, /超过 262144 字节限制/);
   assert.equal('hint' in floatingPluginError, false);
-  assert.equal(enablePlugin.status, 200);
+  assert.equal(enablePlugin.status, 410);
   assert.equal(pluginConfig.kind, 'mcp');
   assert.equal(pluginConfig.path, join(home, 'agent', 'mcp.json'));
   assert.equal(savePluginConfig.status, 200);
@@ -708,15 +708,14 @@ test('runtime server exposes its protocol and greeting', async (context) => {
   assert.deepEqual(health, {
     version: '0.1.0',
     protocolVersion: 8,
-    piVersion: '0.86.1',
+    piVersion: '1.0.4',
     mcpTools: ['search_capabilities', 'execute_capability'],
     configRoot: home,
     workingDirectory: runtimeConfig.workingDirectory,
     notificationsEnabled: true,
   });
   assert.deepEqual(greeting, { message: 'Hello, Integration!' });
-  assert.equal(plugins.length, 1);
-  assert.equal(plugins[0].name, 'pi-mcp-adapter');
+  assert.deepEqual(plugins, []);
   assert.equal(localSkills.diagnostics.length, 0);
   assert.equal(localSkills.skills.length, 1);
   assert.equal(localSkills.skills[0].name, 'runtime-fixture');

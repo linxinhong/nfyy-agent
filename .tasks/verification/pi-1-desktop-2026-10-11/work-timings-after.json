@@ -1,0 +1,41 @@
+[
+  {
+    "timestamp": "2026-10-11T14:20:21.008Z",
+    "requestId": "fca24b42-e288-4b08-bf78-ffc6b61e580e",
+    "runId": "80554336-7733-4ad5-bf40-e5564b202f81",
+    "phase": "request",
+    "elapsedMs": 0,
+    "provider": "custom",
+    "model": "LongCat-2.5-Preview"
+  },
+  {
+    "timestamp": "2026-10-11T14:20:24.044Z",
+    "requestId": "fca24b42-e288-4b08-bf78-ffc6b61e580e",
+    "runId": "80554336-7733-4ad5-bf40-e5564b202f81",
+    "phase": "headers",
+    "elapsedMs": 3036,
+    "status": 200
+  },
+  {
+    "timestamp": "2026-10-11T14:20:24.046Z",
+    "requestId": "fca24b42-e288-4b08-bf78-ffc6b61e580e",
+    "runId": "80554336-7733-4ad5-bf40-e5564b202f81",
+    "phase": "first_event",
+    "elapsedMs": 3038
+  },
+  {
+    "timestamp": "2026-10-11T14:20:25.931Z",
+    "requestId": "fca24b42-e288-4b08-bf78-ffc6b61e580e",
+    "runId": "80554336-7733-4ad5-bf40-e5564b202f81",
+    "phase": "first_text",
+    "elapsedMs": 4923
+  },
+  {
+    "timestamp": "2026-10-11T14:20:26.708Z",
+    "requestId": "fca24b42-e288-4b08-bf78-ffc6b61e580e",
+    "runId": "80554336-7733-4ad5-bf40-e5564b202f81",
+    "phase": "end",
+    "elapsedMs": 5700,
+    "stopReason": "stop"
+  }
+]

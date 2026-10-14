@@ -53,6 +53,122 @@ test('legacy catalog liveness is not mistaken for a compatible center', async (c
   await assert.rejects(createServerClient({ baseUrl }).health(), { code: 'INVALID_RESPONSE' });
 });
 
+test('wiki preview reads validated sample entries from the server', async (context) => {
+  const baseUrl = await fixture(context, (request, response) => {
+    assert.equal(request.url, '/v1/preview/wiki');
+    response.setHeader('content-type', 'application/json');
+    response.end(JSON.stringify({ preview: true, entries: [{
+      id: 'knowledge-center', title: '知识中心', summary: '示例', body: '正文',
+      level: '示例', experience: 12, updatedAt: '2026-10-11T00:00:00Z', links: [],
+    }] }));
+  });
+  const result = await createServerClient({ baseUrl }).wikiPreview();
+  assert.equal(result.entries[0].title, '知识中心');
+});
+
+test('wiki preview rejects an incompatible payload', async (context) => {
+  const baseUrl = await fixture(context, (_request, response) => {
+    response.setHeader('content-type', 'application/json');
+    response.end(JSON.stringify({ preview: true, entries: [{ id: 'broken' }] }));
+  });
+  await assert.rejects(createServerClient({ baseUrl }).wikiPreview(), { code: 'INVALID_RESPONSE' });
+});
+
+test('catalog client searches and reads Go directory entries', async (context) => {
+  const baseUrl = await fixture(context, (request, response) => {
+    response.setHeader('content-type', 'application/json');
+    const item = {
+      id: 'builtin.python.echo', name: 'yuanpu-echo-mcp', displayName: 'Python 示例能力',
+      version: '0.1.0', description: 'Example', publisher: 'yuanpu',
+      source: 'artifact:/v1/capability-packages/builtin.python.echo/manifest',
+      components: ['connector'], permissions: ['background'],
+    };
+    if (request.url === '/v1/catalog/search?q=Python') response.end(JSON.stringify({ schemaVersion: 1, items: [item] }));
+    else if (request.url === '/v1/catalog/items/builtin.python.echo') response.end(JSON.stringify(item));
+    else response.writeHead(404).end();
+  });
+  const client = createServerClient({ baseUrl });
+  assert.equal((await client.searchCatalog('Python')).items[0].id, 'builtin.python.echo');
+  assert.deepEqual((await client.getCatalogItem('builtin.python.echo')).components, ['connector']);
+});
+
+test('account client sends bearer sessions only to the configured server', async (context) => {
+  const requests = [];
+  const baseUrl = await fixture(context, async (request, response) => {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    requests.push({ path: request.url, method: request.method, authorization: request.headers.authorization, body: Buffer.concat(chunks).toString() });
+    response.setHeader('content-type', 'application/json');
+    if (request.url === '/v1/auth/login') response.end(JSON.stringify({ user: { id: 'a', email: 'a@example.com', name: 'A', role: 'admin', teamId: null, active: true }, token: 'session-token' }));
+    else if (request.url === '/v1/admin/teams' && request.method === 'POST') response.end(JSON.stringify({ id: 'team', name: 'Team' }));
+    else response.end(JSON.stringify([]));
+  });
+  const anonymous = createServerClient({ baseUrl });
+  const session = await anonymous.login('a@example.com', 'test password');
+  const admin = createServerClient({ baseUrl, token: session.token });
+  assert.equal((await admin.createTeam('Team')).id, 'team');
+  assert.deepEqual(await admin.listTeams(), []);
+  assert.equal(requests[0].authorization, undefined);
+  assert.equal(requests[1].authorization, 'Bearer session-token');
+  assert.equal(requests[2].authorization, 'Bearer session-token');
+  assert.equal(JSON.parse(requests[0].body).email, 'a@example.com');
+});
+
+test('API key client exchanges a secret and lets an administrator issue, list and revoke keys', async (context) => {
+  const calls = [];
+  const baseUrl = await fixture(context, async (request, response) => {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    calls.push({ path: request.url, method: request.method, authorization: request.headers.authorization,
+      body: Buffer.concat(chunks).toString() });
+    response.setHeader('content-type', 'application/json');
+    const key = { id: 'key-1', userId: 'member-1', issuedBy: 'admin-1', name: 'Desktop', keyPrefix: 'ypk_sample',
+      createdAt: '2026-10-12T00:00:00Z', expiresAt: '2027-01-10T00:00:00Z', lastUsedAt: null, revokedAt: null };
+    if (request.url === '/v1/auth/api-key') response.end(JSON.stringify({ user: {
+      id: 'member-1', email: 'member@example.com', name: 'Member', role: 'member', teamId: null, active: true,
+    }, token: 'member-session' }));
+    else if (request.method === 'POST') {
+      response.writeHead(201);
+      response.end(JSON.stringify({ apiKey: key, secret: 'ypk_secret' }));
+    } else if (request.method === 'GET') response.end(JSON.stringify([key]));
+    else { response.writeHead(204); response.end(); }
+  });
+  const anonymous = createServerClient({ baseUrl });
+  assert.equal((await anonymous.loginWithAPIKey('ypk_secret')).token, 'member-session');
+  const admin = createServerClient({ baseUrl, token: 'admin-session' });
+  assert.equal((await admin.issueAPIKey({ userId: 'member-1', name: 'Desktop', expiresInDays: 90 })).apiKey.id, 'key-1');
+  assert.equal((await admin.listAPIKeys())[0].keyPrefix, 'ypk_sample');
+  await admin.revokeAPIKey('key-1');
+  assert.deepEqual(calls.map(({ method, path }) => `${method} ${path}`), [
+    'POST /v1/auth/api-key', 'POST /v1/admin/api-keys', 'GET /v1/admin/api-keys', 'DELETE /v1/admin/api-keys/key-1',
+  ]);
+  assert.equal(calls[0].authorization, undefined);
+  assert.equal(JSON.parse(calls[0].body).apiKey, 'ypk_secret');
+  assert.equal(calls[1].authorization, 'Bearer admin-session');
+});
+
+test('resource client passes bearer auth and preserves structured denials', async (context) => {
+  const requests = [];
+  const baseUrl = await fixture(context, (request, response) => {
+    requests.push({ method: request.method, path: request.url, authorization: request.headers.authorization });
+    response.setHeader('content-type', 'application/json');
+    if (request.url?.startsWith('/v1/resources?')) {
+      response.end(JSON.stringify([]));
+      return;
+    }
+    response.setHeader('x-request-id', 'resource-request');
+    response.writeHead(404);
+    response.end(JSON.stringify({ error: { code: 'NOT_FOUND', message: 'Resource not found', requestId: 'resource-request' } }));
+  });
+  const client = createServerClient({ baseUrl, token: 'member-token' });
+  assert.deepEqual(await client.listResources({ kind: 'wiki', q: '案号 123' }), []);
+  assert.equal(requests[0].authorization, 'Bearer member-token');
+  assert.equal(requests[0].method, 'GET');
+  assert.match(requests[0].path, /kind=wiki/);
+  assert.match(requests[0].path, /q=%E6%A1%88%E5%8F%B7/);
+  await assert.rejects(client.getResource('missing'), { code: 'NOT_FOUND', status: 404, requestId: 'resource-request' });
+});
+
 test('timeout and caller cancellation bound network waits', async (context) => {
   const baseUrl = await fixture(context, () => {});
   await assert.rejects(createServerClient({ baseUrl, timeoutMs: 50 }).health(), { name: 'TimeoutError' });

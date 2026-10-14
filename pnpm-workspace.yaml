@@ -1,14 +1,22 @@
 packages:
   - apps/*
-  - packages/*
-  - packages/session-backends/*
-  - server
+  - packages/yuanpu-*
+  - server/web
 
 linkWorkspacePackages: true
 preferWorkspacePackages: true
 
 overrides:
   '@electron/get@3.0.0': 3.1.0
+  '@earendil-works/chord': 1.0.4
+  '@earendil-works/pi-agent-core': 1.0.4
+  '@earendil-works/pi-ai': 1.0.4
+  '@earendil-works/pi-coding-agent': 1.0.4
+  '@earendil-works/pi-codemode': 1.0.4
+  '@earendil-works/pi-durable': 1.0.4
+  '@earendil-works/pi-mcp': 1.0.4
+  '@earendil-works/pi-telemetry': 1.0.4
+  '@earendil-works/pi-tui': 1.0.4
 
 allowBuilds:
   '@google/genai': false
@@ -19,12 +27,3 @@ allowBuilds:
   esbuild: true
   koffi: true
   protobufjs: false
-
-minimumReleaseAgeExclude:
-  - '@earendil-works/chord@0.86.1'
-  - '@earendil-works/pi-agent-core@0.86.1'
-  - '@earendil-works/pi-ai@0.86.1'
-  - '@earendil-works/pi-client@0.86.1'
-  - '@earendil-works/pi-protocol@0.86.1'
-  - '@earendil-works/pi-server@0.86.1'
-  - '@earendil-works/pi-telemetry@0.86.1'

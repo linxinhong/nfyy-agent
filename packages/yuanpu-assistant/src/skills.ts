@@ -1,8 +1,22 @@
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import type { Skill } from '@earendil-works/pi-agent-core';
 import { parse } from 'yaml';
 import { type AssistantHomePaths, readAssistantHomeFile } from './home.js';
+
+export interface AssistantSkill {
+  name: string;
+  description: string;
+  content: string;
+  filePath: string;
+}
+
+export function formatAssistantSkills(skills: readonly AssistantSkill[]): string {
+  const escape = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+  return 'The following skills provide specialized instructions for specific tasks.\n<available_skills>\n'
+    + skills.map((skill) => `<skill><name>${escape(skill.name)}</name><description>${escape(skill.description)}</description></skill>`).join('\n')
+    + '\n</available_skills>';
+}
 
 function isInside(root: string, path: string): boolean {
   const child = relative(root, path);
@@ -56,10 +70,10 @@ function rejectEscapingLinks(content: string, skillFile: string, skillRoot: stri
 }
 
 /** Read only the explicit assistant skill root. No Pi default/project/global discovery is invoked. */
-export async function loadAssistantSkills(paths: AssistantHomePaths): Promise<Skill[]> {
+export async function loadAssistantSkills(paths: AssistantHomePaths): Promise<AssistantSkill[]> {
   const canonicalRoot = await realpath(paths.skills);
   await rejectSymlinks(paths.skills, canonicalRoot);
-  const skills: Skill[] = [];
+  const skills: AssistantSkill[] = [];
   for (const entry of await readdir(paths.skills, { withFileTypes: true })) {
     if (entry.name.startsWith('.')) continue;
     if (!entry.isDirectory()) throw new Error(`Unexpected assistant skill root entry: ${entry.name}`);

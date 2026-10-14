@@ -431,7 +431,9 @@ test('Worker delegates through its separate IPC channel and preserves the accept
     && message.correlationId === 'delegated');
   worker.child.send({ kind: 'prompt', id: 'delegated', correlationId: 'delegated',
     text: 'Delegate the review.', deadlineAt: Date.now() + 10_000 });
-  assert.equal((await result).record.status, 'completed');
+  const foregroundRecord = (await result).record;
+  assert.equal(foregroundRecord.status, 'completed');
+  assert.deepEqual(foregroundRecord.progress.steps.map((step) => [step.id, step.status]), [['delegate-call', 'completed']]);
   assert.equal(submitted.length, 1);
   assert.match(submitted[0], /^[a-f0-9]{64}$/);
   const archive = JSON.parse(await readFile(join(assistantHome, 'delegations', `${submitted[0]}.json`), 'utf8'));
@@ -459,6 +461,11 @@ test('Worker delegates through its separate IPC channel and preserves the accept
   worker.child.send({ kind: 'delegation-event', record: hostRecord });
   await new Promise((resolveWait) => setTimeout(resolveWait, 500));
   assert.equal(modelCalls, 4, 'a completed notification is not replayed after Worker restart');
+  const restored = nextMessage(worker.child, (message) => message.kind === 'workspace-result'
+    && message.correlationId === 'task-records');
+  worker.child.send({ kind: 'task-records', ids: ['delegated'], correlationId: 'task-records' });
+  assert.deepEqual((await restored).value[0].progress, foregroundRecord.progress,
+    'foreground evidence survives restart and excludes background verification tools');
 });
 
 test('a killed Worker leaves its accepted task identifiable as interrupted after restart', async (t) => {

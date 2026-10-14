@@ -69,3 +69,54 @@
 .activity-panel > .file-workspace { flex: 1; min-height: 0; overflow: auto; }
 .activity-panel > .file-workspace > .file-workspace-body { padding: 12px 20px 20px; }
 .has-workspace-tabs .chat-heading { min-width: min(260px, 30vw); }
+
+/* The Yuanpu theme retains its stored MindLink id and uses a three-control rail. */
+:root .compact-sidebar-nav, :root .compact-sidebar-bottom { display: none; }
+:root[data-yuanpu-theme='mindlink'] .compact-sidebar-nav { display: grid; }
+:root[data-yuanpu-theme='mindlink'] .compact-sidebar-bottom { display: flex; width: 100%; justify-content: center; margin-top: auto; }
+:root[data-yuanpu-theme='mindlink'] .full-sidebar-nav,
+:root[data-yuanpu-theme='mindlink'] .full-sidebar-bottom { display: none; }
+
+.sidebar-menu {
+  position: fixed;
+  z-index: 30;
+  box-sizing: border-box;
+  width: min(240px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  border: 1px solid var(--yp-border-control);
+  border-radius: 13px;
+  padding: 7px;
+  color: var(--yp-text);
+  background: var(--yp-surface);
+  box-shadow: 0 12px 32px rgb(24 35 30 / 14%);
+}
+.sidebar-menu-title { padding: 8px 11px 9px; color: var(--yp-text-muted); font-size: 0.75rem; font-weight: 600; }
+.sidebar-menu-item {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: var(--yp-text);
+  background: transparent;
+  text-align: left;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.sidebar-menu-item svg { width: 18px; height: 18px; flex: 0 0 auto; color: var(--yp-text-muted); }
+.sidebar-menu-item:hover, .sidebar-menu-item:focus-visible { background: var(--yp-action-hover); }
+.sidebar-menu-item.active { color: var(--yp-accent-ink); background: var(--yp-accent-soft); }
+.sidebar-menu-item.active svg { color: inherit; }
+:root:not([data-yuanpu-theme='mindlink']) .sidebar-menu { display: none; }
+
+@media (max-width: 780px) {
+  :root[data-yuanpu-theme='mindlink'] .app-shell > .sidebar { display: flex; flex-direction: row; align-items: center; padding: 4px 10px; }
+  :root[data-yuanpu-theme='mindlink'] .compact-sidebar-nav { display: flex; width: auto; flex: 1; justify-content: flex-start; gap: 8px; margin-top: 0; padding-right: 0; }
+  :root[data-yuanpu-theme='mindlink'] .compact-sidebar-bottom { width: auto; margin-top: 0; margin-left: auto; }
+  :root[data-yuanpu-theme='mindlink'] .compact-sidebar-nav .nav-item,
+  :root[data-yuanpu-theme='mindlink'] .compact-sidebar-bottom .nav-item { min-width: 58px; }
+}

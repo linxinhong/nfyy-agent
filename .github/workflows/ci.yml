@@ -34,8 +34,8 @@ jobs:
         # The independent center and its contract generator use the Go module version.
         uses: actions/setup-go@v6
         with:
-          go-version-file: server/go.mod
-          cache-dependency-path: server/go.sum
+          go-version-file: server/backend/go.mod
+          cache-dependency-path: server/backend/go.sum
 
       - name: Setup Python
         uses: actions/setup-python@v6

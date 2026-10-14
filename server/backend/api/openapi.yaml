@@ -1,0 +1,731 @@
+openapi: 3.0.3
+info:
+  title: Yuanpu Server API
+  version: 0.1.0
+  description: >-
+    Knowledge center API. /v1 is the compatibility boundary. The wiki preview
+    contains public sample data only. Authenticated resource APIs manage the
+    first news, wiki, and AI capability publishing workflow.
+servers:
+  - url: http://127.0.0.1:8788
+paths:
+  /v1/health:
+    get:
+      operationId: getHealth
+      summary: Process liveness; does not imply database readiness
+      responses:
+        '200':
+          description: Process is running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /v1/ready:
+    get:
+      operationId: getReady
+      summary: Database connectivity and migration readiness
+      responses:
+        '200':
+          description: Database is reachable and migrations are current
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+        '503':
+          description: Database is unconfigured, unavailable, or needs migrations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/preview/wiki:
+    get:
+      operationId: getWikiPreview
+      summary: Public sample wiki entries for the desktop center preview
+      responses:
+        '200':
+          description: Sample entries; never contains organization or personal data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WikiPreviewResponse'
+  /v1/catalog/search:
+    get:
+      operationId: searchCatalog
+      summary: Search the public skill and capability directory
+      parameters:
+        - name: q
+          in: query
+          schema: {type: string}
+      responses:
+        '200':
+          description: Matching catalog entries
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CatalogSearchResponse'}
+  /v1/catalog/items/{id}:
+    get:
+      operationId: getCatalogItem
+      summary: Read one public catalog entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Catalog entry
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CatalogItem'}
+        '404':
+          description: Entry not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/capability-packages/{id}/manifest:
+    get:
+      operationId: getCapabilityManifest
+      summary: Read an already signed capability manifest; clients verify its signature
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Published manifest JSON
+          content:
+            application/json:
+              schema: {type: object, additionalProperties: true}
+        '404':
+          description: Package not published
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/capability-packages/{id}/artifacts/{filename}:
+    get:
+      operationId: getCapabilityArtifact
+      summary: Download a manifest-referenced immutable capability archive
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+        - name: filename
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Immutable archive
+          content:
+            application/gzip:
+              schema: {type: string, format: binary}
+        '404':
+          description: Archive not published
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/auth/login:
+    post:
+      operationId: login
+      summary: Exchange account credentials for a twelve-hour bearer session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/auth/api-key:
+    post:
+      operationId: loginWithApiKey
+      summary: Exchange a valid member API key for a twelve-hour bearer session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ApiKeyLoginRequest'}
+      responses:
+        '200':
+          description: Authenticated session
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LoginResponse'}
+        '401':
+          description: Invalid, expired, revoked, or deactivated API key
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/auth/me:
+    get:
+      operationId: getCurrentUser
+      summary: Current active member
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Current member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Missing, expired, or revoked session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/auth/logout:
+    post:
+      operationId: logout
+      summary: Revoke current bearer session
+      security: [{bearerAuth: []}]
+      responses:
+        '204':
+          description: Session revoked
+  /v1/admin/teams:
+    get:
+      operationId: listTeams
+      summary: List organization teams; administrator only
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Teams
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Team'}
+    post:
+      operationId: createTeam
+      summary: Create a team; administrator only
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTeamRequest'
+      responses:
+        '201':
+          description: Team created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+        '403':
+          description: Administrator required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/admin/users:
+    get:
+      operationId: listUsers
+      summary: List organization members; administrator only
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Members without credentials
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/User'}
+    post:
+      operationId: createUser
+      summary: Create a member and return its initial password once; administrator only
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: Member created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateUserResponse'
+        '403':
+          description: Administrator required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/admin/users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {type: string}
+    put:
+      operationId: updateUser
+      summary: Replace member role, team, and active state; administrator only
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Updated member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '403':
+          description: Administrator required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/admin/api-keys:
+    get:
+      operationId: listApiKeys
+      summary: List API key metadata without secrets; administrator only
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: API key metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/ApiKey'}
+    post:
+      operationId: issueApiKey
+      summary: Issue a member API key; secret is returned only once
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/IssueApiKeyRequest'}
+      responses:
+        '201':
+          description: Newly issued key and one-time secret
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IssuedApiKey'}
+  /v1/admin/api-keys/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {type: string}
+    delete:
+      operationId: revokeApiKey
+      summary: Revoke an API key and every session issued through it; administrator only
+      security: [{bearerAuth: []}]
+      responses:
+        '204':
+          description: Key and derived sessions revoked
+        '404':
+          description: Key not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/resources:
+    get:
+      operationId: listResources
+      summary: List published resources visible to the current member
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: kind
+          in: query
+          schema: {type: string, enum: [news, wiki, capability]}
+        - name: q
+          in: query
+          schema: {type: string, maxLength: 120}
+      responses:
+        '200':
+          description: Visible published resources
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Resource'}
+    post:
+      operationId: createResource
+      summary: Create a private draft; submission is a separate action
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ResourceInput'}
+      responses:
+        '201':
+          description: Draft created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Resource'}
+  /v1/resources/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {type: string}
+    get:
+      operationId: getResource
+      summary: Read an authorized resource or its currently published revision
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Resource
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Resource'}
+        '404':
+          description: Resource does not exist or is not visible
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    put:
+      operationId: editResource
+      summary: Add a new draft revision as the resource owner
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ResourceInput'}
+      responses:
+        '200':
+          description: New draft revision
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Resource'}
+  /v1/resources/{id}/submit:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {type: string}
+    post:
+      operationId: submitResource
+      summary: Submit the latest draft for review
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Submitted revision
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Resource'}
+  /v1/resources/{id}/approve:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {type: string}
+    post:
+      operationId: approveResource
+      summary: Publish a submitted revision as an authorized reviewer
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Published revision
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Resource'}
+  /v1/resources/{id}/reject:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {type: string}
+    post:
+      operationId: rejectResource
+      summary: Return a submitted revision to its owner
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Rejected revision
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Resource'}
+  /v1/resources/{id}/withdraw:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {type: string}
+    post:
+      operationId: withdrawResource
+      summary: Withdraw the currently published revision
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Withdrawal recorded
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Resource'}
+  /v1/review/queue:
+    get:
+      operationId: getReviewQueue
+      summary: Submitted revisions available to the current reviewer
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Review queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Resource'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, email, name, role, teamId, active]
+      properties:
+        id: {type: string}
+        email: {type: string, format: email}
+        name: {type: string}
+        role: {type: string, enum: [admin, reviewer, team_lead, member]}
+        teamId: {type: string, nullable: true}
+        active: {type: boolean}
+    Team:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {type: string}
+        name: {type: string}
+    ResourceInput:
+      type: object
+      additionalProperties: false
+      required: [kind, visibility, title, summary, body]
+      properties:
+        kind: {type: string, enum: [news, wiki, capability]}
+        visibility: {type: string, enum: [team, organization]}
+        teamId: {type: string, nullable: true}
+        title: {type: string, minLength: 1, maxLength: 160}
+        summary: {type: string, maxLength: 300}
+        body: {type: string}
+        details: {type: object, additionalProperties: true}
+    Resource:
+      type: object
+      additionalProperties: false
+      required: [id, kind, ownerId, visibility, teamId, revision, status, title, summary, body, details]
+      properties:
+        id: {type: string}
+        kind: {type: string, enum: [news, wiki, capability]}
+        ownerId: {type: string}
+        visibility: {type: string, enum: [team, organization]}
+        teamId: {type: string, nullable: true}
+        revision: {type: integer, minimum: 1}
+        status: {type: string, enum: [draft, submitted, approved, rejected]}
+        title: {type: string}
+        summary: {type: string}
+        body: {type: string}
+        details: {type: object, additionalProperties: true}
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: {type: string, format: email}
+        password: {type: string, format: password}
+    LoginResponse:
+      type: object
+      additionalProperties: false
+      required: [user, token]
+      properties:
+        user: {$ref: '#/components/schemas/User'}
+        token: {type: string}
+    ApiKeyLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [apiKey]
+      properties:
+        apiKey: {type: string, minLength: 1, maxLength: 256}
+    ApiKey:
+      type: object
+      additionalProperties: false
+      required: [id, userId, issuedBy, name, keyPrefix, createdAt, expiresAt, lastUsedAt, revokedAt]
+      properties:
+        id: {type: string}
+        userId: {type: string}
+        issuedBy: {type: string}
+        name: {type: string}
+        keyPrefix: {type: string}
+        createdAt: {type: string, format: date-time}
+        expiresAt: {type: string, format: date-time}
+        lastUsedAt: {type: string, format: date-time, nullable: true}
+        revokedAt: {type: string, format: date-time, nullable: true}
+    IssueApiKeyRequest:
+      type: object
+      additionalProperties: false
+      required: [userId, name, expiresInDays]
+      properties:
+        userId: {type: string}
+        name: {type: string, minLength: 1, maxLength: 120}
+        expiresInDays: {type: integer, minimum: 1, maximum: 365}
+    IssuedApiKey:
+      type: object
+      additionalProperties: false
+      required: [apiKey, secret]
+      properties:
+        apiKey: {$ref: '#/components/schemas/ApiKey'}
+        secret: {type: string}
+    CreateTeamRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string}
+    CreateUserRequest:
+      type: object
+      additionalProperties: false
+      required: [email, name, role]
+      properties:
+        email: {type: string, format: email}
+        name: {type: string}
+        role: {type: string, enum: [admin, reviewer, team_lead, member]}
+        teamId: {type: string, nullable: true}
+    CreateUserResponse:
+      type: object
+      additionalProperties: false
+      required: [user, initialPassword]
+      properties:
+        user: {$ref: '#/components/schemas/User'}
+        initialPassword: {type: string}
+    UpdateUserRequest:
+      type: object
+      additionalProperties: false
+      required: [role, teamId, active]
+      properties:
+        role: {type: string, enum: [admin, reviewer, team_lead, member]}
+        teamId: {type: string, nullable: true}
+        active: {type: boolean}
+    CatalogItem:
+      type: object
+      additionalProperties: false
+      required: [id, name, displayName, version, description, publisher, source, components, permissions]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        displayName: {type: string}
+        version: {type: string}
+        description: {type: string}
+        publisher: {type: string}
+        source: {type: string}
+        components:
+          type: array
+          items: {type: string, enum: [skill, agent, workflow, extension, prompt, theme, connector]}
+        permissions:
+          type: array
+          items: {type: string, enum: [instructions, scripts, filesystem, network, credentials, notifications, background]}
+    CatalogSearchResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, items]
+      properties:
+        schemaVersion: {type: integer, enum: [1]}
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/CatalogItem'}
+    WikiPreviewResponse:
+      type: object
+      additionalProperties: false
+      required: [preview, entries]
+      properties:
+        preview:
+          type: boolean
+          enum: [true]
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/WikiPreviewEntry'
+    WikiPreviewEntry:
+      type: object
+      additionalProperties: false
+      required: [id, title, summary, body, level, experience, updatedAt, links]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        summary:
+          type: string
+        body:
+          type: string
+        level:
+          type: string
+        experience:
+          type: integer
+          minimum: 0
+        updatedAt:
+          type: string
+          format: date-time
+        links:
+          type: array
+          items:
+            type: string
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status, service, version, apiVersion]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        service:
+          type: string
+          enum: [yuanpu-server]
+        version:
+          type: string
+        apiVersion:
+          type: integer
+          enum: [1]
+    ReadyResponse:
+      type: object
+      additionalProperties: false
+      required: [status, schemaVersion]
+      properties:
+        status:
+          type: string
+          enum: [ready]
+        schemaVersion:
+          type: integer
+          minimum: 1
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message, requestId]
+          properties:
+            code:
+              type: string
+              description: Stable machine-readable error code
+            message:
+              type: string
+            requestId:
+              type: string

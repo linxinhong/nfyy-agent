@@ -57,7 +57,7 @@ runtime 是唯一执行安装事务和修改插件状态的进程。
 
 ## 能力包配置
 
-- 现有 Pi 扩展继续使用自己的配置约定。`pi-mcp-adapter` 的用户级配置为 `~/.yuanpu/agent/mcp.json`，工作区覆盖为 `<workspace>/.pi/mcp.json`。
+- MCP 使用 Pi 1.0 内置实现，在技能页点击“MCP 服务”直接配置，无需安装 `pi-mcp-adapter`。用户级配置为 `~/.yuanpu/agent/mcp.json`，工作区覆盖为 `<workspace>/.pi/mcp.json`。
 - Yuanpu-aware 能力包可在 `package.json` 的 `yuanpu.config.schema` 声明包内 JSON Schema。用户配置写入 `~/.yuanpu/packages/config/<package>/`，不会进入可替换的安装目录。
 - 配置先校验再原子写入；保存或重置后 runtime 结束当前 Pi 会话，下一次对话加载新配置。
 - 名为 API Key、Token、Secret、Password 或 Authorization 的敏感字段只接受 `${ENV_NAME}` 或 `$env:ENV_NAME` 引用，拒绝明文落盘。
@@ -85,6 +85,6 @@ runtime 是唯一执行安装事务和修改插件状态的进程。
 ## 当前限制
 
 - 需要本机编译或依赖安装脚本生成 addon 的插件仍不兼容；只有包内已提供当前平台预编译产物的插件可用。
-- 普通第三方 `pi-mcp-adapter` 会直接向 Pi 注册工具；YuanpuAgent 自带的 MCP 能力仍只通过 `search_capabilities` 和 `execute_capability` 两个元工具暴露。
+- Pi 内置 MCP 通过 `tool_search` 发现后调用 `mcp__` 工具；签名 Python 制品等 Yuanpu 受管能力仍通过 `search_capabilities` 和 `execute_capability` 两个元工具暴露。迁移与版本约束见 [Pi 集成说明](pi-integration.md)。
 - 插件启停通过重建 Pi 会话生效，当前正在执行的 prompt 不会被中途热替换。
 - 系统密钥库尚未接入；首版使用环境变量引用，避免把密钥写入插件配置文件。

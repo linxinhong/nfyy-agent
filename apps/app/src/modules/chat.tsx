@@ -124,44 +124,6 @@ function capabilitySource(source: string): string {
   return source;
 }
 
-function processPresentation(tool: LiveTool): { icon: 'file' | 'edit' | 'globe' | 'code' | 'lightning' | 'skills' | 'assistant' | 'briefcase'; title: string; detail: string } {
-  const rawDetail = tool.summary.includes(' · ') ? tool.summary.slice(tool.summary.indexOf(' · ') + 3).trim() : '';
-  const detail = rawDetail.startsWith('ypcap:') ? capabilityName(rawDetail) : rawDetail;
-  if (tool.category === '子智能体') return { icon: 'assistant', title: '子智能体正在协作', detail };
-  if (tool.category === 'Web 搜索') return { icon: 'globe', title: '搜索网页', detail };
-  if (tool.category === 'Skill') return { icon: 'skills', title: '使用技能', detail };
-  if (tool.category === 'MCP') return { icon: 'briefcase', title: '调用外部能力', detail };
-  if (tool.category === '浏览器') return { icon: 'globe', title: '浏览器操作', detail };
-  if (tool.category === '代码执行') return { icon: 'code', title: '运行代码', detail };
-  if (tool.category === 'Bash') return { icon: 'code', title: '执行命令', detail };
-  if (tool.name === 'read') return { icon: 'file', title: '读取文件', detail };
-  if (tool.name === 'write') return { icon: 'edit', title: '写入文件', detail };
-  if (tool.name === 'edit') return { icon: 'edit', title: '修改文件', detail };
-  if (tool.category === '文件') return { icon: 'file', title: '查看文件', detail };
-  return { icon: 'lightning', title: '使用工具', detail: detail || tool.name };
-}
-
-function ProcessList({ tools, live, onOpen, onReview }: { tools: LiveTool[]; live?: boolean;
-  onOpen: (tool: LiveTool) => void; onReview?: () => void }) {
-  if (!tools.length) return null;
-  const hasFileChanges = !live && tools.some((tool) => /(?:^|[._:/])(?:write|edit|apply_patch|patch)(?:$|[._:/])/i.test(tool.name));
-  return <div className="chat-process" aria-label="运行过程">
-    <div className="chat-process-heading"><strong>{live ? '正在处理' : '处理过程'} · {tools.length} 项操作</strong>
-      {hasFileChanges && onReview && <button type="button" className="chat-process-review" onClick={onReview}
-        title="审查本次文件修改"><AppIcon name="review" />审查修改</button>}</div>
-    {tools.map((tool) => {
-      const presentation = processPresentation(tool);
-      return <button type="button" key={tool.id} onClick={() => onOpen(tool)}
-        title={`查看${tool.category === '子智能体' ? '子智能体' : '运行轨迹'}详情`}>
-        <span className={`chat-process-icon ${tool.status}`}><AppIcon name={presentation.icon} /></span>
-        <span className="chat-process-content"><span>{presentation.title}</span>
-          {presentation.detail && <small>{presentation.detail}</small>}</span>
-        <small className={`chat-process-status ${tool.status}`}>{tool.status === 'running' ? '进行中' : tool.status === 'failed' ? '失败' : '已完成'}</small>
-      </button>;
-    })}
-  </div>;
-}
-
 function tokenLabel(value: number | undefined): string {
   if (value === undefined) return '—';
   return value >= 1_000 ? `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}K` : String(value);
@@ -507,7 +469,7 @@ export function ChatPanel({
   }, [surface, workConversationId, transcriptQuery.data]);
 
   useEffect(() => {
-    if (searchWindow?.conversationId === workConversationId) return;
+    if (searchWindow && searchWindow.conversationId === workConversationId) return;
     if (busy || !transcriptData) return;
     const key = `${workConversationId ?? surface}:${assistantLinkQuery.data?.contactId ?? 'local'}:${JSON.stringify(transcriptData)}`;
     if (key === appliedTranscript.current) return;
@@ -522,7 +484,8 @@ export function ChatPanel({
       ? transcriptData.map((item) => {
         const previous = previousByEntryId.get(item.id);
         const sameMessage = previous?.role === item.role && previous.text === item.text;
-        const run = item.role === 'assistant' ? (sameMessage ? previous?.run : undefined) ?? findReplyRun(surface, item.id, item.text, item.at) ?? item.run : undefined;
+        const run = item.role === 'assistant' ? item.run ?? (sameMessage ? previous?.run : undefined)
+          ?? findReplyRun(surface, item.id, item.text, item.at) : undefined;
         return sameMessage ? { ...previous, entryId: item.id, at: item.at, channel: item.channel, run }
           : { id: nextId.current++, entryId: item.id, role: item.role, text: item.text,
             at: item.at, channel: item.channel, run };
@@ -531,6 +494,7 @@ export function ChatPanel({
         ? [{ ...initialMessages[0]!, text: assistantGreeting }]
         : initialMessages;
       for (const notice of notices) {
+        if (notice.run?.runId && refreshed.some((message) => message.run?.runId === notice.run!.runId)) continue;
         const at = new Date(notice.at ?? '').getTime();
         const index = refreshed.findIndex((message) => Boolean(message.at) && new Date(message.at!).getTime() > at);
         refreshed.splice(index < 0 ? refreshed.length : index, 0, notice);
@@ -636,6 +600,8 @@ export function ChatPanel({
         updatedAt: run.updatedAt,
         events: activityEventsRef.current.filter((event) => event.runId === run.runId),
         tools: run.output?.tools ?? [],
+        steps: run.output?.steps ?? run.progress?.steps
+          ?? (trajectory?.live?.runId === run.runId ? trajectory.live.steps : undefined),
       },
     }]);
   }
@@ -764,8 +730,8 @@ export function ChatPanel({
             tool.status === 'completed' ? 'done' : 'error', capabilityName(tool.name), run.updatedAt));
           const replyText = run.status === 'succeeded' ? run.output?.message ?? '任务已完成；可在运行记录中查看结果。'
             : run.failure?.message ?? `任务结束：${runStatusLabel(run.status)}`;
-          const replyRun = run.status === 'succeeded' ? cacheReplyRun(surface, replyText, run,
-            activityEventsRef.current.filter((event) => event.runId === run.runId)) : undefined;
+          const replyRun = cacheReplyRun(surface, replyText, run,
+            activityEventsRef.current.filter((event) => event.runId === run.runId));
           const stoppedByUser = run.status === 'cancelled'
             && (requestedStops.current.has(run.runId) || stoppedRuns.current.has(run.runId));
           const process = latestProcess.current.get(run.runId);
@@ -1169,6 +1135,12 @@ export function ChatPanel({
     : lastRun;
   const currentStatus = visibleRun?.status ?? (navigationTarget?.runId ? undefined : activeRunStatus);
   const activeLive = activeRunId && trajectory?.live?.runId === activeRunId ? trajectory.live : undefined;
+  const activeProgress = surface === 'work' ? activeLive
+    : lastRun?.runId === activeRunId ? lastRun?.progress : undefined;
+  const activeReplyRun: ReplyRunInfo | undefined = lastRun && lastRun.runId === activeRunId ? {
+    runId: lastRun.runId, status: lastRun.status, createdAt: lastRun.createdAt, updatedAt: lastRun.updatedAt,
+    events: [], tools: [], steps: activeProgress?.steps,
+  } : undefined;
   const configuredModel = modelSettingsQuery.data;
   const currentModel = modelSelection ?? (configuredModel?.provider && configuredModel.model
     ? { provider: configuredModel.provider, model: configuredModel.model } : undefined);
@@ -1419,7 +1391,7 @@ export function ChatPanel({
               </article>
             )}
             {searchLocationError && <p className="archive-notice" role="alert">{searchLocationError}</p>}
-            {searchWindow?.conversationId === workConversationId && <div className="work-message-window-banner" role="status">
+            {searchWindow && searchWindow.conversationId === workConversationId && <div className="work-message-window-banner" role="status">
               <span>正在查看搜索命中附近的历史消息。</span>
               <button type="button" onClick={() => setSearchWindow(undefined)}>返回最近消息</button>
             </div>}
@@ -1427,9 +1399,6 @@ export function ChatPanel({
               : searchWindow && searchWindow.conversationId === workConversationId ? searchWindow.result.messages.map((item, index): ChatMessage => ({ id: index + 1, entryId: item.id, role: item.role, text: item.text, at: item.at, run: item.run }))
                 : emptyConversation ? [] : messages).map((message) => message.role === 'notice'
               ? <div key={message.id} className="conversation-stop-run" role="status"><ReplyRunDetails run={message.run} summary={message.text} />
-                  {message.process?.length ? <ProcessList tools={message.process} onOpen={(tool) => {
-                    setActivityOpen(true); setActivityTab(tool.category === '子智能体' ? 'subagents' : 'trajectory');
-                  }} /> : null}
                 </div>
               : <article key={message.entryId ?? message.id} data-message-entry-id={message.entryId} className={`message ${message.role}`}>
                 {surface === 'assistant' && message.role === 'assistant' && <span className="assistant-message-avatar" role="img" aria-label="助理标识"><img src={new URL('../assets/assistant/portrait-resting.png', import.meta.url).href} alt="" /></span>}
@@ -1440,16 +1409,14 @@ export function ChatPanel({
                   {message.channel === 'wecom' ? '企业微信' : '桌面'}
                 </span>}
                 <div className="message-body">
-                  {message.process?.length ? <ProcessList tools={message.process} onOpen={(tool) => {
-                    setActivityOpen(true); setActivityTab(tool.category === '子智能体' ? 'subagents' : 'trajectory');
-                  }} onReview={surface === 'work' && message.role === 'assistant'
-                    ? () => { setReviewRunId(message.run?.runId); setActivityOpen(true); setActivityTab('review'); } : undefined} /> : null}
-                  {message.role === 'assistant' ? <AssistantReply text={message.text} surface={surface} run={message.run}
+                  {message.role === 'assistant' || message.role === 'error' ? <AssistantReply text={message.text} surface={surface} run={message.run}
+                    onReview={surface === 'work'
+                      ? () => { setReviewRunId(message.run?.runId); setActivityOpen(true); setActivityTab('review'); } : undefined}
                     onOpenFilePath={surface === 'work' ? openWorkspaceFile : undefined}
                     resolveWorkspaceImage={surface === 'work' ? resolveWorkspaceImage : undefined}
                     onOpenImageInSidebar={openImageInSidebar}
                     onAddToConversation={archiveOpen || workArchived ? undefined : addPreviewToConversation} /> : <p>{message.text}</p>}
-                  {!message.process?.length && message.tools?.map((tool) => (
+                  {!message.run && !message.process?.length && message.tools?.map((tool) => (
                     <div className={`tool-event ${tool.status}`} key={`${message.id}-${tool.name}`}>
                       <span className="tool-check">{tool.status === 'completed' ? '✓' : '!'}</span>
                       <span>{toolLabel(tool.name)}</span><code>{tool.name}</code>
@@ -1480,12 +1447,9 @@ export function ChatPanel({
               <article className="message assistant pending">
                 {surface === 'assistant' && <span className="assistant-message-avatar" aria-hidden="true"><img src={new URL('../assets/assistant/portrait-resting.png', import.meta.url).href} alt="" /></span>}
                 <div className="message-label">YuanpuAgent</div>
-                {surface === 'work' && activeLive && activeLive.tools.length > 0 &&
-                  <ProcessList tools={activeLive.tools.slice(-8)} live onOpen={(tool) => {
-                    setActivityOpen(true); setActivityTab(tool.category === '子智能体' ? 'subagents' : 'trajectory');
-                  }} />}
-                {surface === 'work' && activeLive?.text
-                  ? <div className="message-body"><AssistantReply text={activeLive.text} surface="work"
+                {activeReplyRun || activeProgress?.text
+                  ? <div className="message-body"><AssistantReply text={activeProgress?.text ?? ''} surface={surface}
+                    run={activeReplyRun} pending
                     onOpenFilePath={openWorkspaceFile} resolveWorkspaceImage={resolveWorkspaceImage}
                     onOpenImageInSidebar={openImageInSidebar} onAddToConversation={addPreviewToConversation} /></div>
                   : <div className="thinking"><span /><span /><span /> {activeRunStatus === 'waiting_approval' ? '等待授权' : '正在处理'}</div>}

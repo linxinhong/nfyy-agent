@@ -11,7 +11,7 @@ YuanpuAgent 是运行在用户电脑上的 Pi 工作助手。桌面对话、IM �
 - 复用 `packages/yuanpu-runtime` 和 `packages/yuanpu-protocol`，保持 Pi 上游包不变。
 - 外部能力继续通过两个 Yuanpu MCP 元工具发现和调用；Python 保持独立能力进程。
 - 用户侧沿用“技能”作为能力分发概念，连接账号和定时任务是使用技能的产品功能。
-- 根目录 `server/` 按 [中心服务方案](todos/yuanpu-server.md) 演进为独立部署的知识中心。当前 Go 骨架与 Node 技能目录并存；中心可承接知识治理与后台评估调度，不承担桌面机器人执行和本机调度。开发入口见 [Server README](../server/README.md)。
+- `server/backend/` 是独立部署的 Go 知识中心及技能目录，`server/web/` 是独立网站。中心可承接知识治理与后台评估调度，不承担桌面机器人执行和本机调度。开发入口见 [Server README](../server/README.md) 与 [中心服务方案](todos/yuanpu-server.md)。
 
 本文取代先前讨论中的独立常驻服务、系统服务安装和云端 Gateway 作为首版基础的建议。平台接入方式需要公网回调时，应单独评估，不直接公开本机 Runtime API。
 

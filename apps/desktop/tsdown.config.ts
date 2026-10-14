@@ -10,6 +10,8 @@ export default defineConfig({
     'src/browser-control-service.ts',
     'src/runtime-manager.ts',
     'src/runtime-updater.ts',
+    'src/server-center.ts',
+    'src/server-center-credential.ts',
   ],
   format: 'cjs',
   outDir: 'dist',
@@ -17,7 +19,7 @@ export default defineConfig({
   platform: 'node',
   sourcemap: true,
   deps: {
-    alwaysBundle: ['@yuanpu-agent/protocol'],
+    alwaysBundle: ['@yuanpu-agent/protocol', '@yuanpu-agent/server-client'],
     neverBundle: ['electron', 'electron-updater'],
   },
 });

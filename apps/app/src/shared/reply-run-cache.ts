@@ -23,7 +23,8 @@ function readCache(): CachedReplyRun[] {
 }
 
 function writeCache(entries: CachedReplyRun[]): void {
-  try { window.localStorage.setItem(storageKey, JSON.stringify(entries.slice(0, 100))); }
+  // Restore detailed evidence from the host, without retaining tool payloads in browser storage.
+  try { window.localStorage.setItem(storageKey, JSON.stringify(entries.slice(0, 100).map(({ steps: _steps, ...entry }) => entry))); }
   catch { /* Run details remain available for this session if storage is unavailable. */ }
 }
 
@@ -40,6 +41,7 @@ export function cacheReplyRun(
     updatedAt: run.updatedAt,
     events,
     tools: run.output?.tools ?? [],
+    steps: run.output?.steps ?? run.progress?.steps,
   };
   writeCache([{ ...info, surface, text }, ...readCache().filter((item) => item.runId !== run.runId)]);
   return info;

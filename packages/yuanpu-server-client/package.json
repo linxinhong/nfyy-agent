@@ -13,7 +13,7 @@
   "files": ["dist"],
   "scripts": {
     "build": "tsdown",
-    "generate": "openapi-typescript ../../server/api/openapi.yaml -o src/schema.gen.ts",
+    "generate": "openapi-typescript ../../server/backend/api/openapi.yaml -o src/schema.gen.ts",
     "test": "node --test test/*.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "example": "node examples/health.mjs"

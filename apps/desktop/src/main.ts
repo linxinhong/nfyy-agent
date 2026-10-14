@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 
-import { app, BrowserWindow, dialog, ipcMain, Notification, shell, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Notification, safeStorage, shell, type IpcMainInvokeEvent } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import type { NotificationNavigationTarget, RuntimeRecoveryNotice } from '@yuanpu-agent/protocol';
 
@@ -11,6 +11,8 @@ import { startBrowserControlService } from './browser-control-service.js';
 import { RuntimeManager } from './runtime-manager.js';
 import { ElectronNotificationHost, type NativeNotification } from './notification-host.js';
 import { isTrustedRendererUrl, packagedRendererUrl } from './renderer-security.js';
+import { defaultServerUrl, getServerCenterStatus, getServerWikiPreview, ServerCenterSession } from './server-center.js';
+import { ServerCenterCredentialStore } from './server-center-credential.js';
 
 let runtime: RuntimeManager;
 let mainWindow: BrowserWindow | undefined;
@@ -171,6 +173,32 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   );
 
   ipcMain.handle('runtime:info', trustedHandler(() => runtime.info()));
+  const serverUrl = process.env.YUANPU_SERVER_URL || defaultServerUrl;
+  const serverCenterCredentials = new ServerCenterCredentialStore(join(app.getPath('userData'), 'server-center-credential.json'), safeStorage);
+  const serverCenterSession = new ServerCenterSession(serverUrl, () => serverCenterCredentials.loadKey());
+  ipcMain.handle('server:center:status', trustedHandler(() => getServerCenterStatus(serverUrl)));
+  ipcMain.handle('server:center:wiki-preview', trustedHandler(() => getServerWikiPreview(serverUrl)));
+  ipcMain.handle('server:center:catalog', trustedHandler((query: string) => serverCenterSession.searchCatalog(query)));
+  ipcMain.handle('server:center:restore', trustedHandler(() => serverCenterSession.restore()));
+  ipcMain.handle('server:center:logout', trustedHandler(async () => {
+    await serverCenterSession.logout();
+    await serverCenterCredentials.removeKey();
+  }));
+  ipcMain.handle('server:center:credential-status', trustedHandler(() => serverCenterCredentials.status()));
+  ipcMain.handle('server:center:save-api-key', trustedHandler(async (apiKey: string) => {
+    const result = await serverCenterSession.useAPIKey(apiKey);
+    if (result.ok) {
+      try { await serverCenterCredentials.saveKey(apiKey); }
+      catch (error) { await serverCenterSession.logout(); throw error; }
+    }
+    return result;
+  }));
+  ipcMain.handle('server:center:remove-api-key', trustedHandler(async () => {
+    await serverCenterSession.logout();
+    await serverCenterCredentials.removeKey();
+  }));
+  ipcMain.handle('server:center:resources', trustedHandler((query: string) => serverCenterSession.listResources(query)));
+  ipcMain.handle('server:center:resource', trustedHandler((id: string) => serverCenterSession.getResource(id)));
   ipcMain.handle('settings:hotkeys:get', trustedHandler(() => runtime.getHotkeySettings()));
   ipcMain.handle('settings:hotkeys:save', trustedHandler((input) => runtime.saveHotkeySetting(input)));
   ipcMain.handle('settings:models:get', trustedHandler(() => runtime.getModelSettings()));
@@ -184,6 +212,8 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     clientMessageId?: string, modelSelection?: import('@yuanpu-agent/protocol').AgentRunRequest['modelSelection'],
     approvalMode?: import('@yuanpu-agent/protocol').AgentRunRequest['approvalMode']) =>
     runtime.submitDesktopMessage(message, surface, conversationId, clientMessageId, modelSelection, approvalMode)));
+  ipcMain.handle('desktop:canvas:submit', trustedHandler((message: string,
+    widgets: import('@yuanpu-agent/protocol').DesktopCanvasWidgetSummary[]) => runtime.submitDesktopCanvasMessage(message, widgets)));
   ipcMain.handle('desktop:transcript', trustedHandler((surface: 'work' | 'assistant' | 'assistantArchive', conversationId?: string,
     beforeId?: string, limit?: number) => runtime.getDesktopTranscript(surface, conversationId, beforeId, limit)));
   ipcMain.handle('work:conversations:list', trustedHandler(() => runtime.listWorkConversations()));

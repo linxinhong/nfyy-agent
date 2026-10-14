@@ -232,13 +232,22 @@ test('personal memory is refreshed after a tool call without entering the saved 
   });
   t.after(() => executor.close());
   const session = await executor.openSession();
-  assert.equal((await session.prompt('Read my current preference.')).message, 'Current memory used.');
+  const progress = [];
+  const reply = await session.prompt('Read my current preference.', undefined, (value) => progress.push(value));
+  assert.equal(reply.message, 'Current memory used.');
+  assert.ok(progress.some((value) => value.steps.some((step) => step.status === 'running')));
+  assert.equal(reply.progress.steps[0].status, 'completed');
+  assert.equal(reply.progress.steps[0].id, 'call_candidates');
+  assert.equal(reply.progress.text, 'Current memory used.');
+  assert.doesNotMatch(JSON.stringify(progress), /blue crane|green crane/);
   assert.equal(requests.length, 2);
   assert.match(JSON.stringify(requests[0]), /durable, source-backed personal memory/);
   assert.match(JSON.stringify(requests[0].messages), /blue crane/);
   assert.doesNotMatch(JSON.stringify(requests[0].messages), /green crane/);
   assert.match(JSON.stringify(requests[1].messages), /green crane/);
   assert.doesNotMatch(JSON.stringify(requests[1].messages), /blue crane/);
+  const next = await session.prompt('Another turn.');
+  assert.deepEqual(next.progress.steps, [], 'a new foreground turn does not replay past tool rows');
   await session.close();
   const transcripts = (await readdir(join(home, 'sessions', 'pi'),
     { recursive: true, withFileTypes: true })).filter((entry) => entry.isFile());
@@ -278,4 +287,58 @@ test('private reflection uses an isolated ephemeral Pi Session without retaining
   await reflection.close();
   assert.deepEqual(await readdir(join(home, 'sessions', 'pi')), before);
   assert.deepEqual(await readdir(join(home, 'sessions', 'snapshots')), []);
+});
+
+test('Pi 0.86 committed main branch imports once without rewriting the archive or replaying pending tools', async (t) => {
+  const root = await workspace(t);
+  const { requests, host } = await loopbackModel(t);
+  const paths = await initializeAssistantHome(join(root, 'assistant'));
+  const id = 'legacy_086';
+  const folder = join(paths.sessions, 'pi', '--legacy-home--');
+  await mkdir(folder);
+  const file = join(folder, `2026-10-01_${id}.jsonl`);
+  const assistant = { role: 'assistant', api: 'openai-completions', provider: 'assistant-loopback',
+    model: 'assistant-loopback', timestamp: 2, stopReason: 'toolUse',
+    content: [{ type: 'toolCall', id: 'interrupted_call', name: 'delegate_and_verify', arguments: {} }],
+    usage: { input: 10, output: 3, cacheRead: 0, cacheWrite: 0, totalTokens: 13,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
+  const original = [
+    { v: 4, kind: 'header', id, storageVersion: 1, createdAt: 0, cwd: paths.root },
+    { kind: 'entry', seq: 1, id: 'user1', parentId: null, timestamp: 1, type: 'message',
+      message: { role: 'user', content: 'Preserved old conversation marker.', timestamp: 1 } },
+    { kind: 'entry', seq: 2, id: 'offbranch', parentId: 'user1', timestamp: 1, type: 'message',
+      message: { role: 'user', content: 'Unselected branch marker.', timestamp: 1 } },
+    { kind: 'entry', seq: 3, id: 'assistant1', parentId: 'user1', timestamp: 2, type: 'message', message: assistant },
+    { kind: 'value', op: 'set', seq: 4, namespace: 'pi.branch.tip', key: 'main', value: 'assistant1' },
+  ].map((entry) => JSON.stringify(entry)).join('\n') + '\n{"torn":';
+  await writeFile(file, original);
+  await writeFile(join(paths.snapshots, `${id}.json`), JSON.stringify({ version: 2, prompt: 'Preserved frozen identity.' }));
+  const executor = await createAssistantExecutor({ assistantHome: paths.root, host });
+  t.after(() => executor.close());
+  const session = await executor.openSession(id);
+  assert.equal((await session.prompt('Continue the conversation.')).message, 'Verified reply.');
+  assert.match(JSON.stringify(requests[0].messages), /Preserved old conversation marker/);
+  assert.match(JSON.stringify(requests[0].messages), /Preserved frozen identity/);
+  assert.match(JSON.stringify(requests[0].messages), /Outcome unknown; this call was not replayed/);
+  assert.doesNotMatch(JSON.stringify(requests[0].messages), /Unselected branch marker/);
+  await session.close();
+  const reopened = await executor.openSession(id);
+  await reopened.prompt('Continue again.');
+  assert.equal(JSON.stringify(requests[1].messages).match(/Preserved old conversation marker/g)?.length, 1);
+  assert.equal(await readFile(file, 'utf8'), original);
+});
+
+test('corrupt legacy sessions fail before publishing a new store or losing the old file', async (t) => {
+  const root = await workspace(t);
+  const { host } = await loopbackModel(t);
+  const paths = await initializeAssistantHome(join(root, 'assistant'));
+  const folder = join(paths.sessions, 'pi', '--legacy--');
+  await mkdir(folder);
+  const file = join(folder, 'date_bad-session.jsonl');
+  await writeFile(file, '{"v":99,"id":"bad-session"}\n');
+  const executor = await createAssistantExecutor({ assistantHome: paths.root, host });
+  t.after(() => executor.close());
+  await assert.rejects(executor.openSession('bad-session'), /Unsupported legacy/);
+  assert.equal(await readFile(file, 'utf8'), '{"v":99,"id":"bad-session"}\n');
+  assert.deepEqual(await readdir(join(paths.sessions, 'pi', 'durable-v1')), []);
 });

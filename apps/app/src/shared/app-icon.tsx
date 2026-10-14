@@ -3,13 +3,16 @@ import type { UiDestination } from '../ui-registry.js';
 
 type AppView = UiDestination;
 
-type IconName = AppView | 'menu' | 'panel' | 'panel-left' | 'expand' | 'collapse' | 'send' | 'pause' | 'copy' | 'check' | 'bookmark' | 'bookmark-filled' | 'knowledge-filled' | 'folder' | 'folder-plus' | 'file' | 'image' | 'globe' | 'chevron' | 'plus' | 'shield' | 'shield-filled' | 'lock' | 'unlock' | 'edit' | 'refresh' | 'locate' | 'briefcase' | 'code' | 'eye' | 'external' | 'lightning' | 'archive' | 'review' | 'tag' | 'arrow-up' | 'arrow-down' | 'layers';
+type IconName = AppView | 'menu' | 'more' | 'person' | 'panel' | 'panel-left' | 'expand' | 'collapse' | 'send' | 'pause' | 'copy' | 'check' | 'bookmark' | 'bookmark-filled' | 'knowledge-filled' | 'folder' | 'folder-plus' | 'file' | 'image' | 'globe' | 'chevron' | 'plus' | 'shield' | 'shield-filled' | 'lock' | 'unlock' | 'edit' | 'refresh' | 'locate' | 'briefcase' | 'code' | 'eye' | 'external' | 'lightning' | 'archive' | 'review' | 'tag' | 'arrow-up' | 'arrow-down' | 'layers' | 'clock';
 
 export function AppIcon({ name }: { name: IconName }) {  const paths = {
+    desktop: <><rect x="3" y="4" width="18" height="12.5" rx="2" /><path d="M8.5 20h7M12 16.5V20M3 13h18" /></>,
+    clock: <><circle cx="12" cy="13" r="7.5" /><path d="M12 9.5V13l2.5 1.5M5 4.5 2.8 6.7M19 4.5l2.2 2.2" /></>,
     work: <path d="M20 11.5c0 4.2-3.8 7.5-8.5 7.5-1.4 0-2.7-.3-3.8-.8L3 20l1.4-4.1A7.2 7.2 0 0 1 3 11.5C3 7.4 6.8 4 11.5 4S20 7.4 20 11.5Z" />,
     assistant: <><path d="m9 5 2.2 6.3L17.5 14l-6.3 2.7L9 23l-2.2-6.3L.5 14l6.3-2.7Z" transform="translate(2 -2) scale(.9)" /><path d="M18 2v6m-3-3h6" /></>,
     skills: <><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><path d="M17 13.5v7m-3.5-3.5h7" /></>,
     knowledge: <><path d="M12 5.5c-2.5-1.5-5.5-1.5-8 0v14c2.5-1.5 5.5-1.5 8 0m0-14c2.5-1.5 5.5-1.5 8 0v14c-2.5-1.5-5.5-1.5-8 0m0-14v14" /></>,
+    server: <><rect x="3.5" y="4" width="17" height="6.5" rx="1.5" /><rect x="3.5" y="13.5" width="17" height="6.5" rx="1.5" /><path d="M7 7.25h.01M7 16.75h.01M11 7.25h6M11 16.75h6" /></>,
     folder: <path d="M3 6.5A2.5 2.5 0 0 1 5.5 4h4l2 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
     'folder-plus': <><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4h4l2 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M12 11v6m-3-3h6" /></>,
     briefcase: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18m-10-2v4h2v-4" /></>,
@@ -28,6 +31,8 @@ export function AppIcon({ name }: { name: IconName }) {  const paths = {
     settings: <><path d="M10 2.5h4l.4 2.2 1.7.7L18 4.2 20.8 7l-1.2 1.9.7 1.7 2.2.4v4l-2.2.4-.7 1.7 1.2 1.9-2.8 2.8-1.9-1.2-1.7.7-.4 2.2h-4l-.4-2.2-1.7-.7L6 21.8 3.2 19l1.2-1.9-.7-1.7-2.2-.4v-4l2.2-.4.7-1.7L3.2 7 6 4.2l1.9 1.2 1.7-.7z" /><circle cx="12" cy="13" r="3" /></>,
     schedules: <><circle cx="12" cy="12" r="8.5" /><path d="M12 7v5l3.4 2" /></>,
     menu: <><path d="M4 7h16M4 12h16M4 17h16" /></>,
+    more: <><rect x="4" y="4" width="6" height="6" rx="1.5" /><rect x="14" y="4" width="6" height="6" rx="1.5" /><rect x="4" y="14" width="6" height="6" rx="1.5" /><rect x="14" y="14" width="6" height="6" rx="1.5" /></>,
+    person: <><circle cx="12" cy="8" r="3.5" /><path d="M4.8 20a7.2 7.2 0 0 1 14.4 0" /></>,
     panel: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M15 4v16" /></>,
     'panel-left': <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></>,
     expand: <><path d="M10 14 4 20m0-6v6h6M14 10l6-6m-6 0h6v6" /></>,

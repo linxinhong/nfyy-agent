@@ -16,6 +16,13 @@ const { version } = JSON.parse(await readFile(resolve(appRoot, 'package.json'), 
 
 const greeting = execFileSync(binary, [], { encoding: 'utf8' }).trim();
 const reportedVersion = execFileSync(binary, ['--version'], { encoding: 'utf8' }).trim();
+await new Promise((resolveTest, reject) => {
+  const check = spawn(process.execPath, ['--test', resolve(appRoot, 'test/pi-mcp-runtime.test.mjs')], {
+    env: { ...process.env, YUANPU_TEST_RUNTIME_BINARY: binary }, stdio: 'inherit',
+  });
+  check.once('error', reject);
+  check.once('exit', (code) => code === 0 ? resolveTest() : reject(new Error(`Native Pi MCP smoke failed: ${code}`)));
+});
 const agentToolsSmoke = JSON.parse(execFileSync(binary, ['--agent-tools-smoke'], { encoding: 'utf8', timeout: 15000 }).trim());
 assert.deepEqual(agentToolsSmoke, { workflow: 'completed', result: ['native-worker-ok'], reader: true });
 const pythonRoot = resolve(appRoot, '../python-capabilities/dist-artifact/bundle/YuanpuEchoMcp');
@@ -102,16 +109,16 @@ assert.equal(capabilitySmoke.errorResult.isError, true);
 assert.match(capabilitySmoke.errorResult.content[0].text, /diagnostic error/i);
 assert.deepEqual(firstSqliteSmoke, {
   driver: 'node:sqlite',
-  schemaVersion: 15,
+  schemaVersion: 16,
   persistedCount: 1,
 });
 assert.deepEqual(secondSqliteSmoke, {
   driver: 'node:sqlite',
-  schemaVersion: 15,
+  schemaVersion: 16,
   persistedCount: 2,
 });
 assert.deepEqual(schedulerSmoke, {
-  schemaVersion: 15,
+  schemaVersion: 16,
   historyCount: 1,
   runStatus: 'succeeded',
   output: 'SEA scheduler persisted output',

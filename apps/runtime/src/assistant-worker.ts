@@ -12,7 +12,7 @@ import { AssistantAutomationEngine, AssistantAutomationStore, AssistantMemoryRep
   assertSafeDirectory, createAssistantExecutor, resolveAssistantHome, readAssistantHomeFile,
   type AssistantDelegationHost, type AssistantSession, type AssistantSourceHost } from '@yuanpu-agent/assistant';
 import { assistantAutomationHandler } from './assistant-automation-handler.js';
-import type { AssistantDelegationRecord } from '@yuanpu-agent/protocol';
+import { settleRunProgress, type AssistantDelegationRecord, type RunProgress } from '@yuanpu-agent/protocol';
 import { assistantModelHost, type AssistantModelConfig } from './assistant-model.js';
 import { bundledAssistantSkillFiles } from './assistant-skill-assets.generated.js';
 import { installParentProcessMonitor, type ParentProcessMonitor } from './process-lifecycle.js';
@@ -24,6 +24,7 @@ interface TaskRecord {
   message?: string;
   error?: string;
   updatedAt: string;
+  progress?: RunProgress;
 }
 
 type HostMessage =
@@ -37,6 +38,7 @@ type HostMessage =
   | { kind: 'prompt'; id: string; correlationId: string; sessionId?: string; text: string; deadlineAt: number }
   | { kind: 'cancel'; id: string }
   | { kind: 'task'; id: string; correlationId: string }
+  | { kind: 'task-records'; ids: string[]; correlationId: string }
   | { kind: 'suggestion-list'; correlationId: string }
   | { kind: 'suggestion-feedback'; correlationId: string; id: string;
       action: 'ignored' | 'snoozed' | 'accepted'; snoozedUntil?: string }
@@ -146,6 +148,7 @@ export async function runAssistantWorker(): Promise<void> {
   const pendingDeliveries = new Map<string, { resolve(value: { status: 'accepted' | 'failed' | 'unknown' | 'deferred'; ref?: string }): void;
     reject(error: Error): void; timeout: NodeJS.Timeout }>();
   const active = new Map<string, { cancel(): Promise<void>; result: Promise<TaskRecord> }>();
+  const liveRecords = new Map<string, TaskRecord>();
   const tasks = join(paths.root, 'tasks');
   let memory: AssistantMemoryRepository | undefined;
   let memoryOpening: Promise<AssistantMemoryRepository> | undefined;
@@ -539,7 +542,8 @@ export async function runAssistantWorker(): Promise<void> {
       if (!name.endsWith('.json')) continue;
       const record = await readTask(tasks, name.slice(0, -5));
       if (record?.status === 'running') {
-        await saveTask(tasks, { ...record, status: 'interrupted', updatedAt: new Date().toISOString() });
+        await saveTask(tasks, { ...record, status: 'interrupted', updatedAt: new Date().toISOString(),
+          ...(record.progress ? { progress: settleRunProgress(record.progress) } : {}) });
       }
     }
     const shutdown = async () => {
@@ -645,10 +649,21 @@ export async function runAssistantWorker(): Promise<void> {
         return;
       }
       if (message.kind === 'task') {
-        void readTask(tasks, message.id).then((record) => send({ kind: 'task', id: message.id,
+        void Promise.resolve(liveRecords.get(message.id) ?? readTask(tasks, message.id)).then((record) => send({ kind: 'task', id: message.id,
           correlationId: message.correlationId, record }),
           (error) => send({ kind: 'task', id: message.id,
             correlationId: message.correlationId, error: String(error) }));
+        return;
+      }
+      if (message.kind === 'task-records') {
+        void (async () => {
+          if (!Array.isArray(message.ids) || message.ids.length > 200 || !message.ids.every(validId)) {
+            throw new Error('Invalid assistant task IDs.');
+          }
+          const records = await Promise.all(message.ids.map((id) => liveRecords.get(id) ?? readTask(tasks, id)));
+          return records.filter(Boolean);
+        })().then((value) => send({ kind: 'workspace-result', correlationId: message.correlationId, value }),
+          (error) => send({ kind: 'workspace-result', correlationId: message.correlationId, error: String(error) }));
         return;
       }
       if (message.kind === 'suggestion-list' || message.kind === 'suggestion-feedback'
@@ -760,14 +775,27 @@ export async function runAssistantWorker(): Promise<void> {
         if (message.deadlineAt <= Date.now()) throw new Error('Assistant prompt deadline expired.');
         let record: TaskRecord = { id: message.id, status: 'running', updatedAt: new Date().toISOString() };
         await saveTask(tasks, record);
+        liveRecords.set(message.id, record);
+        let progressTimer: NodeJS.Timeout | undefined;
+        let progressWrites = Promise.resolve();
+        const updateProgress = (progress: RunProgress) => {
+          record = { ...record, progress, updatedAt: new Date().toISOString() };
+          liveRecords.set(message.id, record);
+          if (!progressTimer) progressTimer = setTimeout(() => {
+            progressTimer = undefined;
+            const snapshot = record;
+            progressWrites = progressWrites.then(() => saveTask(tasks, snapshot)).catch(() => undefined);
+          }, 200);
+        };
         const timer = setTimeout(() => { void cancel(); }, Math.max(1, message.deadlineAt - Date.now()));
         try {
           session = await executor.openSession(message.sessionId, { createIfMissing: Boolean(message.sessionId) });
           if (!cancelled) {
-            const result = await session.prompt(message.text, controller.signal);
+            const result = await session.prompt(message.text, controller.signal, updateProgress);
             record = cancelled
               ? { ...record, sessionId: result.sessionId, status: 'cancelled', updatedAt: new Date().toISOString() }
               : { ...record, sessionId: result.sessionId, status: 'completed', message: result.message,
+                progress: result.progress ?? record.progress,
                 updatedAt: new Date().toISOString() };
           } else record = { ...record, status: 'cancelled', updatedAt: new Date().toISOString() };
         } catch (error) {
@@ -775,14 +803,20 @@ export async function runAssistantWorker(): Promise<void> {
             error: error instanceof Error ? error.message : String(error), updatedAt: new Date().toISOString() };
         } finally {
           clearTimeout(timer);
+          clearTimeout(progressTimer);
+          await progressWrites;
         }
+        if (record.progress) record.progress = settleRunProgress(record.progress,
+          record.status === 'cancelled' ? 'cancelled' : 'interrupted');
         await saveTask(tasks, record);
+        liveRecords.delete(message.id);
         return record;
       })();
       active.set(message.id, { cancel, result });
       automationEngine?.setForeground(true);
       void result.finally(() => {
         active.delete(message.id);
+        liveRecords.delete(message.id);
         automationEngine?.setForeground(active.size > 0);
       }).catch(() => undefined);
       reply(result);
