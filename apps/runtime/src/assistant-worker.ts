@@ -7,6 +7,7 @@ import { AssistantAutomationEngine, AssistantAutomationStore, AssistantMemoryRep
   AssistantUserUnderstanding,
   AssistantWorkOrganization,
   AssistantSuggestionStore,
+  suggestionCandidateKeys,
   AssistantWorkspaceService,
   redactReviewText,
   assertSafeDirectory, createAssistantExecutor, resolveAssistantHome, readAssistantHomeFile,
@@ -465,6 +466,9 @@ export async function runAssistantWorker(): Promise<void> {
         if (!closed) await suggestions.reconcileSources();
         needsAnotherScan ||= Boolean(memory.sources.nextEvent());
         if (scanningVersion === sourceRefreshVersion && !needsAnotherScan) sourceSyncHealthy = true;
+        if (!closed && sourceSyncHealthy && !workspace.isOrganizingPaused()) {
+          automation.enqueueFollowUpCheck(suggestionCandidateKeys(await suggestions.candidates()));
+        }
       } catch (error) { send({ kind: 'source-error', error: String(error) }); }
       if (closed) return;
       automation.reconcileProcessedSources(100);

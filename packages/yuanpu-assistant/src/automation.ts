@@ -1,10 +1,12 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { AssistantAudience } from '@yuanpu-agent/protocol';
 import type { QueuedSource } from './memory-sources.js';
+import type { SuggestionCandidateKey } from './suggestions.js';
 
 export type AutomationKind = 'review-work' | 'understand-user' | 'maintain-memory'
-  | 'verify-delegation' | 'daily-check' | 'weekly-check' | 'correction' | 'forget';
+  | 'verify-delegation' | 'follow-up-check' | 'daily-check' | 'weekly-check'
+  | 'correction' | 'forget';
 export type AutomationStatus = 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled';
 
 export interface AutomationJob {
@@ -81,7 +83,7 @@ const schema = `
 const priorities: Record<AutomationKind, number> = {
   forget: 100, correction: 95, 'verify-delegation': 70,
   'review-work': 50, 'understand-user': 45, 'maintain-memory': 40,
-  'daily-check': 20, 'weekly-check': 10,
+  'follow-up-check': 25, 'daily-check': 20, 'weekly-check': 10,
 };
 
 function rowJob(row: Record<string, unknown>): AutomationJob {
@@ -117,6 +119,11 @@ function localPeriods(now: Date): { daily: string; weekly: string } {
   const first = new Date(Date.UTC(weekYear, 0, 1));
   const week = Math.ceil((((utc.getTime() - first.getTime()) / 86_400_000) + 1) / 7);
   return { daily: `${year}-${month}-${day}`, weekly: `${weekYear}-W${String(week).padStart(2, '0')}` };
+}
+
+export function followUpCheckKey(candidates: SuggestionCandidateKey[]): string {
+  const keys = [...candidates].sort((a, b) => a.candidateId.localeCompare(b.candidateId));
+  return `follow-up:${createHash('sha256').update(JSON.stringify(keys)).digest('hex')}`;
 }
 
 /** Shares state.sqlite and its single Worker writer with the source and memory repositories. */
@@ -329,6 +336,13 @@ export class AssistantAutomationStore {
         VALUES (?,?,?)`).run(kind, period, job.jobId);
       return job;
     });
+  }
+
+  /** Reconsider new, evidence-backed memory follow-ups even after today's check has run. */
+  enqueueFollowUpCheck(candidates: SuggestionCandidateKey[]): AutomationJob | undefined {
+    if (!candidates.length) return undefined;
+    return this.enqueue({ kind: 'follow-up-check', dedupeKey: followUpCheckKey(candidates),
+      audience: { kind: 'personal', id: 'local-user' }, durationMs: 120_000, maxCostUsd: 0.1 });
   }
 
   next(): AutomationJob | undefined {

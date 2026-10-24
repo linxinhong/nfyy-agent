@@ -249,7 +249,7 @@ export class AssistantSuggestionStore {
       WHERE type='table' AND name='automation_prepared_proposals'`).get());
     const prepared = hasAutomation ? this.database.prepare(`SELECT p.effect_id,p.proposal_json
       FROM automation_prepared_proposals p JOIN automation_jobs j ON j.job_id=p.job_id
-      WHERE j.kind IN ('daily-check','weekly-check')`).all() as
+      WHERE j.kind IN ('follow-up-check','daily-check','weekly-check')`).all() as
       Array<{ effect_id: string; proposal_json: string }> : [];
     for (const row of prepared) {
       const value = JSON.parse(row.proposal_json) as { candidateKeys?: SuggestionCandidateKey[] };

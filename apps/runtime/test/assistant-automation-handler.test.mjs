@@ -132,6 +132,71 @@ test('daily reflection stays silent without fresh evidence and considers a candi
   assert.equal(calls, 1);
 });
 
+test('a remembered follow-up is considered on resume after the daily check ran', async (t) => {
+  const database = new DatabaseSync(':memory:');
+  t.after(() => database.close());
+  const store = new AssistantAutomationStore(database);
+  const original = { candidateId: 'follow-up-one', fingerprint: 'v1',
+    context: 'Report', text: 'The report needs verification.', evidence: [] };
+  let candidates = [original];
+  let calls = 0;
+  const considered = [];
+  const host = { store: {
+    async candidates() { return candidates; },
+    record(items) { considered.push(...items); candidates = []; },
+    recordReflectionAttempt() {}, reflectionAttempt() { return undefined; },
+  }, async reflect(items, _signal, beforeModel) {
+    assert.equal(beforeModel(), true);
+    calls++;
+    return { costUsd: 0.01, message: JSON.stringify({ suggestions: [{
+      candidateId: items[0].candidateId, reason: 'Verification is still open.',
+      nextStep: 'Check the report totals.' }] }) };
+  } };
+  const engine = new AssistantAutomationEngine(store,
+    assistantAutomationHandler({ sources: { database } }, store,
+      undefined, undefined, undefined, host));
+  const daily = store.scheduleActivePeriods()[0];
+  // Today's periodic check has already finished before this memory candidate appears.
+  database.prepare("UPDATE automation_jobs SET status='completed' WHERE kind IN ('daily-check','weekly-check')")
+    .run();
+  assert.equal(store.get(daily.jobId).status, 'completed');
+  const first = store.enqueueFollowUpCheck([{ candidateId: original.candidateId,
+    fingerprint: original.fingerprint }]);
+  assert.equal((await engine.tick()).status, 'completed');
+  assert.equal(calls, 1);
+  assert.deepEqual(considered, [original]);
+  assert.equal(store.enqueueFollowUpCheck([{ candidateId: original.candidateId,
+    fingerprint: original.fingerprint }]).jobId, first.jobId);
+  assert.equal(await engine.tick(), undefined);
+
+  candidates = [{ ...original, fingerprint: 'v2', text: 'The report changed.' }];
+  const stale = store.enqueueFollowUpCheck([{ candidateId: original.candidateId,
+    fingerprint: 'v1' }]);
+  assert.equal(stale.jobId, first.jobId);
+  const current = store.enqueueFollowUpCheck([{ candidateId: original.candidateId,
+    fingerprint: 'v2' }]);
+  assert.equal((await engine.tick()).jobId, current.jobId);
+  assert.equal(calls, 2);
+});
+
+test('a queued follow-up with changed evidence skips its old snapshot', async (t) => {
+  const database = new DatabaseSync(':memory:');
+  t.after(() => database.close());
+  const store = new AssistantAutomationStore(database);
+  const old = { candidateId: 'follow-up-one', fingerprint: 'v1', context: '', text: '', evidence: [] };
+  const newer = { ...old, fingerprint: 'v2' };
+  const job = store.enqueueFollowUpCheck([old]);
+  const host = { store: { async candidates() { return [newer]; },
+    record() { throw new Error('stale evidence must not be considered'); },
+    recordReflectionAttempt() {}, reflectionAttempt() { return undefined; } },
+  async reflect() { throw new Error('stale evidence must not call the model'); } };
+  const engine = new AssistantAutomationEngine(store,
+    assistantAutomationHandler({ sources: { database } }, store,
+      undefined, undefined, undefined, host));
+  assert.equal((await engine.tick()).status, 'completed');
+  assert.equal(store.hasCheckpoint(job.effectId), true);
+});
+
 test('a changed candidate after a paid reflection is not silently marked considered', async (t) => {
   const database = new DatabaseSync(':memory:');
   t.after(() => database.close());

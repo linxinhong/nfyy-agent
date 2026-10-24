@@ -190,6 +190,22 @@ test('daily and weekly checks use current local period and collapse missed downt
     4, 'downtime does not enqueue every missed local day or week');
 });
 
+test('memory follow-up checks survive restart and dedupe the same evidence', async (t) => {
+  const context = await fixture(t);
+  let store = new AssistantAutomationStore(context.sources.database, context.clock.now);
+  const candidate = [{ candidateId: 'follow-up-one', fingerprint: 'v1' }];
+  assert.equal(store.enqueueFollowUpCheck([]), undefined);
+  const first = store.enqueueFollowUpCheck(candidate);
+  assert.equal(first.kind, 'follow-up-check');
+  assert.equal(store.enqueueFollowUpCheck(candidate).jobId, first.jobId);
+  await context.reopen();
+  store = new AssistantAutomationStore(context.sources.database, context.clock.now);
+  assert.equal(store.enqueueFollowUpCheck(candidate).jobId, first.jobId);
+  assert.equal(store.next().jobId, first.jobId);
+  assert.notEqual(store.enqueueFollowUpCheck([{ ...candidate[0], fingerprint: 'v2' }]).jobId,
+    first.jobId, 'changed evidence can be considered separately');
+});
+
 test('foreground and cancellation discard late model proposals before any write', async (t) => {
   const { sources, clock } = await fixture(t);
   const store = new AssistantAutomationStore(sources.database, clock.now);

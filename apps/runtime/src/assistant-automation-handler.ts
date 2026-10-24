@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { parseWorkReviewProposal, parseUnderstandingProposal, parseSuggestionProposal,
-  suggestionCandidateKeys, isDirectUserStatement,
+  suggestionCandidateKeys, followUpCheckKey, isDirectUserStatement,
   type WorkReviewProposal, type AssistantUserUnderstanding,
   type UnderstandingSnapshot, type UnderstandingProposal, type SuggestionCandidate,
   type SuggestionProposal, type AssistantSuggestionStore } from '@yuanpu-agent/assistant';
@@ -89,7 +89,8 @@ export function assistantAutomationHandler(memory: AssistantMemoryRepository,
         return record && ['completed', 'failed', 'cancelled', 'unknown', 'waiting_approval']
           .includes(record.status) ? 'absent' : 'deferred';
       }
-      if (job.kind !== 'daily-check' && job.kind !== 'weekly-check') return 'deferred';
+      if (job.kind !== 'follow-up-check' && job.kind !== 'daily-check'
+        && job.kind !== 'weekly-check') return 'deferred';
       return store.hasCheckpoint(job.effectId) ? 'applied' : 'absent';
     },
     async prepare(job: AutomationJob, signal: AbortSignal): Promise<AutomationProposal> {
@@ -176,8 +177,13 @@ export function assistantAutomationHandler(memory: AssistantMemoryRepository,
         store.savePreparedProposal(job, proposal);
         return proposal;
       }
-      if (job.kind === 'daily-check' || job.kind === 'weekly-check') {
+      if (job.kind === 'follow-up-check' || job.kind === 'daily-check'
+        || job.kind === 'weekly-check') {
         const candidates = await suggestions?.store.candidates() ?? [];
+        if (job.kind === 'follow-up-check'
+          && job.dedupeKey !== followUpCheckKey(suggestionCandidateKeys(candidates))) {
+          return { costUsd: 0, value: { candidates: [], parsed: [], skipped: 'source_changed' } };
+        }
         if (!candidates.length) return { costUsd: 0, value: { candidates, parsed: [] } };
         const prepared = store.preparedProposal(job);
         if (prepared) {
@@ -278,7 +284,8 @@ export function assistantAutomationHandler(memory: AssistantMemoryRepository,
           evidenceLinked: current.status === 'completed' }));
         return;
       }
-      if (job.kind === 'daily-check' || job.kind === 'weekly-check') {
+      if (job.kind === 'follow-up-check' || job.kind === 'daily-check'
+        || job.kind === 'weekly-check') {
         await understanding?.store.reconcile(job.audience);
         await reviews?.organization?.reconcile();
         if (suggestions) {
