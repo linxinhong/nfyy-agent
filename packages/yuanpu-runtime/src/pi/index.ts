@@ -50,6 +50,8 @@ import { runSubagentChild } from './subagents/runner.js';
 import { builtinMcpExtensions } from './mcp.js';
 import { withYuanpuModelCompatibility } from './model-compatibility.js';
 import { modelRequestTiming } from './request-timing.js';
+import { activeProtectedSkills, centerWorkspace, requireCenterModel, type CenterConnection } from './center-skills.js';
+export { parseCenterConnection, type CenterConnection } from './center-skills.js';
 export { withYuanpuModelCompatibility } from './model-compatibility.js';
 export { builtinMcpExtensions, BUILTIN_MCP_NAME, BUILTIN_MCP_VERSION } from './mcp.js';
 export { YuanpuSubagentManager } from './subagents/manager.js';
@@ -495,6 +497,7 @@ export interface CreateYuanpuChatOptions {
   provider: string;
   model: string;
   apiKey?: string;
+  centerConnection?: CenterConnection;
   piSession?: { id: string; directory: string };
   includeGlobalMemory?: boolean;
   builtinAgentRoot?: string;
@@ -635,6 +638,8 @@ export async function createYuanpuChatSession(
     });
   let queue: Promise<void> = Promise.resolve();
   let disposal: Promise<void> | undefined;
+  const chatOptions = options;
+  let workspaceForCenter: string | undefined;
   const runPrompt = async (
     message: string,
     options: { runId?: string; signal?: AbortSignal;
@@ -734,14 +739,39 @@ export async function createYuanpuChatSession(
     };
     options.signal?.addEventListener('abort', abort, { once: true });
     try {
-      if (options.modelSelection) {
-        const selected = modelRuntime.getModel(options.modelSelection.provider, options.modelSelection.model);
-        if (!selected) throw new Error('所选模型未配置或已移除。');
-        if (session.model?.provider !== selected.provider || session.model?.id !== selected.id) {
-          await session.setModel(withYuanpuModelCompatibility(selected));
+      const selected = options.modelSelection
+        ? modelRuntime.getModel(options.modelSelection.provider, options.modelSelection.model)
+        : modelRuntime.getModel(chatOptions.provider, chatOptions.model);
+      if (!selected) throw new Error('所选模型未配置或已移除。');
+      let requestModel = selected;
+      if (chatOptions.centerConnection?.apiKey) {
+        workspaceForCenter ??= await centerWorkspace(chatOptions.centerConnection);
+        const names = await activeProtectedSkills(chatOptions.centerConnection, workspaceForCenter);
+        if (names.length) {
+          await requireCenterModel(chatOptions.centerConnection, workspaceForCenter, selected.id);
+          modelRuntime.registerProvider('yuanpu-center', {
+            name: '知识服务中心',
+            baseUrl: `${chatOptions.centerConnection.endpoint}/v1`,
+            api: 'openai-completions',
+            apiKey: chatOptions.centerConnection.apiKey,
+            models: [{ ...selected, id: selected.id, name: selected.name,
+              api: 'openai-completions', baseUrl: `${chatOptions.centerConnection.endpoint}/v1`,
+              headers: { 'X-MindLink-Skills': names.join(','), 'X-Agent-Workspace': workspaceForCenter },
+              reasoning: selected.reasoning, contextWindow: selected.contextWindow,
+              maxTokens: selected.maxTokens, input: selected.input, cost: selected.cost,
+              compat: { ...selected.compat, maxTokensField: 'max_tokens', supportsReasoningEffort: false } }],
+          });
+          const routed = modelRuntime.getModel('yuanpu-center', selected.id);
+          if (!routed) throw new Error('知识服务中心模型未能注册。');
+          requestModel = routed;
         }
-        if (options.modelSelection.thinkingLevel) session.setThinkingLevel(options.modelSelection.thinkingLevel);
       }
+      if (session.model?.provider !== requestModel.provider || session.model?.id !== requestModel.id ||
+        session.model?.baseUrl !== requestModel.baseUrl ||
+        session.model?.headers?.['X-MindLink-Skills'] !== requestModel.headers?.['X-MindLink-Skills']) {
+        await session.setModel(withYuanpuModelCompatibility(requestModel));
+      }
+      if (options.modelSelection?.thinkingLevel) session.setThinkingLevel(options.modelSelection.thinkingLevel);
       const focusedGoal = goals.focused();
       const visualReply = isWorkConversation && !focusedGoal
         ? prepareVisualReply(message) : { prompt: message, renderOnly: false };

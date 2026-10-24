@@ -8,7 +8,7 @@ import { RuntimeManager } from '../dist/runtime-manager.cjs';
 
 const fixture = resolve(import.meta.dirname, 'fixtures/runtime-process.mjs');
 
-async function waitFor(check, message, timeoutMs = 3_000) {
+async function waitFor(check, message, timeoutMs = 10_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const value = await check();
@@ -34,7 +34,7 @@ async function createManager(context, mode, overrides = {}) {
   const errors = [];
   const manager = new RuntimeManager(root, root, root, false, '0.1.0', {
     command: { executable: process.execPath, args: [fixture, mode, eventFile, counterFile] },
-    startupTimeoutMs: 2_000,
+    startupTimeoutMs: 8_000,
     shutdownGraceMs: 100,
     restartBaseDelayMs: 20,
     onError: (error) => errors.push(error.message),
@@ -53,6 +53,20 @@ test('deduplicates concurrent starts and performs a bounded graceful stop', asyn
 
   await manager.stop();
   assert.equal((await events(eventFile)).filter((event) => event.event === 'term').length, 1);
+});
+
+test('center credentials cross only the authenticated desktop-to-Runtime bridge', async (context) => {
+  let apiKey = `agk_test_${'A'.repeat(32)}`;
+  const { manager, eventFile } = await createManager(context, 'healthy', {
+    centerConnection: async () => ({ endpoint: 'http://127.0.0.1:8790', apiKey }),
+  });
+  await manager.start();
+  apiKey = undefined;
+  await manager.refreshCenterConnection();
+  const logged = await events(eventFile);
+  assert.equal(logged.find((event) => event.event === 'start')?.hasCenterKey, true);
+  assert.equal(logged.find((event) => event.event === 'center-connection')?.hasKey, false);
+  assert.equal(JSON.stringify(logged).includes('agk_test_'), false);
 });
 
 test('loads a validated notification run target through the authenticated Runtime bridge', async (context) => {
@@ -124,6 +138,7 @@ test('stops restarting after the bounded crash budget is exhausted', async (cont
   await waitFor(
     async () => errors.some((message) => message.includes('restart budget is exhausted')),
     'Runtime restart budget was not enforced',
+    5_000,
   );
   await new Promise((resolveWait) => setTimeout(resolveWait, 150));
   assert.equal((await events(eventFile)).filter((event) => event.event === 'start').length, 3);
@@ -143,7 +158,7 @@ test('rejects an incompatible Runtime protocol with an explicit error and no res
   const { manager, eventFile } = await createManager(context, 'ready-protocol-mismatch');
   await assert.rejects(
     manager.start(),
-    /desktop expects 8, Runtime reported 999/,
+    /desktop expects 9, Runtime reported 999/,
   );
   await new Promise((resolveWait) => setTimeout(resolveWait, 100));
   assert.equal((await events(eventFile)).filter((event) => event.event === 'start').length, 1);

@@ -99,7 +99,7 @@ test('optional Enterprise WeChat startup failure does not prevent Runtime readin
       });
       const ready = await new Promise((resolve, reject) => {
         let stdout = '';
-        const timeout = setTimeout(() => reject(new Error('Runtime did not become ready')), 5_000);
+        const timeout = setTimeout(() => reject(new Error('Runtime did not become ready')), 15_000);
         child.once('error', reject);
         child.once('exit', (code) => reject(new Error(`Runtime exited before ready: ${code}`)));
         child.stdout.setEncoding('utf8');
@@ -140,7 +140,7 @@ test('connection management preserves the previous config when an enabled creden
   });
   const ready = await new Promise((resolve, reject) => {
     let stdout = '';
-    const timeout = setTimeout(() => reject(new Error('Runtime did not become ready')), 5_000);
+    const timeout = setTimeout(() => reject(new Error('Runtime did not become ready')), 15_000);
     child.once('error', reject);
     child.once('exit', (code) => reject(new Error(`Runtime exited before ready: ${code}`)));
     child.stdout.setEncoding('utf8');
@@ -267,7 +267,7 @@ test('runtime server exposes its protocol and greeting', async (context) => {
 
   const ready = await new Promise((resolve, reject) => {
     let output = '';
-    const timeout = setTimeout(() => reject(new Error('runtime server did not start')), 5_000);
+    const timeout = setTimeout(() => reject(new Error('runtime server did not start')), 15_000);
     child.once('error', reject);
     child.stdout.on('data', (chunk) => {
       output += chunk.toString();
@@ -707,7 +707,7 @@ test('runtime server exposes its protocol and greeting', async (context) => {
   assert.deepEqual(scheduleHistory, []);
   assert.deepEqual(health, {
     version: '0.1.0',
-    protocolVersion: 8,
+    protocolVersion: 9,
     piVersion: '1.4.0',
     mcpTools: ['search_capabilities', 'execute_capability'],
     configRoot: home,

@@ -24,6 +24,7 @@ import {
   inspectYuanpuExtensions,
   inspectYuanpuSkills,
   PI_UPSTREAM_VERSION,
+  parseCenterConnection,
   PluginManager,
   CapabilityArtifactManager,
   capabilityManifestDigest,
@@ -44,6 +45,7 @@ import {
   type ArtifactTrustRoot,
   type AuthenticatedAgentCaller,
   type ChannelRouter,
+  type CenterConnection,
 } from '@yuanpu-agent/runtime-kit';
 import {
   AGENT_CONTRACT_VERSION,
@@ -121,6 +123,7 @@ interface RuntimeBootstrap {
   approvalPublicKey: string;
   parentPid: number;
   browserControl?: { port: number; token: string };
+  centerConnection?: CenterConnection;
 }
 
 async function readBootstrap(): Promise<RuntimeBootstrap> {
@@ -153,6 +156,7 @@ async function readBootstrap(): Promise<RuntimeBootstrap> {
     approvalPublicKey: value.approvalPublicKey,
     parentPid: Number(value.parentPid),
     ...(endpoint ? { browserControl: endpoint } : {}),
+    ...(value.centerConnection ? { centerConnection: parseCenterConnection(value.centerConnection) } : {}),
   };
 }
 
@@ -436,7 +440,7 @@ function readConfigInput(value: unknown): PluginConfigInput {
 async function serve(): Promise<void> {
   const portIndex = args.indexOf('--port');
   const requestedPort = portIndex >= 0 ? Number(args[portIndex + 1]) : 0;
-  const { token, approvalPublicKey, parentPid, browserControl } = await readBootstrap();
+  const { token, approvalPublicKey, parentPid, browserControl, centerConnection: initialCenterConnection } = await readBootstrap();
   const approvalVerificationKey = createPublicKey({
     key: Buffer.from(approvalPublicKey, 'base64'),
     format: 'der',
@@ -664,6 +668,17 @@ async function serve(): Promise<void> {
   }, 60_000);
   workScanTimer.unref();
   metadata.assistantLink.markInterruptedMirrorsUnknown();
+  let centerConnection = initialCenterConnection;
+  const chatOptions = () => ({
+    agentDir: home.agentPath,
+    modelConfigDir: home.appPath,
+    cwd: home.config.workingDirectory,
+    provider: home.config.provider,
+    model: home.config.model,
+    builtinAgentRoot: process.env.YUANPU_BUILTIN_AGENTS_ROOT
+      ? resolve(process.env.YUANPU_BUILTIN_AGENTS_ROOT) : undefined,
+    centerConnection,
+  });
   const agentExecutor = new RuntimeAgentExecutor({
     getCapabilityClient: () => mcp,
     approvals,
@@ -675,15 +690,7 @@ async function serve(): Promise<void> {
         // 审查数据持久化失败只影响审查视图，不阻塞会话。
       }
     },
-    chat: {
-      agentDir: home.agentPath,
-      modelConfigDir: home.appPath,
-      cwd: home.config.workingDirectory,
-      provider: home.config.provider,
-      model: home.config.model,
-      builtinAgentRoot: process.env.YUANPU_BUILTIN_AGENTS_ROOT
-        ? resolve(process.env.YUANPU_BUILTIN_AGENTS_ROOT) : undefined,
-    },
+    chat: chatOptions(),
   });
   const assistantSources = new RuntimeAssistantSourceHost(workConversations, metadata.assistantHost,
     metadata.assistantSourceLifecycle, join(home.agentPath, 'memory', 'MEMORY.md'),
@@ -1026,6 +1033,13 @@ async function serve(): Promise<void> {
         response.end(JSON.stringify(await getModelSettings(home)));
         return;
       }
+      if (url.pathname === RUNTIME_ROUTES.centerConnection && request.method === 'POST') {
+        centerConnection = parseCenterConnection(await readJsonBody(request));
+        agentExecutor.updateChat(chatOptions());
+        response.statusCode = 204;
+        response.end();
+        return;
+      }
       if (url.pathname === RUNTIME_ROUTES.hotkeySettings && request.method === 'GET') {
         response.end(JSON.stringify(await getHotkeySettings(home)));
         return;
@@ -1040,26 +1054,14 @@ async function serve(): Promise<void> {
       }
       if (url.pathname === RUNTIME_ROUTES.modelSettings && request.method === 'POST') {
         const settings = await saveModelSettings(home, await readJsonBody(request) as SaveModelSettingsInput);
-        agentExecutor.updateChat({
-          agentDir: home.agentPath,
-          modelConfigDir: home.appPath,
-          cwd: home.config.workingDirectory,
-          provider: home.config.provider,
-          model: home.config.model,
-        });
+        agentExecutor.updateChat(chatOptions());
         response.end(JSON.stringify(settings));
         return;
       }
       if (url.pathname === RUNTIME_ROUTES.modelSettingsDelete && request.method === 'POST') {
         const body = await readJsonBody(request) as { provider?: string; model?: string };
         const settings = await deleteModelSettings(home, body.provider!, body.model!);
-        agentExecutor.updateChat({
-          agentDir: home.agentPath,
-          modelConfigDir: home.appPath,
-          cwd: home.config.workingDirectory,
-          provider: home.config.provider,
-          model: home.config.model,
-        });
+        agentExecutor.updateChat(chatOptions());
         response.end(JSON.stringify(settings));
         return;
       }

@@ -186,6 +186,15 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     manager: browserGuestManager,
     token: browserControlToken,
   });
+  const serverCenterEndpoint = new ServerCenterEndpointStore(join(app.getPath('userData'), 'server-center-endpoint.json'),
+    process.env.YUANPU_CENTER_URL || 'http://127.0.0.1:8790');
+  let serverUrl = await serverCenterEndpoint.load();
+  centerPortalEndpoint = serverUrl;
+  const serverCenterCredentials = new ServerCenterCredentialStore(join(app.getPath('userData'), 'server-center-credential.json'), safeStorage);
+  const centerConnection = async () => {
+    const key = await serverCenterCredentials.loadKey();
+    return { endpoint: serverUrl, ...(key?.startsWith('agk_') ? { apiKey: key } : {}) };
+  };
   runtime = new RuntimeManager(
     app.getAppPath(),
     process.resourcesPath,
@@ -195,15 +204,11 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     {
       onUpdateRecovery: (kind) => { runtimeRecoveryNotice = { kind }; },
       browserControl: { port: browserControlService.port, token: browserControlToken },
+      centerConnection,
     },
   );
 
   ipcMain.handle('runtime:info', trustedHandler(() => runtime.info()));
-  const serverCenterEndpoint = new ServerCenterEndpointStore(join(app.getPath('userData'), 'server-center-endpoint.json'),
-    process.env.YUANPU_CENTER_URL || 'http://127.0.0.1:8790');
-  let serverUrl = await serverCenterEndpoint.load();
-  centerPortalEndpoint = serverUrl;
-  const serverCenterCredentials = new ServerCenterCredentialStore(join(app.getPath('userData'), 'server-center-credential.json'), safeStorage);
   let serverCenterSession = new ServerCenterSession(serverUrl, () => serverCenterCredentials.loadKey());
   let endpointChanging = false;
   let apiKeyWrite: Promise<unknown> | undefined;
@@ -214,6 +219,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   ipcMain.handle('server:center:logout', trustedHandler(async () => {
     await serverCenterSession.logout();
     await serverCenterCredentials.removeKey();
+    await runtime.refreshCenterConnection();
   }));
   ipcMain.handle('server:center:credential-status', trustedHandler(() => serverCenterCredentials.status()));
   ipcMain.handle('server:center:endpoint', trustedHandler(() => serverUrl));
@@ -230,6 +236,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       serverUrl = nextUrl;
       centerPortalEndpoint = nextUrl;
       serverCenterSession = new ServerCenterSession(serverUrl, () => serverCenterCredentials.loadKey());
+      await runtime.refreshCenterConnection();
       return { url: serverUrl, keyCleared: true };
     } finally { endpointChanging = false; }
   }));
@@ -245,6 +252,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       if (result.ok) {
         try { await serverCenterCredentials.saveKey(apiKey); }
         catch (error) { await session.logout(); throw error; }
+        await runtime.refreshCenterConnection();
       }
       return result;
     })();
@@ -276,10 +284,12 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     assertCenterPortalGuest(event);
     await serverCenterSession.logout();
     await serverCenterCredentials.removeKey();
+    await runtime.refreshCenterConnection();
   });
   ipcMain.handle('server:center:remove-api-key', trustedHandler(async () => {
     await serverCenterSession.logout();
     await serverCenterCredentials.removeKey();
+    await runtime.refreshCenterConnection();
   }));
   ipcMain.handle('server:center:resources', trustedHandler((query: string) => serverCenterSession.listResources(query)));
   ipcMain.handle('server:center:resource', trustedHandler((id: string) => serverCenterSession.getResource(id)));

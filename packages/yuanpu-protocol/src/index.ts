@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 import type { NotificationNavigationTarget } from './host-events.js';
 import type { RunToolStep } from './run-progress.js';
@@ -36,6 +36,7 @@ export const RUNTIME_ROUTES = {
   wecomConnections: '/v1/connections/wecom',
   tailscaleConnection: '/v1/connections/tailscale',
   localSkills: '/v1/skills/local',
+  centerConnection: '/v1/center/connection',
   plugins: '/v1/plugins',
   pluginSearch: '/v1/plugins/search',
   pluginInstall: '/v1/plugins/install',

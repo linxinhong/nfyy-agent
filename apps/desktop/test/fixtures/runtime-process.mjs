@@ -12,13 +12,14 @@ const record = (event, extra = {}) => {
 };
 
 let startNumber = 1;
+let crashScheduled = false;
 if (counterFile) {
   try { startNumber = Number.parseInt(readFileSync(counterFile, 'utf8'), 10) + 1; } catch {}
   writeFileSync(counterFile, String(startNumber));
 }
-record('start', { startNumber });
+record('start', { startNumber, hasCenterKey: Boolean(credentials.centerConnection?.apiKey) });
 
-const server = createServer((request, response) => {
+const server = createServer(async (request, response) => {
   if (request.headers.authorization !== `Bearer ${credentials.token}`) {
     response.writeHead(401).end();
     return;
@@ -27,12 +28,27 @@ const server = createServer((request, response) => {
     response.setHeader('content-type', 'application/json');
     response.end(JSON.stringify({
       version: '0.1.0',
-      protocolVersion: mode === 'health-protocol-mismatch' ? 999 : 8,
+      protocolVersion: mode === 'health-protocol-mismatch' ? 999 : 9,
       piVersion: 'fixture',
       mcpTools: [],
       configRoot: '/fixture',
       notificationsEnabled: true,
     }));
+    if (!crashScheduled && ((mode === 'crash-once' && startNumber === 1) || mode === 'always-crash')) {
+      crashScheduled = true;
+      setTimeout(() => {
+        record('crash', { startNumber });
+        process.exit(23);
+      }, 500);
+    }
+    return;
+  }
+  if (request.url === '/v1/center/connection' && request.method === 'POST') {
+    let body = '';
+    for await (const chunk of request) body += chunk;
+    const connection = JSON.parse(body);
+    record('center-connection', { endpoint: connection.endpoint, hasKey: Boolean(connection.apiKey) });
+    response.writeHead(204).end();
     return;
   }
   if (request.url === '/v1/agent/runs/run-fixture') {
@@ -123,7 +139,7 @@ const server = createServer((request, response) => {
 
 server.listen(0, '127.0.0.1', () => {
   const address = server.address();
-  const protocolVersion = mode === 'ready-protocol-mismatch' ? 999 : 8;
+  const protocolVersion = mode === 'ready-protocol-mismatch' ? 999 : 9;
   process.stdout.write(`${JSON.stringify({
     event: 'ready',
     host: '127.0.0.1',
@@ -135,12 +151,6 @@ server.listen(0, '127.0.0.1', () => {
     configRoot: '/fixture',
     notificationsEnabled: true,
   })}\n`);
-  if ((mode === 'crash-once' && startNumber === 1) || mode === 'always-crash') {
-    setTimeout(() => {
-      record('crash', { startNumber });
-      process.exit(23);
-    }, mode === 'always-crash' ? 150 : 40);
-  }
 });
 
 if (mode !== 'ignore-term') {

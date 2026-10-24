@@ -55,7 +55,7 @@ const router = new ChannelRouter({
 });
 router.start();
 const info = {
-  version: '0.1.0', protocolVersion: 8, piVersion: 'fixture', mcpTools: [],
+  version: '0.1.0', protocolVersion: 9, piVersion: 'fixture', mcpTools: [],
   configRoot: home, workingDirectory: join(home, 'workspace'), notificationsEnabled: false,
 };
 const server = createServer(async (request, response) => {

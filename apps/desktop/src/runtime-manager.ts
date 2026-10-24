@@ -83,6 +83,7 @@ export interface RuntimeManagerOptions {
   onUpdateRecovery?: (reason: RuntimeUpdateRecoveryReason) => void;
   /** Loopback browser-control endpoint delivered to the runtime bootstrap. */
   browserControl?: { port: number; token: string };
+  centerConnection?: () => Promise<{ endpoint: string; apiKey?: string }>;
 }
 
 const execFileAsync = promisify(execFile);
@@ -100,8 +101,8 @@ export class RuntimeManager {
   private readonly token = randomBytes(32).toString('hex');
   private readonly approvalKeyPair = generateKeyPairSync('ed25519');
   private readonly updater: RuntimeUpdater;
-  private readonly options: Required<Omit<RuntimeManagerOptions, 'command' | 'onError' | 'onUpdateRecovery' | 'browserControl'>>
-    & Pick<RuntimeManagerOptions, 'command' | 'onError' | 'onUpdateRecovery' | 'browserControl'>;
+  private readonly options: Required<Omit<RuntimeManagerOptions, 'command' | 'onError' | 'onUpdateRecovery' | 'browserControl' | 'centerConnection'>>
+    & Pick<RuntimeManagerOptions, 'command' | 'onError' | 'onUpdateRecovery' | 'browserControl' | 'centerConnection'>;
 
   constructor(
     private readonly appPath: string,
@@ -128,6 +129,7 @@ export class RuntimeManager {
       onError: options.onError,
       onUpdateRecovery: options.onUpdateRecovery,
       browserControl: options.browserControl,
+      centerConnection: options.centerConnection,
     };
   }
 
@@ -310,6 +312,7 @@ export class RuntimeManager {
         approvalPublicKey,
         parentPid: process.pid,
         ...(this.options.browserControl ? { browserControl: this.options.browserControl } : {}),
+        ...(this.options.centerConnection ? { centerConnection: await this.options.centerConnection() } : {}),
       })}\n`);
       let stdout = '';
       const ready = await new Promise<RuntimeReady>((resolveReady, rejectReady) => {
@@ -456,6 +459,15 @@ export class RuntimeManager {
 
   info(): Promise<RuntimeInfo> {
     return this.request(RUNTIME_ROUTES.health);
+  }
+
+  async refreshCenterConnection(): Promise<void> {
+    if (!this.options.centerConnection) return;
+    await this.request(RUNTIME_ROUTES.centerConnection, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(await this.options.centerConnection()),
+    });
   }
 
   getModelSettings(): Promise<ModelSettings> {
