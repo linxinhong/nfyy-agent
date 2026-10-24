@@ -13,6 +13,9 @@ func TestResourceScopeAndReviewBoundary(t *testing.T) {
 	outsider := identity.User{ID: "outsider", Role: "team_lead", TeamID: &teamB, Active: true}
 	reviewer := identity.User{ID: "reviewer", Role: "reviewer", TeamID: &teamB, Active: true}
 	facts := ResourceFacts{OwnerID: owner.ID, Visibility: "team", TeamID: &teamA}
+	if !Allowed(owner, Create, facts) || Allowed(outsider, Create, facts) {
+		t.Fatal("team drafts crossed the creator's team boundary")
+	}
 	if !Allowed(owner, Read, facts) || Allowed(reader, Read, facts) || Allowed(outsider, Read, facts) {
 		t.Fatal("draft visibility crossed the author boundary")
 	}
@@ -23,8 +26,8 @@ func TestResourceScopeAndReviewBoundary(t *testing.T) {
 	if Allowed(owner, Review, facts) || Allowed(outsider, Review, facts) || !Allowed(reviewer, Review, facts) {
 		t.Fatal("reviewer scope or self-review is wrong")
 	}
-	if Allowed(reader, Withdraw, facts) || !Allowed(owner, Withdraw, facts) {
-		t.Fatal("withdrawal did not follow ownership")
+	if Allowed(reader, Withdraw, facts) || Allowed(owner, Withdraw, facts) {
+		t.Fatal("withdrawal did not follow the role grant")
 	}
 	owner.Active = false
 	if Allowed(owner, Read, facts) || Allowed(owner, Edit, facts) || Allowed(owner, Withdraw, facts) {

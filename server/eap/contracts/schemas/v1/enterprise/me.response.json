@@ -1,0 +1,17 @@
+{
+  "user": {
+    "id": "user_123",
+    "display_name": "Li Lei",
+    "email": "li.lei@example.com",
+    "organization_id": "org_default",
+    "department_id": "dept_platform"
+  },
+  "workspaces": [
+    {
+      "id": "secops",
+      "name": "Security Operations",
+      "roles": ["developer"]
+    }
+  ],
+  "default_workspace": "secops"
+}

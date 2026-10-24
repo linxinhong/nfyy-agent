@@ -1,0 +1,28 @@
+.idea
+.vscode
+*.iml
+*.db
+*.db-journal
+*.log
+.DS_Store
+coverage.out
+bin/
+dist/
+.env
+
+# Agent collaboration runtime state (agtalk)
+.agtalk/
+
+# Agent-generated planning/review working docs (kept out of VCS)
+docs/plans/
+docs/reviews/
+docs/tasks/
+
+# Cookbook examples that require real provider keys
+examples/mcp-client/
+examples/mcp-server/
+
+# Built binaries and release artifacts
+/mcp-client
+/mcp-server
+xingding-agent-runtime.zip

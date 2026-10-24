@@ -708,7 +708,7 @@ test('runtime server exposes its protocol and greeting', async (context) => {
   assert.deepEqual(health, {
     version: '0.1.0',
     protocolVersion: 8,
-    piVersion: '1.0.4',
+    piVersion: '1.4.0',
     mcpTools: ['search_capabilities', 'execute_capability'],
     configRoot: home,
     workingDirectory: runtimeConfig.workingDirectory,

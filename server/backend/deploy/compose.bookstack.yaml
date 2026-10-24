@@ -1,0 +1,41 @@
+# Optional BookStack display/editor layer. Keep the port bound to loopback;
+# production access must come through a trusted HTTPS reverse proxy or VPN.
+services:
+  bookstack-db:
+    image: mariadb:11.8@sha256:6422478cb8e159f080fb1d8ccf65101e26fe51385787fde7d16c3b165a331f15
+    environment:
+      MARIADB_DATABASE: bookstack
+      MARIADB_USER: bookstack
+      MARIADB_PASSWORD: ${YUANPU_BOOKSTACK_DB_PASSWORD:?Set YUANPU_BOOKSTACK_DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${YUANPU_BOOKSTACK_DB_ROOT_PASSWORD:?Set YUANPU_BOOKSTACK_DB_ROOT_PASSWORD}
+    volumes:
+      - bookstack-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  bookstack:
+    image: lscr.io/linuxserver/bookstack:26.09.1@sha256:0d66f65417fa667085849bf9b32b412ec9a90420773c4f47a95138c4711876b7
+    environment:
+      APP_URL: ${YUANPU_BOOKSTACK_PUBLIC_URL:?Set YUANPU_BOOKSTACK_PUBLIC_URL}
+      APP_KEY: ${YUANPU_BOOKSTACK_APP_KEY:?Set YUANPU_BOOKSTACK_APP_KEY}
+      DB_HOST: bookstack-db
+      DB_PORT: 3306
+      DB_USERNAME: bookstack
+      DB_PASSWORD: ${YUANPU_BOOKSTACK_DB_PASSWORD:?Set YUANPU_BOOKSTACK_DB_PASSWORD}
+      DB_DATABASE: bookstack
+      QUEUE_CONNECTION: database
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      - "127.0.0.1:${YUANPU_BOOKSTACK_PORT:-6875}:80"
+    volumes:
+      - bookstack-config:/config
+    depends_on:
+      bookstack-db:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  bookstack-db-data:
+  bookstack-config:

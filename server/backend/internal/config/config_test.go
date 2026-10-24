@@ -21,10 +21,13 @@ func TestLoad(t *testing.T) {
 		})
 	}
 	cfg, err = Load(func(key string) string {
-		if key == "YUANPU_SERVER_LISTEN" {
+		switch key {
+		case "YUANPU_SERVER_LISTEN":
 			return "[::1]:0"
+		case "YUANPU_DATABASE_URL":
+			return "postgres://example"
 		}
-		return "postgres://example"
+		return ""
 	})
 	if err != nil || cfg.Listen != "[::1]:0" || cfg.DatabaseURL != "postgres://example" {
 		t.Fatalf("explicit configuration was not preserved: %+v, %v", cfg, err)

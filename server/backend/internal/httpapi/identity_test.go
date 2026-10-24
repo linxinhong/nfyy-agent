@@ -17,6 +17,7 @@ import (
 
 	"yuanpu.dev/server/internal/content"
 	"yuanpu.dev/server/internal/identity"
+	"yuanpu.dev/server/internal/ingest"
 	"yuanpu.dev/server/migrations"
 )
 
@@ -75,16 +76,26 @@ func TestIdentityHTTPWithPostgres(t *testing.T) {
 	if _, err := pool.Exec(ctx, string(apiKeySQL)); err != nil {
 		t.Fatal(err)
 	}
+	for _, name := range []string{"0005_role_permissions.sql", "0006_ingest.sql", "0007_api_key_only.sql", "0008_password_login.sql"} {
+		body, err := migrations.Files.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, string(body)); err != nil {
+			t.Fatal(err)
+		}
+	}
 	users := identity.New(pool)
-	first, err := users.BootstrapAdmin(ctx, "ADMIN@EXAMPLE.COM", "Administrator", "one long initial passphrase")
+	first, firstKey, err := users.BootstrapAdminWithAPIKey(ctx, "ADMIN@EXAMPLE.COM", "Administrator")
 	if err != nil || first.Email != "admin@example.com" {
 		t.Fatalf("bootstrap failed: %v", err)
 	}
-	if _, err := users.BootstrapAdmin(ctx, "next@example.com", "Next", "another long passphrase"); !errors.Is(err, identity.ErrBootstrapClosed) {
+	if _, _, err := users.BootstrapAdminWithAPIKey(ctx, "next@example.com", "Next"); !errors.Is(err, identity.ErrBootstrapClosed) {
 		t.Fatalf("bootstrap reopened: %v", err)
 	}
 	accounts := identity.NewHTTP(users)
-	handler := New("test", readinessFunc(func(context.Context) (int, error) { return 4, nil }), accounts, content.NewHTTP(content.New(pool), accounts.Authenticate))
+	resourceStore := content.New(pool)
+	handler := New("test", readinessFunc(func(context.Context) (int, error) { return 7, nil }), accounts, content.NewHTTP(resourceStore, accounts.Authenticate), ingest.NewHTTP(pool, resourceStore, accounts.Authenticate))
 	call := func(method, path, token string, input any) *httptest.ResponseRecorder {
 		t.Helper()
 		var body []byte
@@ -102,7 +113,7 @@ func TestIdentityHTTPWithPostgres(t *testing.T) {
 		handler.ServeHTTP(response, req)
 		return response
 	}
-	login := call("POST", "/v1/auth/login", "", map[string]string{"email": "admin@example.com", "password": "one long initial passphrase"})
+	login := call("POST", "/v1/auth/api-key", "", map[string]string{"apiKey": firstKey})
 	if login.Code != 200 {
 		t.Fatalf("login failed: %d %s", login.Code, login.Body.String())
 	}
@@ -113,8 +124,8 @@ func TestIdentityHTTPWithPostgres(t *testing.T) {
 	if err := json.Unmarshal(login.Body.Bytes(), &session); err != nil || session.Token == "" {
 		t.Fatal("session token missing")
 	}
-	if got := call("POST", "/v1/auth/login", "", map[string]string{"email": "admin@example.com", "password": "wrong password"}); got.Code != 401 {
-		t.Fatalf("wrong password: %d", got.Code)
+	if got := call("POST", "/v1/auth/password", "", map[string]string{"email": first.Email, "password": "invalid-pass"}); got.Code != 401 {
+		t.Fatalf("unset password accepted: %d", got.Code)
 	}
 	if got := call("GET", "/v1/auth/me", session.Token, nil); got.Code != 200 {
 		t.Fatalf("me failed: %d", got.Code)
@@ -135,21 +146,53 @@ func TestIdentityHTTPWithPostgres(t *testing.T) {
 		t.Fatalf("member creation failed: %d %s", created.Code, created.Body.String())
 	}
 	var account struct {
-		User            identity.User `json:"user"`
-		InitialPassword string        `json:"initialPassword"`
+		User identity.User `json:"user"`
 	}
-	if err := json.Unmarshal(created.Body.Bytes(), &account); err != nil || account.InitialPassword == "" {
-		t.Fatal("initial password missing")
+	if err := json.Unmarshal(created.Body.Bytes(), &account); err != nil || account.User.ID == "" || strings.Contains(created.Body.String(), "initialPassword") {
+		t.Fatal("member response invalid or leaked password")
 	}
-	memberLogin := call("POST", "/v1/auth/login", "", map[string]string{"email": "member@example.com", "password": account.InitialPassword})
-	if memberLogin.Code != 200 {
-		t.Fatalf("member login failed: %d", memberLogin.Code)
+	if got := call("PUT", "/v1/admin/users/"+account.User.ID+"/password", session.Token, map[string]string{"password": "demo@yuanpu"}); got.Code != 204 {
+		t.Fatalf("member password setup failed: %d %s", got.Code, got.Body.String())
+	}
+	passwordLogin := call("POST", "/v1/auth/password", "", map[string]string{"email": account.User.Email, "password": "demo@yuanpu"})
+	if passwordLogin.Code != 200 {
+		t.Fatalf("password login failed: %d %s", passwordLogin.Code, passwordLogin.Body.String())
+	}
+	var passwordSession struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(passwordLogin.Body.Bytes(), &passwordSession); err != nil || passwordSession.Token == "" {
+		t.Fatal("password session missing")
+	}
+	if got := call("GET", "/v1/auth/me", passwordSession.Token, nil); got.Code != 200 {
+		t.Fatalf("password session unusable: %d", got.Code)
+	}
+	deviceKeyResponse := call("POST", "/v1/auth/device-key", passwordSession.Token, nil)
+	if deviceKeyResponse.Code != 201 {
+		t.Fatalf("device key issuance failed: %d %s", deviceKeyResponse.Code, deviceKeyResponse.Body.String())
+	}
+	var deviceKey struct {
+		Secret string `json:"secret"`
+	}
+	if err := json.Unmarshal(deviceKeyResponse.Body.Bytes(), &deviceKey); err != nil || !strings.HasPrefix(deviceKey.Secret, "ypk_") {
+		t.Fatal("device key secret missing")
+	}
+	if got := call("POST", "/v1/auth/api-key", "", map[string]string{"apiKey": deviceKey.Secret}); got.Code != 200 {
+		t.Fatalf("generated device key unusable: %d", got.Code)
+	}
+	plainContext := call("GET", "/v1/portal/context", "", nil)
+	if plainContext.Code != 200 || !strings.Contains(plainContext.Body.String(), `"agentBrowser":false`) {
+		t.Fatalf("plain browser context incorrect: %d %s", plainContext.Code, plainContext.Body.String())
+	}
+	agentRequest := httptest.NewRequest("GET", "/v1/portal/context", nil)
+	agentRequest.Header.Set("User-Agent", "Mozilla/5.0 YuanpuAgentDesktop/0.1.0")
+	agentContext := httptest.NewRecorder()
+	handler.ServeHTTP(agentContext, agentRequest)
+	if agentContext.Code != 200 || !strings.Contains(agentContext.Body.String(), `"agentBrowser":true`) {
+		t.Fatalf("desktop browser context incorrect: %d %s", agentContext.Code, agentContext.Body.String())
 	}
 	var memberSession struct {
 		Token string `json:"token"`
-	}
-	if err := json.Unmarshal(memberLogin.Body.Bytes(), &memberSession); err != nil {
-		t.Fatal(err)
 	}
 	issued := call("POST", "/v1/admin/api-keys", session.Token, map[string]any{
 		"userId": account.User.ID, "name": "Member desktop", "expiresInDays": 90,
@@ -163,6 +206,35 @@ func TestIdentityHTTPWithPostgres(t *testing.T) {
 	}
 	if err := json.Unmarshal(issued.Body.Bytes(), &issuedKey); err != nil || !strings.HasPrefix(issuedKey.Secret, "ypk_") {
 		t.Fatal("API key secret missing")
+	}
+	memberLogin := call("POST", "/v1/auth/api-key", "", map[string]string{"apiKey": issuedKey.Secret})
+	if memberLogin.Code != 200 {
+		t.Fatalf("member login failed: %d", memberLogin.Code)
+	}
+	if err := json.Unmarshal(memberLogin.Body.Bytes(), &memberSession); err != nil {
+		t.Fatal(err)
+	}
+	if got := call("POST", "/v1/auth/device-key", memberSession.Token, nil); got.Code != 401 {
+		t.Fatalf("API key session minted another key: %d", got.Code)
+	}
+	webKeyResponse := call("POST", "/v1/admin/api-keys", session.Token, map[string]any{
+		"userId": account.User.ID, "name": "Member web", "expiresInDays": 90,
+	})
+	if webKeyResponse.Code != 201 {
+		t.Fatalf("member web key issue failed: %d", webKeyResponse.Code)
+	}
+	var webKey struct {
+		Secret string `json:"secret"`
+	}
+	if err := json.Unmarshal(webKeyResponse.Body.Bytes(), &webKey); err != nil {
+		t.Fatal(err)
+	}
+	memberLogin = call("POST", "/v1/auth/api-key", "", map[string]string{"apiKey": webKey.Secret})
+	if memberLogin.Code != 200 {
+		t.Fatalf("member web login failed: %d", memberLogin.Code)
+	}
+	if err := json.Unmarshal(memberLogin.Body.Bytes(), &memberSession); err != nil {
+		t.Fatal(err)
 	}
 	if got := call("POST", "/v1/admin/api-keys", memberSession.Token, map[string]any{
 		"userId": account.User.ID, "name": "Forbidden", "expiresInDays": 90,
@@ -251,7 +323,7 @@ func TestIdentityHTTPWithPostgres(t *testing.T) {
 	if got := call("GET", "/v1/auth/me", memberSession.Token, nil); got.Code != 401 {
 		t.Fatalf("revoked token still worked: %d", got.Code)
 	}
-	memberLogin = call("POST", "/v1/auth/login", "", map[string]string{"email": "member@example.com", "password": account.InitialPassword})
+	memberLogin = call("POST", "/v1/auth/api-key", "", map[string]string{"apiKey": webKey.Secret})
 	if memberLogin.Code != 200 {
 		t.Fatalf("member re-login failed: %d", memberLogin.Code)
 	}
@@ -264,7 +336,7 @@ func TestIdentityHTTPWithPostgres(t *testing.T) {
 	if got := call("GET", "/v1/auth/me", memberSession.Token, nil); got.Code != 401 {
 		t.Fatalf("deactivated member session still worked: %d", got.Code)
 	}
-	if got := call("POST", "/v1/auth/login", "", map[string]string{"email": "member@example.com", "password": account.InitialPassword}); got.Code != 401 {
+	if got := call("POST", "/v1/auth/api-key", "", map[string]string{"apiKey": webKey.Secret}); got.Code != 401 {
 		t.Fatalf("deactivated member login succeeded: %d", got.Code)
 	}
 	otherTeam := call("POST", "/v1/admin/teams", session.Token, map[string]string{"name": "Corporate"})
@@ -282,12 +354,22 @@ func TestIdentityHTTPWithPostgres(t *testing.T) {
 			t.Fatalf("account %s: %d %s", email, created.Code, created.Body.String())
 		}
 		var result struct {
-			InitialPassword string `json:"initialPassword"`
+			User identity.User `json:"user"`
 		}
 		if err := json.Unmarshal(created.Body.Bytes(), &result); err != nil {
 			t.Fatal(err)
 		}
-		login := call("POST", "/v1/auth/login", "", map[string]string{"email": email, "password": result.InitialPassword})
+		keyResponse := call("POST", "/v1/admin/api-keys", session.Token, map[string]any{"userId": result.User.ID, "name": "Test key", "expiresInDays": 90})
+		if keyResponse.Code != 201 {
+			t.Fatalf("key %s: %d", email, keyResponse.Code)
+		}
+		var key struct {
+			Secret string `json:"secret"`
+		}
+		if err := json.Unmarshal(keyResponse.Body.Bytes(), &key); err != nil {
+			t.Fatal(err)
+		}
+		login := call("POST", "/v1/auth/api-key", "", map[string]string{"apiKey": key.Secret})
 		if login.Code != 200 {
 			t.Fatalf("login %s: %d", email, login.Code)
 		}
@@ -303,6 +385,31 @@ func TestIdentityHTTPWithPostgres(t *testing.T) {
 	bToken := makeMember("reader@example.com", "member", teamBody.ID)
 	cToken := makeMember("outsider@example.com", "team_lead", otherTeamBody.ID)
 	reviewerToken := makeMember("reviewer@example.com", "reviewer", otherTeamBody.ID)
+	if got := call("GET", "/v1/admin/roles", memberSession.Token, nil); got.Code != 401 {
+		t.Fatalf("revoked member session accessed roles: %d", got.Code)
+	}
+	if got := call("PUT", "/v1/admin/roles/reviewer/review", session.Token, map[string]string{"scope": "none"}); got.Code != 200 {
+		t.Fatalf("role update failed: %d %s", got.Code, got.Body.String())
+	}
+	if got := call("GET", "/v1/review/queue", reviewerToken, nil); got.Code != 403 {
+		t.Fatalf("changed review grant did not apply to existing session: %d", got.Code)
+	}
+	if got := call("PUT", "/v1/admin/roles/reviewer/review", session.Token, map[string]string{"scope": "all"}); got.Code != 200 {
+		t.Fatalf("role restore failed: %d", got.Code)
+	}
+	logInput := map[string]any{"idempotencyKey": "integration-run-1", "kind": "agent_run", "outcome": "succeeded", "durationMs": 21, "occurredAt": time.Now().UTC()}
+	logReceipt := call("POST", "/v1/logs", aToken, logInput)
+	if logReceipt.Code != 201 {
+		t.Fatalf("log upload failed: %d %s", logReceipt.Code, logReceipt.Body.String())
+	}
+	if duplicate := call("POST", "/v1/logs", aToken, logInput); duplicate.Code != 201 || duplicate.Body.String() != logReceipt.Body.String() {
+		t.Fatalf("log idempotency failed: %d", duplicate.Code)
+	}
+	logInput["conversation"] = "private content"
+	if got := call("POST", "/v1/logs", aToken, logInput); got.Code != 400 {
+		t.Fatalf("arbitrary log payload accepted: %d", got.Code)
+	}
+	logInput["conversation"] = nil
 	for _, kind := range []string{"news", "wiki", "capability"} {
 		input := map[string]any{"kind": kind, "visibility": "team", "teamId": teamBody.ID, "title": "Shared " + kind, "summary": "Team knowledge", "body": "Reviewed content", "details": map[string]any{}}
 		created := call("POST", "/v1/resources", aToken, input)
@@ -314,6 +421,26 @@ func TestIdentityHTTPWithPostgres(t *testing.T) {
 			t.Fatal(err)
 		}
 		url := "/v1/resources/" + item.ID
+		if kind == "wiki" {
+			request := httptest.NewRequest("POST", "/v1/data-uploads?resourceId="+item.ID, strings.NewReader("test data"))
+			request.Header.Set("Authorization", "Bearer "+aToken)
+			request.Header.Set("Content-Type", "text/plain")
+			request.Header.Set("X-File-Name", "source.txt")
+			upload := httptest.NewRecorder()
+			handler.ServeHTTP(upload, request)
+			if upload.Code != 201 {
+				t.Fatalf("data upload failed: %d %s", upload.Code, upload.Body.String())
+			}
+			var data struct {
+				ID string `json:"id"`
+			}
+			if err := json.Unmarshal(upload.Body.Bytes(), &data); err != nil {
+				t.Fatal(err)
+			}
+			if got := call("GET", "/v1/data-uploads/"+data.ID, bToken, nil); got.Code != 404 {
+				t.Fatalf("unpublished attachment visible: %d", got.Code)
+			}
+		}
 		if got := call("GET", url, bToken, nil); got.Code != 404 {
 			t.Fatalf("draft visible to teammate: %d", got.Code)
 		}
@@ -351,7 +478,7 @@ func TestIdentityHTTPWithPostgres(t *testing.T) {
 		if got := call("GET", "/v1/resources?kind="+kind, cToken, nil); got.Code != 200 || strings.Contains(got.Body.String(), item.ID) {
 			t.Fatalf("other team listed %s: %d", kind, got.Code)
 		}
-		if got := call("POST", url+"/withdraw", aToken, nil); got.Code != 200 {
+		if got := call("POST", url+"/withdraw", session.Token, nil); got.Code != 200 {
 			t.Fatalf("withdraw %s: %d", kind, got.Code)
 		}
 		if got := call("GET", url, bToken, nil); got.Code != 404 {

@@ -1,0 +1,400 @@
+version: 1
+
+feature:
+  title: "System verification & PRD qualification"
+  status: in_progress
+
+tasks:
+  - id: TASK-046
+    title: "Failure-mode & degradation system suite"
+    status: done
+    goal: >
+      Every external dependency failing mid-flight produces the contracted
+      behavior, verified at the system level against the real stack: PG
+      unavailable (fail closed with distinct store errors), Redis
+      unavailable (rate limiting fails OPEN, audit still reliable),
+      provider failover chains exhausted (deterministic, EAP-wrapped
+      errors, no credential leakage), mid-stream provider death (client
+      sees a terminal SSE error, usage/audit still recorded), and audit
+      delivery failure (answer withheld). No goroutine or connection leak
+      after each scenario drains.
+    scope:
+      in:
+        - "degradation matrix tests driving the real handler chain with each dependency fault-injected (container stop / proxy reset / conn kill)"
+        - "streaming mid-stream failure scenarios (client cancellation + upstream death)"
+        - "leak checks after every scenario (goroutines, PG pool, idle conns)"
+        - "a make target reproducibly running the whole matrix"
+      out:
+        - "multi-region/HA/cluster fault scenarios"
+        - "application-level chaos beyond the five dependency classes above"
+        - "fixing defects discovered here (extract fix cards; the suite stays honest)"
+    constraints:
+      - "Faults are injected at the infrastructure boundary (real PG/Redis/provider stubs), never by mocking the gateway's own layers."
+      - "Every scenario asserts the documented contract: audit and DLP fail closed; rate limiting fails open; denials are distinguishable from outages."
+    forbidden:
+      - "Weakening a fail-closed contract to make a scenario pass."
+      - "Sleeping through races instead of asserting drain and stability."
+    acceptance:
+      - type: command
+        run: "make verify-failure-modes"
+      - type: assertion
+        expect: "Each dependency-failure scenario shows the contracted behavior with zero goroutine/pool growth after drain; a run report table lands in docs/verify/failure-modes.md."
+    dependencies: []
+    risk_level: L3
+    investigation_hints:
+      - "failover semantics: packages/llmkernel/router.go deterministic cursor; EAP-wrapped denial classes do not fail over"
+      - "rate limiter fails open by contract (apps/gateway/ratelimit.go); audit fails closed (audit.RequireWriteBatch)"
+      - "stream teardown: apps/gateway/protocols.go client-cancel and upstream-death paths"
+    escalation_conditions:
+      - "A contracted behavior cannot hold under a failure scenario without a design change (e.g. audit must survive PG loss) — return to architect."
+    result:
+      owner: "zcode-62085"
+      attempts: 0
+      claimed_at: "2026-09-03T16:41:33.980Z"
+      completed_at: "2026-09-03T17:20:16.116Z"
+      worktree: ".tasks/worktrees/TASK-046"
+      branch: "task/task-046-failure-modes"
+      evidence:
+        - {type: "command", check: "make verify-failure-modes", status: "pass", summary: "TASK-046 acceptance target passes on main @ b46ad48: all five degradation scenarios (TestFailureModes*) green in ~12s against the isolated qualification containers eap-verify-pg-046 (15433) / eap-verify-redis-046 (16380); stable across 4 consecutive runs including the merged-result re-run."}
+        - {type: "assertion", check: "PG unavailable: fail closed with a DISTINCT storage-error class; audit delivery failure logged loudly", status: "pass", summary: "docker stop eap-verify-pg-046: valid agk key on /enterprise/v1/me gets 500 + code=internal + 'credential lookup failed' (never the unknown-key 401 'invalid or unusable API key'); healthy contrast asserts unknown key = 401 audited with detail.reason=unknown_key; captured log contains 'gateway: SECURITY AUDIT delivery failure'; after container restart pgxpool auto-reconnects and serves 200."}
+        - {type: "assertion", check: "Redis unavailable: rate limiting fails OPEN, everything else works, failure logged", status: "pass", summary: "docker stop eap-verify-redis-046: healthy baseline first proves enforcement (2x200 then 429, limit=2); during outage 3x200 beyond the limit with log 'gateway: rate limiter unavailable (fail open)'; auth/membership/audit keep working on PG; after restart + counter flush the limiter enforces again (2x200 then 429). Note: a graceful Redis restart persists an RDB snapshot, so the pre-outage counter can survive restart — suite flushes it to prove the limiter reads Redis again rather than being stuck fail-open."}
+        - {type: "assertion", check: "Provider failover exhausted: deterministic EAP-wrapped error, no credential/URL material, attempts recorded in audit", status: "pass", summary: "Two routes fail at the infra boundary (accept-then-500 stub + connection-kill stub): response is 502 code=upstream_unavailable, byte-identical message on repeat requests, both routes walked in plan order per request (3 hits each across warmup+2); body contains neither the env-resolved provider credential nor any 127.0.0.1/stub URL material; audit has llm.request with detail.attempts=2, error_code=upstream_unavailable, outcome=denied plus policy.decision; zero usage_records for the never-completed request."}
+        - {type: "assertion", check: "Provider dies mid-stream: terminal SSE error frame, audit recorded, no fabricated usage", status: "pass", summary: "SSE stub streams two deltas then aborts the connection: client (real HTTP journey over httptest) sees a chunk with finish_reason=error carrying '[stream error]' followed by data: [DONE]; audit records policy.decision + llm.request (error_code=upstream_unavailable, outcome=denied); zero usage_records for the dead stream per ADR-0027 (on a routed error the audit set carries the outcome)."}
+        - {type: "assertion", check: "Audit delivery failure: answer withheld", status: "pass", summary: "Reliable sink forced to fail WriteGovernanceBatch (production single-commit path, ADR-0027): chat returns 500 'request could not be audited' with no provider answer in the body; all-or-nothing batch leaves zero usage rows; with delivery recovered the same key is served (200) and the ledger records exactly one row."}
+        - {type: "assertion", check: "Drain + stability after EVERY scenario: no goroutine growth, settled pgxpool", status: "pass", summary: "After each of the five scenarios the harness polls until the goroutine count settles (two consecutive non-increasing samples, 8s cap) and asserts growth <= +10 over the post-warmup baseline, pgxpool.Stat().AcquiredConns()==0, and TotalConns within +4 of baseline. All scenarios settled clean; PG scenario additionally proves pool auto-reconnection post-restart."}
+        - {type: "command", check: "make verify-foundation", status: "pass", summary: "fmt-check, vet, build, full unit/contract/security tests and race: PASS on the merged branch (main+task/task-046-failure-modes)."}
+        - {type: "command", check: "make verify-policy-dlp-audit", status: "pass", summary: "TASK-010 policy/DLP/audit integration gate: PASS before landing and re-run on the merged result."}
+      follow_up_candidates:
+        - "Fix card candidate: mid-stream provider death decision race in apps/gateway/protocols.go — handleChatStream/handleResponsesStream/handleMessagesStream select between closed-chunks (treated as clean completion: no terminal error frame, outcome audited allowed, zero-usage row written) and buffered errCh; when the handler is between chunk deliveries both channels are ready and Go picks at random. Suggested: drain errCh before treating a closed chunks channel as completion. Also flagged for ledger owners: partial-usage accounting for interrupted streams is intentionally absent per ADR-0027; changing that is a contract change."
+  - id: TASK-047
+    title: "Security adversarial suite (authz matrix, leakage scan, DLP bypass corpus)"
+    status: done
+    goal: >
+      Adversarial confidence on the three security surfaces: (1) an
+      authorization matrix sweep over every governed endpoint x credential
+      class (agk key, key-bound key, session JWT, revoked/expired key,
+      cross-workspace) where every cell is asserted, not spot-checked;
+      (2) an automated leakage scan proving no credential material
+      appears in logs, error bodies, or generated client config; (3) a DLP
+      bypass corpus (obfuscation, separators, chunk-boundary splits,
+      checksum-evading permutations) where every bypass attempt is
+      redacted, tokenized or blocked.
+    scope:
+      in:
+        - "authz matrix sweep generated from an endpoint inventory (LLM, MCP, knowledge, skills, agents, admin, enterprise) x credential classes"
+        - "credential-leakage scan: grep-class assertions over captured logs, response bodies, and eap sync/install output while exercising key lifecycle"
+        - "DLP bypass corpus as a table-driven suite with expected outcomes per payload"
+        - "rate-limit effectiveness at the configured limit (429 shape + recovery)"
+        - "a make target running the whole suite"
+      out:
+        - "penetration testing of infrastructure (Docker host, PG auth, TLS termination)"
+        - "protocol conformance (TASK-042)"
+        - "fixing defects discovered here (extract fix cards)"
+    constraints:
+      - "The matrix is generated from a live route inventory, not a hand-written endpoint list, so new surfaces are swept automatically."
+      - "Leakage scanning runs against the gateway's real log stream, not curated samples."
+    forbidden:
+      - "Adding real credential material to the repository, logs, or evidence."
+      - "Exempting any endpoint from the matrix without an explicit architect note."
+    acceptance:
+      - type: command
+        run: "make verify-security-adversarial"
+      - type: assertion
+        expect: "Every matrix cell asserts the expected outcome (zero 'skip by default' cells); the bypass corpus shows zero leaks across redact/tokenize/deny classes; the leakage scan is clean while a key lifecycle (create/use/revoke) runs."
+    dependencies: []
+    risk_level: L3
+    investigation_hints:
+      - "route inventory: apps/gateway/server.go Handler() registration order"
+      - "credential classes: authenticateAPIKey vs key-bound selection vs session JWT (apps/gateway/auth.go)"
+      - "existing boundary tests to extend, not duplicate: m2m5_gate, subject_dlp, sse_dlp suites"
+    escalation_conditions:
+      - "An endpoint cannot be classified into the matrix without an architecture decision on its trust boundary."
+    result:
+      owner: "zcode-62085"
+      attempts: 0
+      claimed_at: "2026-09-03T16:41:34.125Z"
+      completed_at: "2026-09-03T17:45:45.561Z"
+      worktree: ".tasks/worktrees/TASK-047"
+      branch: "task/task-047-security-adversarial"
+      evidence:
+        - {type: "command", check: "make verify-security-adversarial (branch, merged branch, and main)", status: "pass", summary: "Full adversarial gate passes on the isolated TASK-047 stack (eap-verify-pg-047 :15434, eap-verify-redis-047 :16381); re-run green after merging main (sibling TASK-046 landed) and again on main after --no-ff merge commit 2893e18."}
+        - {type: "assertion", check: "Authorization matrix sweep: every governed endpoint x credential class asserted", status: "pass", summary: "Route inventory generated from apps/gateway/server.go HandleFunc registrations via go/ast; 61 routes x 8 credential classes (valid agk key+header, ADR-0024 bound key without header, revoked, expired, session JWT, no auth, foreign workspace, authorized actor) = 446 cells asserted, zero skipped; sweep fails when a registered route lacks a matrix row (proved: it caught device/approve+deny during development); fail-closed invariants (no success for dead credentials or foreign workspaces on governed surfaces); authorized cells verified end to end (201/204/302/200 with real control data, OIDC IdP round trip, device flow, skill lifecycle states); SPA catch-all answers unknown API paths with JSON 404."}
+        - {type: "assertion", check: "Credential-leakage scan clean while key lifecycle (create/use/revoke) runs", status: "pass", summary: "Gateway's real log stream captured in-process (log.SetOutput swap) plus every response body and the generated bootstrap config swept: regex agk_(live|test)_[A-Za-z0-9]{16,} and all tracked literals (session JWT, created key, planted never-displayed key, device refresh/access tokens) absent from logs, bodies, config, provider-bound payloads and audit_events; three documented one-time displays (key create, device refresh, dev-login session) each appear exactly once and are stripped from the corpus; error bodies carry the frozen Problem shape (or OpenAI envelope on /v1/*, OAuth shape on device grant) with no credential fields; pasted agk key in chat is deny-class with zero provider egress."}
+        - {type: "assertion", check: "DLP bypass corpus: zero leaks across redact/tokenize/deny classes", status: "pass", summary: "108 subtests derived from the seeded rule set (000006+000017+000020, drift-guarded against the live rules): canonical + evasive variants the patterns still match (length bounds, case for (?i) rules, separator runs, multiline (?s) private-key headers, JSON-embedded, scheme variants) all blocked (422 dlp_blocked, zero provider requests) or rewritten (provider sees only [REDACTED:*]); response-side pre-release scan blocks/rewrites echoed secrets; SSE chunk-boundary splits at every byte position through the live sanitizer release no secret or half-length prefix (deny aborts with [withheld:dlp]); tokenize leg mints vault-backed pseudonyms with audited reveal; checksum-evading permutations (GB11643/Luhn/GB32100) stay untouched as documented negative-space design."}
+        - {type: "assertion", check: "Rate-limit effectiveness at the configured limit", status: "pass", summary: "Burst at limit=3/min on the real Redis counter: limit requests succeed, next request 429 with frozen Problem shape (code=rate_limited, retriable=true, trace_id present); second key keeps its own window (per-subject); limiter recovers immediately on the next window and enforces again."}
+        - {type: "command", check: "make verify-foundation + make verify-policy-dlp-audit on branch and merged result", status: "pass", summary: "Foundation gates (fmt-check, vet, build, unit/contract/security tests, race) and the policy/DLP/audit chain gate pass before the merge and on the merged result."}
+        - {type: "assertion", check: "No real credential material in repository, logs, or evidence", status: "pass", summary: "All corpus values are synthetic shapes; this evidence and docs/verify/security-adversarial.md mask values to prefixes only."}
+      follow_up_candidates:
+        - "DLP rule gaps self-verified by the TASK-047 corpus (findings, not fixed here): (1) password_field misses the JSON quoted-key form '\"password\": \"...\"' — the double quote after the key breaks (password|passwd|pwd)\\s{0,32}[:=]; highest priority since JSON dominates API payloads. (2) internal_phone misses the common 3-4-4 separator form ('138 0013 8000') — rule matches only 11 contiguous digits. (3) openai_key prefix is case-sensitive — uppercase 'SK-...' matches nothing. Also lower-priority observation: db_conn_string escapes when the password segment contains spaces ([^\\s\"] excludes them). Self-verifying subtests live in TestDLPRuleFindings (apps/gateway/security_adversarial_integration_test.go) — they skip while unfixed and fail if a fix lands without updating the corpus."
+  - id: TASK-048
+    title: "External qualification: 2 real providers + Harness + 2 non-Harness clients on a live gateway"
+    status: ready
+    goal: >
+      PRD §12.2 and §12.11 proven on a LIVE deployed gateway (compose
+      dev-ready stack, not in-process handlers): at least two real LLM
+      providers (real credentials, real billing) serve chat, streaming
+      and tool-calling through employee agk_* keys; Harness plus at least
+      two non-Harness clients (e.g. Codex, litellm, Hermes/Pi) complete
+      the supported journeys (models, chat, SSE, tools, MCP, knowledge)
+      with only base_url + key. Every journey is recorded as evidence
+      with the client version and command line.
+    scope:
+      in:
+        - "live stack bring-up from a clean clone (compose + dev-ready) as the qualification environment"
+        - "real-provider qualification run (existing real-provider suite pointed at the live stack) with two operators-supplied provider keys"
+        - "real-client journey scripts/runbooks per client, checked into docs/verify/, executed and recorded"
+        - "failover between the two real providers observed live (primary failure -> backup route)"
+      out:
+        - "load/capacity claims (TASK-041 gate + soak own those)"
+        - "provider feature expansion (TASK-042 owns passthrough scope)"
+        - "storing provider keys in evidence (keys stay in operator environment)"
+    constraints:
+      - "Qualification inputs (provider keys, client binaries) are operator-supplied; absence is recorded as blocked with the exact missing input, never stubbed away."
+      - "Clients connect with base_url + agk key only — any client needing special headers or endpoints is a compatibility defect to record, not a config to excuse."
+    forbidden:
+      - "Claiming qualification from in-process tests alone."
+      - "Persisting real credentials in the repository, logs, or evidence files."
+    acceptance:
+      - type: command
+        run: "make verify-external-qualification"
+      - type: assertion
+        expect: "Two real providers pass the qualification suite against the live gateway; three clients (Harness + 2 others) complete their journeys with recorded transcripts; PRD §12.2 and §12.11 are checked off in the acceptance matrix with pointers to the transcripts."
+    dependencies: []
+    risk_level: L2
+    investigation_hints:
+      - "real-provider suite: apps/gateway/real_provider_qualification_test.go (operator keys via EAP_REALQUAL_* env)"
+      - "live stack: docker-compose + scripts/dev-ready.sh; portal e2e already drives the deployed shell"
+      - "client adapters qualified previously: Harness, Codex, litellm, Hermes, Pi (docs and session history)"
+    escalation_conditions:
+      - "A required real credential or client binary is unavailable after operator follow-up (mark blocked with the exact missing input)."
+      - "A client journey requires a gateway contract change to pass (extract a fix card; do not bend the contract inside this card)."
+    result:
+      owner: null
+      attempts: 0
+      claimed_at: null
+      completed_at: null
+      worktree: null
+      branch: null
+      evidence: []
+      follow_up_candidates: []
+
+  - id: TASK-049
+    title: "Soak & resource stability (30-minute sustained load)"
+    status: done
+    goal: >
+      Thirty minutes of sustained load at the concurrency target (200
+      in-flight users at agent-like pacing) with full governance ON shows
+      no resource drift: flat goroutines, bounded PG pool, bounded Redis
+      memory, no audit/usage backlog growth, stable p95 (no slow leak that
+      only appears after minutes), and a clean drain afterwards. The run
+      report is checked into docs/verify/.
+    scope:
+      in:
+        - "soak harness (extends the TASK-041 concurrency harness with duration + periodic sampling)"
+        - "resource samples: goroutines, PG pool stats, Redis memory/keys, heap, open FDs"
+        - "post-run drain verification and a make target"
+      out:
+        - "multi-hour/endurance or production-cluster sizing"
+        - "provider-side soak (provider stays stubbed at fixed latency)"
+    constraints:
+      - "All governance features stay ON for the whole run (TASK-033 fail-safe rules)."
+      - "p95 comparisons use the same non-race budget run semantics as the gate."
+    forbidden:
+      - "Reporting averages without tail percentiles and resource samples."
+      - "Masking drift with process restarts mid-run."
+    acceptance:
+      - type: command
+        run: "make soak-gateway"
+      - type: assertion
+        expect: "30-minute run completes with p95 inside the budget, flat resource samples (no monotonic growth beyond noise), clean drain, and the report in docs/verify/soak.md."
+    dependencies: []
+    risk_level: L2
+    investigation_hints:
+      - "TASK-041 harness: apps/gateway/concurrency_gate_integration_test.go (pacing, sampling, drain checks)"
+      - "bounded applier and memos from TASK-040/043 are the structures most worth sampling"
+    escalation_conditions:
+      - "A monotonic resource leak traces back to a security-mandatory structure (audit batching, vault memo) — return to architect before touching semantics."
+    result:
+      owner: "zcode-62085"
+      attempts: 0
+      claimed_at: "2026-09-03T16:41:34.241Z"
+      completed_at: "2026-09-03T17:53:55.172Z"
+      worktree: ".tasks/worktrees/TASK-049"
+      branch: "task/task-049-soak"
+      evidence:
+        - {type: "command", check: "make soak-gateway (acceptance profile: SOAK_DURATION default 30m, isolated TASK-049 containers on 15435/16382, branch task/task-049-soak @ 04656d5)", status: "pass", summary: "30m0s elapsed, 1,676,325 completed requests, 0 non-200, 931 rps sustained; whole-run latency p50 8.21ms / p95 38.65ms / p99 123.58ms — p95 inside the PRD §9 100ms budget; SOAK_VERDICT overall=PASS failures=0; full log /tmp/soak-049-acceptance.log"}
+        - {type: "assertion", check: "flat resource samples (no monotonic growth beyond noise): least-squares projected growth over the run vs floors, plus first-vs-last-third median step", status: "pass", summary: "181 samples @10s; projected growth: goroutines +27.1 (floor 50), heap +22.5MiB (128), heapObjs +102k (3M), poolAcquired +4.5 (16 = half pool cap), redisMem -0.1 (64), redisKeys +29.6 (500), openFDs +14.7 (100) — all flat; medians goroutines 943→979, heap 39.6→55.8MB; post-GC heap 13.4MB ≤ 27.5MB ceiling; method documented in docs/verify/soak.md"}
+        - {type: "assertion", check: "clean post-run drain and zero audit/usage backlog", status: "pass", summary: "goroutines 247 baseline → 156 settled (stable over 2s, below baseline), pgxpool 0 acquired / 32 idle; usage_records 1,676,325 == completed 1,676,325 exactly (delta +0, synchronous governance batch), llm.* audit events 1,676,325 ≥ per-request floor"}
+        - {type: "assertion", check: "run report with samples table, verdict and environment note checked into docs/verify/soak.md", status: "pass", summary: "docs/verify/soak.md: run profile, documented drift criterion, per-minute resource samples table, host-load samples (sibling TASK-046/047 contention 13-15 noted), PASS verdict, findings (test-wiring Redis TTL gap; contention-driven tail waves; zero backlog)"}
+        - {type: "command", check: "post-merge re-verification on merged branch: SOAK_DURATION=2m go test -tags=integration ./apps/gateway -run TestGatewaySoak -count=1 -v", status: "pass", summary: "after merging main (incl. TASK-046/047 suites): 2m mechanic run SOAK_VERDICT overall=PASS failures=0 — 114,699 requests, 0 non-200, p95 16.50ms, ledger delta +0, drain clean"}
+        - {type: "command", check: "make verify-foundation on main @ merge commit 5cccdb4", status: "pass", summary: "fmt-check, vet, build, unit/contract/security tests and race all pass; verify-foundation: PASS"}
+      follow_up_candidates:
+        - "apps/gateway/integration_test.go newSliceEnv wires gateway.RedisCounter without TTL: fixed-window bucket keys accumulate +1/min in every integration run (soak observed 8→38 keys over 30m) — set TTL=Window to mirror the TASK-040 expiry intent. Also: pre-existing duplicate integration-tool-passthrough target in the Makefile (TASK-042 merge artifact) triggers make overriding-commands warnings on every target."
+  - id: TASK-050
+    title: "PRD §12 acceptance matrix gate (gate card)"
+    status: pending
+    goal: >
+      PRD §12's thirteen acceptance criteria are each mapped to recorded,
+      reproducible evidence (suite name + command + transcript pointer) in
+      docs/verify/prd-acceptance.md, and a gate target fails if any item
+      lacks current evidence. This is the design-vs-requirements proof
+      the verification phase exists to produce.
+    scope:
+      in:
+        - "the matrix document: every §12 item -> covering suites/journeys -> evidence pointers -> PASS status"
+        - "a gate target that re-runs the mapped suites and fails on any missing/stale evidence pointer"
+        - "gap handling: any §12 item without coverage becomes a fix/coverage card before the gate can pass"
+      out:
+        - "new feature work (gaps become separate cards, the gate only certifies)"
+        - "performance claims (TASK-041 gate + TASK-049 soak own those)"
+    constraints:
+      - "Evidence pointers must be re-runnable commands plus artifact paths, never prose claims."
+      - "Items needing real credentials/clients cite TASK-048's recorded transcripts."
+    forbidden:
+      - "Marking an item PASS from an in-process test when the PRD names the live surface."
+      - "Editing the matrix to match a failure."
+    acceptance:
+      - type: command
+        run: "make verify-prd-acceptance"
+      - type: assertion
+        expect: "All thirteen §12 items show current PASS evidence; the gate target passes from a clean clone on the documented command sequence."
+    dependencies:
+      - TASK-046
+      - TASK-047
+      - TASK-048
+      - TASK-049
+      - TASK-054
+      - TASK-055
+    risk_level: L2
+    investigation_hints:
+      - "PRD §12 items 1-13 (docs/01-PRD.md); architecture.md Global Acceptance mirrors them"
+      - "evidence sources: verify-* targets, TASK-046..049 reports, TASK-048 transcripts"
+    escalation_conditions:
+      - "A §12 item is judged satisfied by a different mechanism than the PRD names (return to architect for an explicit interpretation, recorded in the matrix)."
+    result:
+      owner: null
+      attempts: 0
+      claimed_at: null
+      completed_at: null
+      worktree: null
+      branch: null
+      evidence: []
+      follow_up_candidates: []
+
+
+  - id: TASK-054
+    title: "P1 security fix: DLP seed pattern coverage vs evasive forms"
+    status: done
+    goal: >
+      Close the four coverage gaps the TASK-047 adversarial corpus proved:
+      password_field misses JSON-quoted keys ("password": "x" passes raw),
+      internal_phone misses the 3-4-4 separated form (138 0013 8000),
+      openai_key's prefix is case-sensitive (SK-... matches nothing), and
+      db_conn_string's password segment escapes when it contains spaces.
+      The TASK-047 self-verifying finding subtests flip from skip to pass,
+      and the corpus absorbs the shapes as positive coverage.
+    scope:
+      in:
+        - "migration updating the seeded patterns by rule name (ADR-0026 style: unconditional by-name updates, every pattern keeps a FINITE max match)"
+        - "password_field: tolerate optional quoting around the key ("password" / 'password') with bounded value class"
+        - "internal_phone: bounded 3-4-4 separator tolerance (separators only between digit groups — no free-running digit-space classes)"
+        - "openai_key: case-insensitive prefix while keeping the bounded body"
+        - "db_conn_string space-escape: fix with a bounded shape OR record as an accepted limitation with documented false-positive rationale (implementer's analysis decides; escalation if neither is defensible)"
+        - "corpus update: TASK-047's TestDLPRuleFindings subtests converted from skip-while-unfixed to positive coverage; max-match re-derivation verified for every changed pattern"
+      out:
+        - "new DLP rules or rule-authoring features"
+        - "validator/checksum changes (cn_* rules untouched)"
+        - "engine changes (match semantics stay regexp)"
+    constraints:
+      - "ADR-0026 holds: every changed pattern derives a finite max match; the SSE holdback re-derives and perf-gateway stays green."
+      - "False-positive review is part of the change: each widened pattern states what benign text it newly matches and why that is acceptable."
+    forbidden:
+      - "Unbounded repetition to 'fix' a gap (ADR-0026)."
+      - "Weakening or skipping TASK-047 corpus assertions to make the fix look clean."
+    acceptance:
+      - type: command
+        run: "make verify-security-adversarial && make verify-policy-dlp-audit && make perf-gateway"
+      - type: assertion
+        expect: "The four documented evasive shapes are now redacted/blocked per their rule class with zero new leaks in the corpus; TestDLPRuleFindings subtests pass as positive coverage; max-match derivation stays bounded and the perf gate holdback/throughput show no regression."
+    dependencies: []
+    risk_level: L3
+    investigation_hints:
+      - "apps/gateway/security_adversarial_integration_test.go TestDLPRuleFindings holds the failing shapes verbatim"
+      - "migrations/000020 for the by-name update convention; docs/adr/0026 for the boundedness policy"
+      - "packages/dlp/maxmatch.go derivation must accept every changed pattern"
+    escalation_conditions:
+      - "A gap cannot be closed within the bounded-pattern policy without unacceptable false positives (return the analysis; the shape becomes a documented accepted limitation)."
+    result:
+      owner: "zcode-35767"
+      attempts: 0
+      claimed_at: "2026-09-03T18:17:19.755Z"
+      completed_at: "2026-09-03T18:42:04.229Z"
+      worktree: ".tasks/worktrees/TASK-054"
+      branch: "task/task-054-dlp-evasive-coverage"
+      evidence:
+        - {type: "command", check: "make verify-security-adversarial", status: "pass", summary: "PASS on branch (before and after merge of main), on the merged result, and on main (9f25d7b). TestAuthzMatrix, TestCredentialLeakage, TestDLPBypassCorpus, TestRateLimitEffectiveness all PASS; TestDLPRuleFindings passes as positive coverage: phone-separators-redacted, password-json-quoted-key-redacted, openai-key-uppercase-prefix-denied all PASS; db-conn-password-space-accepted-limitation SKIPs with the documented rationale (self-verifying, flips positive on a future fix)."}
+        - {type: "assertion", check: "The four documented evasive shapes: three redacted/blocked per rule class, one documented accepted limitation", status: "pass", summary: "openai_key 'KEY: SK-AbCdEf0123456789ZzQq' → 422 dlp_blocked with zero provider egress; password_field '{\"password\": \"hunter2secret9\"}' → 200 with provider seeing only [REDACTED:password] (JSON stays well-formed); internal_phone '回拨 138 0013 8000 谢谢' → 200 with provider seeing only [REDACTED:phone]. db_conn_string raw-space password segment: accepted limitation with false-positive analysis recorded in migrations/000021_dlp_evasive_coverage.sql and docs/verify/security-adversarial.md; the functional percent-encoded (%20) form is covered by the unchanged class."}
+        - {type: "assertion", check: "Corpus strictly strengthened, zero new leaks", status: "pass", summary: "advCorpusCases gains deny case openai_key/uppercase-prefix and redact cases password_field/json-quoted-key + internal_phone/separated-344; the SSE chunk-boundary split suite gains internal_phone/separated-344 (splits 1-12 all hold in the derived window and release only the redaction); sseTargets now resolved by rule+label so corpus growth cannot repoint split targets. Every new shape asserts zero raw-secret egress and no long-prefix leakage. No TASK-047 assertion was weakened or skipped; the only SKIP is the new documented accepted-limitation subtest."}
+        - {type: "assertion", check: "Max-match derivation stays bounded for every changed pattern (ADR-0026)", status: "pass", summary: "openai_key (?i:sk-)[A-Za-z0-9]{20,200} → 203 bytes (unchanged); password_field (?i)[\"']?(password|passwd|pwd)[\"']?\\s{0,32}[:=]\\s{0,32}[\"']?[^\\s\"']{4,256} → 329→332 bytes; internal_phone \\b1[3-9]\\d[\\s-]?\\d{4}[\\s-]?\\d{4}\\b → 11→13 bytes. Unit-pinned in packages/dlp/maxmatch_test.go TestRuleMaxMatch. Rule-set maximum remains db_conn_string at ~1039 bytes, so the SSE holdback does not grow."}
+        - {type: "command", check: "make verify-policy-dlp-audit (shared dev stack, under /tmp/eap-shared-stack.lock)", status: "pass", summary: "PASS on branch, on merged result, and on main: verify-foundation, verify-identity-slice, verify-mcp-slice, verify-production-oidc, TestPolicyDLPAuditIntegration all green."}
+        - {type: "command", check: "make perf-gateway (shared dev stack, under /tmp/eap-shared-stack.lock)", status: "pass", summary: "PASS on branch and on merged result: dlp_scan_12kb_tokenize p95 1.80-1.82ms, vault_resub_1token p95 ~0.85ms, e2e_chat_full_chain p95 7.7-8.0ms, dlp_added_overhead p95 delta 1.61-2.63ms, sse_window 52653-67048 chunks/sec — no holdback or throughput regression (holdback unchanged, dominated by unchanged db_conn_string ~1039 bytes)."}
+        - {type: "command", check: "go test -race ./packages/dlp ./packages/store (isolated TASK-054 stack eap-verify-pg-054:15436 / eap-verify-redis-054:16383)", status: "pass", summary: "ok enterprise-agent-platform/packages/dlp (race), store compiles (no test files). Migration 000021 verified applied on the isolated stack: dlp_rules rows show exactly the three new patterns and unchanged db_conn_string; schema_migrations records 000021_dlp_evasive_coverage.sql."}
+        - {type: "command", check: "Self-integration: preflight → merge main → merge --no-ff to main → re-verify on main", status: "pass", summary: "tasks.mjs preflight clean (mainClean, branch ahead/behind resolved); merge main (2f01768, sibling TASK-055 content, no conflicts); branch commit 24ecafe; main merge commit 9f25d7b 'merge: TASK-054 DLP evasive-form coverage (P1 security fix) → main'; verify-security-adversarial and verify-policy-dlp-audit re-run green on main."}
+      follow_up_candidates:
+        - "db_conn_string: raw-space password segment in scheme://user:pass@host remains an ACCEPTED LIMITATION (TASK-054 false-positive analysis in migrations/000021: any bounded space tolerance is indistinguishable from prose after scheme://user: for a deny rule; functional percent-encoded %20 form is covered). Self-verifying subtest TestDLPRuleFindings/db-conn-password-space-accepted-limitation flips positive automatically if the rule ever learns the shape."
+  - id: TASK-055
+    title: "P1 correctness fix: mid-stream provider death must never masquerade as clean completion"
+    status: done
+    goal: >
+      In the three streaming handlers (chat, responses, messages), when the
+      router's stream goroutine delivers an error and closes both channels,
+      the handler's select can randomly pick the closed-chunks branch and
+      treat the death as clean completion: no terminal error frame, outcome
+      audited as allowed, a zero-usage ledger row written. After the fix,
+      a mid-stream provider death ALWAYS produces the terminal SSE error
+      frame, an audited failure outcome, and no fabricated usage —
+      deterministically, across repeated runs.
+    scope:
+      in:
+        - "gateway-side fix: before treating a closed chunks channel as completion, drain/inspect errCh (non-blocking) and prefer the error path"
+        - "a deterministic regression test: a stub that errors and closes channels back-to-back, iterated N times, asserting the terminal error frame and audited failure outcome on every iteration"
+        - "apply the same fix to all three streaming handlers"
+      out:
+        - "router channel-contract redesign (escalate if the gateway-side fix is insufficient)"
+        - "partial-usage accounting for interrupted streams (ADR-0027 documents no usage row on routed errors)"
+        - "client-cancellation behavior changes"
+    constraints:
+      - "Client cancellation semantics are untouched; the clean-completion path without an error is unchanged."
+      - "Audit and usage semantics for the error outcome follow the existing contracts (failure audited, no fabricated usage)."
+    forbidden:
+      - "Swallowing the error to preserve stream aesthetics."
+      - "Sleeps or timing hacks to dodge the race in tests."
+    acceptance:
+      - type: command
+        run: "make verify-failure-modes && make verify-llm-protocols"
+      - type: assertion
+        expect: "The regression test iterates the death race >=50 times with zero clean-completion masquerades; verify-failure-modes and verify-llm-protocols stay green on merged main."
+    dependencies: []
+    risk_level: L3
+    investigation_hints:
+      - "apps/gateway/protocols.go handleChatStream select loop (errCh vs closed chunks); the same shape exists in handleResponsesStream and handleMessagesStream"
+      - "TASK-046's report and apps/gateway/failure_modes_integration_test.go describe the exact interleaving"
+    escalation_conditions:
+      - "The gateway-side drain fix cannot cover all three handlers without a router channel-contract change."
+    result:
+      owner: "zcode-35767"
+      attempts: 0
+      claimed_at: "2026-09-03T18:17:19.922Z"
+      completed_at: "2026-09-03T18:35:03.742Z"
+      worktree: ".tasks/worktrees/TASK-055"
+      branch: "task/task-055-stream-death-race"
+      evidence:
+        - {type: "command", check: "go test -race -tags=integration ./apps/gateway -run 'TestStreamDeath|TestMidStream' -count=1 (TASK-055 containers eap-verify-pg-055:15437 / eap-verify-redis-055:16384)", status: "pass", summary: "TestStreamDeathRaceMidStreamErrorAlwaysTerminal: 50 death-race iterations per streaming protocol (chat, responses, messages = 150 total) through the real handler chain, zero masquerades and zero race reports; TestStreamDeathRaceCleanCompletionControl green. Re-run with -count=2 (300 death iterations) also fully green on the branch."}
+        - {type: "assertion", check: "Regression proves determinism: every death iteration shows the terminal SSE error frame, an audited failure outcome, and no fabricated usage row", status: "pass", summary: "Post-fix 150/150 iterations (per protocol: chat finish_reason:\"error\" + \"[stream error]\" + [DONE]; responses error event, no response.completed; messages error event, no message_stop) with llm.request audited denied/error_code=upstream_unavailable, policy.decision recorded, and zero usage_records (ADR-0027). Pre-fix the same test FAILED on the unfixed code with 8/50 masquerades per protocol (chat: no error frame + [DONE] missing; responses: response.completed emitted; messages: message_stop emitted) - Go's random select pick between buffered errCh and closed chunks, exactly the TASK-046 finding."}
+        - {type: "assertion", check: "Clean-completion control case (no error) is unchanged by the fix", status: "pass", summary: "Well-behaved stub across all three protocols still yields chat stop frame + [DONE], responses response.completed, messages message_delta(end_turn)+message_stop; outcome audited allowed and exactly one real usage row (total_tokens=8 on chat) - no regression on the happy path."}
+        - {type: "command", check: "make verify-failure-modes (TASK-046 qualification containers, self-healing, no shared lock)", status: "pass", summary: "All five failure-mode scenarios PASS on the fix branch and again on merged main: failover-exhausted, mid-stream provider death (existing deterministic scenario), audit delivery failure, Redis rate-limit fail-open, PG fail-closed; drain checks green."}
+        - {type: "command", check: "make verify-llm-protocols (shared dev stack 15432/16379, taken under /tmp/eap-shared-stack.lock, released after)", status: "pass", summary: "Full chain green on the fix branch and again on merged main: verify-foundation, verify-identity-slice, verify-mcp-slice, verify-production-oidc, verify-policy-dlp-audit, verify-mcp-governance, verify-knowledge-slice, TestLLMProtocolsIntegration."}
+        - {type: "command", check: "Self-integration: tasks.mjs preflight clean; branch fba080c merged into main with git merge --no-ff (merge commit 85b04cb 'merge: TASK-055 stream death race fix (P1 correctness) -> main'); acceptance re-run on main all green", status: "pass", summary: "Preflight reported mainClean=true, branch ahead 1 / behind 0; merge of main into the branch was a no-op; merge to main changed exactly apps/gateway/protocols.go (+56) and apps/gateway/stream_death_race_integration_test.go (+424); verify-failure-modes, verify-llm-protocols (locked) and the race-filter regression all re-passed on merged main 85b04cb."}
+        - {type: "assertion", check: "Fix shape: gateway-side errCh drain in ALL THREE streaming handlers, no error swallowed, client cancellation untouched", status: "pass", summary: "New pendingStreamError helper non-blocking-drains errCh; each closed-chunks completion path (handleChatStream, handleResponsesStream, handleMessagesStream) prefers the buffered death error and routes to the pre-existing error contract (terminal error frame + failure audit + no usage row). Ordering is guaranteed by the kernel goroutine (error sent to the buffered errCh before both channels close), so the drain is deterministic, not timing-based; a nil (already drained) errCh keeps clean completion."}
+      follow_up_candidates:
+        - "None required for the defect: the gateway-side drain covers all three handlers deterministically under the existing kernel channel contract (error sent on buffered errCh before both channels close), so the router-contract redesign escalation condition never triggered. Standing candidates: TASK-046 finding 2 (partial-usage accounting for interrupted streams) remains a ledger-owner contract decision per ADR-0027; consider folding the death stub into the protocol conformance suite if a third streaming protocol is ever added."

@@ -2,6 +2,45 @@
   color: #20372b;
   background: #f7f9f6;
 }
+
+.portal-auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: #f5f7f4;
+  color: #263b2e;
+}
+.portal-auth-card {
+  width: min(100%, 440px);
+  padding: 36px;
+  background: #fff;
+  border: 1px solid #dce6dd;
+  border-radius: 20px;
+  box-shadow: 0 18px 60px #26432e12;
+}
+.portal-auth-card h1 { font-size: 28px; margin: 18px 0 8px; }
+.portal-auth-card > p:not(.portal-eyebrow) { color: #68776b; line-height: 1.6; }
+.portal-auth-card form { display: grid; gap: 10px; margin-top: 26px; }
+.portal-auth-card label { font-size: 14px; font-weight: 600; }
+.portal-auth-card input {
+  width: 100%; padding: 12px 14px; border: 1px solid #d4dfd6;
+  border-radius: 10px; font: inherit; outline-color: #3f7f55;
+}
+.portal-auth-card button {
+  min-height: 43px; margin-top: 12px; padding: 10px 18px;
+  border: 0; border-radius: 10px; background: #397b4e;
+  color: #fff; font: inherit; font-weight: 600; cursor: pointer;
+}
+.portal-auth-card button:disabled { opacity: .6; cursor: wait; }
+.portal-auth-recovery { margin-top: 18px; padding: 14px; background: #fff8ed; border-radius: 10px; }
+.portal-auth-recovery code { display: block; overflow-wrap: anywhere; }
+.portal-personal-card dl { margin: 24px 0; }
+.portal-personal-card dl div { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid #e7eee8; }
+.portal-personal-card dt { color: #758477; }
+.portal-personal-card dd { margin: 0; text-align: right; }
+.portal-personal-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.portal-personal-actions button:last-child { background: #edf3ee; color: #397b4e; }
 body {
   background: #f7f9f6;
 }
@@ -891,6 +930,30 @@ input {
 .portal-admin-key small { overflow-wrap: anywhere; color: #7a8b7e; font-size: 12px; }
 .portal-admin-key > span { color: #879289; font-size: 12px; white-space: nowrap; }
 .portal-admin-key > button { border: 1px solid #e4c6c6; border-radius: 7px; padding: 6px 10px; background: #fff7f7; color: #a35c5c; cursor: pointer; }
+.portal-admin-panel textarea { min-width: 0; width: 100%; resize: vertical; border: 1px solid #d7e3d9; border-radius: 8px; padding: 10px 11px; background: #fff; color: #263c2d; font: inherit; line-height: 1.5; }
+.portal-workbench-message { border: 1px solid #b9d9c1; border-radius: 8px; padding: 10px 14px; background: #f2faf3; color: #275d3b; }
+.portal-workbench-list { display: grid; gap: 10px; }
+.portal-workbench-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; border: 1px solid #e5ebe6; border-radius: 9px; padding: 14px; }
+.portal-workbench-item > div:first-child { min-width: 0; }
+.portal-workbench-item strong { display: block; color: #2c4233; }
+.portal-workbench-item small { display: block; margin-top: 4px; color: #7a8b7e; }
+.portal-workbench-item p { margin: 8px 0 0; color: #536959; font-size: 13px; }
+.portal-workbench-item button { flex: none; border: 1px solid #bdd7c4; border-radius: 7px; padding: 7px 11px; background: #fff; color: #326c45; cursor: pointer; }
+.portal-workbench-item button:disabled { opacity: .55; cursor: default; }
+.portal-workbench-review { margin-top: 20px; }
+.portal-workbench-actions { display: flex; gap: 8px; }
+.portal-workbench-body { max-height: 240px; overflow: auto; margin-top: 8px; white-space: pre-wrap; line-height: 1.6; }
+.portal-permissions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.portal-permissions label { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #edf1ed; padding: 5px 0; }
+.portal-permissions select { max-width: 96px; }
+.portal-member-list { display: grid; gap: 8px; margin-top: 20px; }
+.portal-member-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px 110px auto; align-items: center; gap: 8px; border-bottom: 1px solid #edf1ed; padding: 9px 0; }
+.portal-member-row strong { min-width: 0; color: #2c4233; font-size: 13px; }
+.portal-member-row small { display: block; overflow-wrap: anywhere; color: #7a8b7e; font-weight: 400; }
+.portal-member-row label { display: flex; align-items: center; white-space: nowrap; }
+.portal-member-row label input { width: auto; }
+@media (max-width: 640px) { .portal-member-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .portal-workbench-item { display: grid; } .portal-permissions { grid-template-columns: 1fr; } }
 @media (max-width: 1100px) {
   .portal-header-inner {
     gap: 25px;

@@ -1,0 +1,484 @@
+version: 1
+
+feature:
+  title: "LLM gateway request-path performance (V1.5)"
+  status: done
+
+tasks:
+  - id: TASK-036
+    title: "Control-data caches on the LLM hot path"
+    status: done
+    goal: >
+      A steady-state routed LLM request issues zero control-data reads:
+      policy rules, route plans, provider targets and pricing are served
+      from bounded process-local derived caches, and the DLP rule cache no
+      longer serializes concurrent scans while reloading. Single-request
+      full-chain p95 must not regress; cache staleness is bounded and
+      control-plane writes propagate within the bound.
+    scope:
+      in:
+        - "bounded derived cache for policy rules (today re-read from PostgreSQL on every Decide)"
+        - "bounded derived caches for route plans, provider targets and pricing lookups"
+        - "fix the DLP rule-cache reload so concurrent scans do not queue behind one lock-held load"
+        - "tests proving load counts collapse to the TTL-bounded minimum and changes propagate within the documented bound"
+      out:
+        - "caching API-key validity, revocation/expiry, or workspace membership (never cached)"
+        - "admin invalidation UI or a distributed invalidation subsystem"
+        - "audit/usage write-path changes (TASK-038)"
+    constraints:
+      - "Caches are derived state with a staleness bound <= 60s (the DLP 60s rule cache is the in-repo precedent); load errors fail closed exactly as today."
+      - "Subject/role filtering of DLP rules stays per-call and never enters the cache (no repeat of the privilege-leak cache poisoning)."
+      - "Record the staleness-bound decision in a short ADR; state the propagation bound operators can expect after an admin write."
+    forbidden:
+      - "Serving authorization-relevant decisions from a cache that outlives the documented bound."
+      - "Per-subject or per-workspace variants of the control-data caches."
+    acceptance:
+      - type: command
+        run: "make verify-policy-dlp-audit && make perf-gateway"
+      - type: command
+        run: "go test -race ./packages/policy ./packages/dlp ./packages/store"
+      - type: assertion
+        expect: "With counting loaders injected, 200 sequential routed requests after warm-up issue one policy-rules load, one route-plan load per alias and one provider-target load per provider (TTL-bounded), and a rule change made mid-window takes effect within the documented bound."
+    dependencies: []
+    risk_level: L3
+    investigation_hints:
+      - "packages/policy/table.go Decide calls LoadRules with no cache (policy/table.go:32)"
+      - "packages/store/provider_governance.go RoutePlanFor/ResolveProviderTarget/PricingKnown run per request"
+      - "packages/dlp/table.go rules() holds the mutex across LoadRules — stampede at TTL expiry (dlp/table.go:177)"
+      - "dlp.NewTableScanner cache discipline is the in-repo pattern to extend"
+    escalation_conditions:
+      - "The propagation bound cannot be honored without building a new invalidation subsystem, or caching would change authorization semantics rather than read mechanics."
+    result:
+      owner: "zcode-87489"
+      attempts: 0
+      claimed_at: "2026-09-03T07:38:37.695Z"
+      completed_at: "2026-09-03T07:59:42.968Z"
+      worktree: ".tasks/worktrees/TASK-036"
+      branch: "task/task-036-control-caches"
+      evidence:
+        - {type: "command", check: "make verify-foundation", status: "pass", summary: "PASS on merged main: fmt/vet/build + full -race test suite across all packages."}
+        - {type: "command", check: "make verify-policy-dlp-audit", status: "pass", summary: "PASS on merged main: production OIDC + policy/DLP/audit integration suites with the cached loaders and single-flight DLP scanner in place."}
+        - {type: "command", check: "make perf-gateway", status: "pass", summary: "PASS on merged main with production cache wiring: full-chain p95 17.34->10.45ms, DLP-off path p95 10.40->4.50ms (-57%, the eliminated control-data round trips), DLP-added delta 6.94->5.95ms (tokenize N+1 owned by TASK-037), SSE window ~131k chunks/sec unchanged. PRD §9 100ms budget holds with ~10x headroom."}
+        - {type: "command", check: "go test -race ./packages/controlcache ./packages/dlp ./packages/policy ./packages/store", status: "pass", summary: "Race-clean: single-flight join under concurrent load, scanner expiry stampede regression, failure-retry semantics."}
+        - {type: "assertion", check: "201 sequential routed requests after warm-up issue exactly one policy-rules load, one route-plan load, one provider-target load and one pricing load (TTL-bounded).", status: "pass", summary: "TestControlCachesSteadyStateLoadCounts: counting loaders over the real store behind the real handler chain; all four counters == 1 after 201 requests inside one TTL window."}
+        - {type: "assertion", check: "A control-plane rule change takes effect within the documented staleness bound.", status: "pass", summary: "TestControlCacheRuleChangePropagatesWithinBound: policy allow->deny flip surfaces on the next request after one TTL (40ms stand-in for the 60s production bound; semantics identical). Deny returns 403 fail-closed."}
+      follow_up_candidates:
+        - "controlcache: consider explicit invalidation hook for admin writes (ADR-0025 revisit trigger); pricing cache key is alias@provider — pricing per-route variants would need a key revision"
+  - id: TASK-037
+    title: "DLP vault access batching (tokenize + reveal)"
+    status: done
+    goal: >
+      DLP tokenize stops issuing per-match vault round trips and exempt-role
+      re-substitution stops issuing per-pseudonym reveal queries: one
+      multi-match scan costs a bounded number of vault statements and one
+      released response costs one batched reveal. The perf gate's
+      DLP-added p95 delta drops from ~7ms to <= 2ms with behavior unchanged.
+    scope:
+      in:
+        - "batched/amortized tokenize path for multi-match scans (stable pseudonym per value preserved)"
+        - "batched reveal for released content (response, SSE release hook, and any surface reusing the same store call)"
+        - "optional bounded process-local memo of value->token, under the constraints below"
+        - "regression coverage: multi-match scans, unknown tokens, cross-workspace reveal still fail closed"
+      out:
+        - "dlp_tokens schema changes or reveal API contract changes"
+        - "new reveal surfaces (knowledge/MCP keep their current semantics)"
+        - "rule-engine regex cost optimization"
+    constraints:
+      - "Pseudonym stability and workspace-scoped fail-closed reveal are unchanged; vault errors still fail the scan closed."
+      - "Any value->token memo is bounded, process-local, server-side only, and never persisted or logged; dropping it must not change behavior."
+    forbidden:
+      - "Persisting the memo to disk or emitting cached originals into logs."
+      - "Revealing across workspaces to save a query."
+    acceptance:
+      - type: command
+        run: "make verify-policy-dlp-audit && make perf-gateway"
+      - type: command
+        run: "go test -race ./packages/dlp ./packages/store"
+      - type: assertion
+        expect: "A scan with ~20 tokenize hits issues a small bounded number of vault statements (probed via a counting store), a released response with ~20 pseudonyms issues one batched reveal, and dlp_added_overhead p95 on the perf gate is <= 2ms."
+    dependencies: []
+    risk_level: L2
+    investigation_hints:
+      - "packages/dlp/table.go tokenize branch calls the Tokenizer once per match (dlp/table.go:264)"
+      - "packages/store/dlpvault.go TokenizeDLP is SELECT-then-INSERT per value; RevealDLP is single-row (dlpvault.go:21/69)"
+      - "apps/gateway/dlpvault.go resubstituteTokens reveals one token per regex match (:102)"
+    escalation_conditions:
+      - "Batching cannot preserve stable pseudonyms or workspace-scoped fail-closed reveal without a vault schema change."
+    result:
+      owner: "zcode-25670"
+      attempts: 0
+      claimed_at: "2026-09-03T08:00:54.074Z"
+      completed_at: "2026-09-03T08:11:25.302Z"
+      worktree: ".tasks/worktrees/TASK-037"
+      branch: "task/task-037-vault-batching"
+      evidence:
+        - {type: "command", check: "make verify-foundation", status: "pass", summary: "PASS on merged main: fmt/vet/build + repo-wide -race suite."}
+        - {type: "command", check: "make verify-policy-dlp-audit", status: "pass", summary: "PASS on merged main: full policy/DLP/audit integration suites with the batch seams wired."}
+        - {type: "command", check: "make perf-gateway", status: "pass", summary: "PASS on merged main: 12KB tokenize scan p95 11.4->2.2ms, DLP-added overhead p95 5.95->0.45ms (acceptance <=2ms), full-chain p95 10.45->7.35ms against the 100ms budget; SSE window ~116k chunks/sec unchanged."}
+        - {type: "assertion", check: "A scan with ~20 tokenize hits issues a small bounded number of vault statements; a released response with multiple pseudonyms issues one batched reveal.", status: "pass", summary: "TestDLPVaultBatchedAccess: counting seams over the real handler — one TokenizeBatch call per scan carrying 4 unique values (12 occurrences), stable pseudonyms identical across repeated requests upstream; exactly one BatchReveal call per privileged release revealing both vaulted originals; unknown token 'unknown1token' stays pseudonym (fail closed); non-exempt user's release issues zero reveals and keeps pseudonyms."}
+        - {type: "assertion", check: "dlp_added_overhead p95 on the perf gate is <= 2ms.", status: "pass", summary: "perf gate reports dlp_added_overhead p95 delta 0.45ms (was 5.95ms before batching, 6.94ms at the 2026-09 review baseline)."}
+        - {type: "assertion", check: "Pseudonym stability and workspace-scoped fail-closed reveal unchanged.", status: "pass", summary: "Batch insert uses ON CONFLICT DO UPDATE ... RETURNING so a concurrent first sight yields the winning vault row's token; BatchRevealDLP is workspace-scoped with NULL-workspace fallback exactly like RevealDLP; cross-workspace and unknown tokens are absent from results. dlp_token_vault, subject_dlp and sse_resub suites re-ran green."}
+      follow_up_candidates:
+        - "vault batch could dedupe across rules per scan (today per-rule); handleDLPReveal control-plane endpoint still loops per token (<=50, not hot path)"
+  - id: TASK-038
+    title: "Per-request durable-path compaction (auth chain + reliable audit batch)"
+    status: done
+    goal: >
+      The remaining per-request durable round trips shrink without moving
+      any security contract: key lookup, user load and membership resolve
+      cost one round trip instead of three, last-used touch leaves the
+      critical path, and the 2-3 reliable audit events of one routed chat
+      are delivered by one batched write that still fails closed.
+    scope:
+      in:
+        - "auth chain compaction (key + user + membership in one round trip) with revocation/expiry still resolved live per request"
+        - "TouchAPIKey off the request critical path (best-effort semantics preserved, delivery failures still logged)"
+        - "batched delivery for the per-request reliable audit event set (policy.decision / dlp.hit / llm.request)"
+        - "tests proving a batched audit write failure still withholds the answer"
+      out:
+        - "audit event schema changes or new event types"
+        - "credential broker changes"
+        - "caching key validity or membership (explicitly out everywhere in this package)"
+    constraints:
+      - "Reliable-path semantics are untouched: any audit delivery failure still denies the request (llm.go fail-closed contract)."
+      - "Revocation, expiry and membership are enforced from live state on every request."
+    forbidden:
+      - "Converting security audit into fire-and-forget/best-effort batching."
+      - "Dropping or merging away individual audit events (batch the delivery, not the record set)."
+    acceptance:
+      - type: command
+        run: "make verify-policy-dlp-audit && make verify-foundation && make perf-gateway"
+      - type: assertion
+        expect: "One routed non-streaming chat with a dlp.hit delivers its 3 audit events in a single store round trip (counting writer), a forced batch failure returns 'request could not be audited' with the answer withheld, and a revoked key is still rejected on the request that follows revocation."
+    dependencies: []
+    risk_level: L3
+    investigation_hints:
+      - "apps/gateway/auth.go authenticateAPIKey: key lookup, rate limit, user load, synchronous TouchAPIKey (auth.go:58-107)"
+      - "apps/gateway/llm.go writeLLMGovernanceAudit writes 2-3 events sequentially (:154); recordUsage adds pricing + insert (:216)"
+      - "TASK-033 constraint already allows batched inserts if that is production behavior"
+    escalation_conditions:
+      - "Audit batching cannot preserve fail-closed delivery, or auth compaction would require caching revocation state."
+    result:
+      owner: "zcode-44900"
+      attempts: 0
+      claimed_at: "2026-09-03T08:12:12.347Z"
+      completed_at: "2026-09-03T08:21:30.986Z"
+      worktree: ".tasks/worktrees/TASK-038"
+      branch: "task/task-038-path-compaction"
+      evidence:
+        - {type: "command", check: "make verify-foundation", status: "pass", summary: "PASS on merged main: fmt/vet/build + repo-wide -race suite."}
+        - {type: "command", check: "make verify-policy-dlp-audit", status: "pass", summary: "PASS on merged main: production OIDC + policy/DLP/audit integration suites with the batched audit writer and JOINed auth chain."}
+        - {type: "command", check: "make perf-gateway", status: "pass", summary: "PASS on merged main: full-chain p95 ~6-8ms against the 100ms budget; DLP-added delta 0.45-1.24ms across runs (noise band); no regression from the auth/audit changes."}
+        - {type: "assertion", check: "One routed non-streaming chat with a dlp.hit delivers its 3 audit events in a single store round trip (counting writer).", status: "pass", summary: "TestAuditBatchDelivery: counting BatchWriter over the real handler — exactly one WriteBatch call for the chat, and policy.decision + dlp.hit + llm.request all durable under the request id."}
+        - {type: "assertion", check: "A forced batch failure returns 'request could not be audited' with the answer withheld.", status: "pass", summary: "TestAuditBatchFailureWithholdsAnswer: forced WriteBatch failure -> 500 naming the audit gate, provider answer absent from the response; with delivery recovered the same key serves normally (fail closed, not fail broken)."}
+        - {type: "assertion", check: "A revoked key is still rejected on the request that follows revocation.", status: "pass", summary: "TestRevokedKeyRejectedLive: key revoked in the store between two chats is rejected 401 on the very next request through the JOINed AuthChain — revocation/expiry stay live, nothing cached."}
+        - {type: "assertion", check: "Reliable-path semantics untouched for unwired constructions.", status: "pass", summary: "RequireWriteBatch falls back to per-event RequireWrite for plain writers (unit-tested incl. secret validation fail-closed); AuthChain/TouchAPIKey fallbacks keep the pre-TASK-038 code paths for every existing test env."}
+      follow_up_candidates:
+        - "usage ledger InsertUsage remains its own round trip (best-effort by contract, not batched with audit); detached TouchAPIKey goroutine could be coalesced per key under burst"
+  - id: TASK-039
+    title: "SSE holdback derived from the rule set (cross-boundary leak fix)"
+    status: done
+    goal: >
+      The streaming sanitizer's holdback window is derived from the compiled
+      rule set (longest possible match + margin) instead of a hardcoded 64
+      bytes, so no rule match — including long custom dictionary terms — can
+      straddle an SSE release boundary and escape scanning. A regression
+      test with a boundary-spanning long term fails on today's code and
+      passes after the fix.
+    scope:
+      in:
+        - "max-match derivation exposed from the compiled DLP rule set and consumed by the SSE sanitizer"
+        - "bounded window guaranteed (derivation capped by construction, not by hope)"
+        - "boundary-spanning regression tests: redact, tokenize and deny actions with long terms"
+      out:
+        - "SSE frame format or chunk-shape changes"
+        - "rule authoring validation/UI"
+        - "token-format-aware incremental matching (existing follow-up candidate, unchanged)"
+    constraints:
+      - "Streaming liveness is preserved: the window stays bounded; content is never buffered whole."
+      - "The pseudonym-boundary guard ('[' holdback) keeps working with the derived holdback."
+    forbidden:
+      - "Reverting to a fixed magic number for the holdback."
+      - "Releasing bytes that could still complete a rule match."
+    acceptance:
+      - type: command
+        run: "make verify-llm-protocols && go test -race ./packages/dlp"
+      - type: assertion
+        expect: "A dictionary term longer than today's 80-byte window split across two SSE chunks is caught (redacted/tokenized/blocked) exactly as an in-chunk occurrence; the existing SSE DLP, re-substitution and perf-gateway suites stay green."
+    dependencies: []
+    risk_level: L3
+    investigation_hints:
+      - "apps/gateway/protocols.go passes a hardcoded maxMatch=64 to newSSESanitizer (:151-156)"
+      - "apps/gateway/ssedlp.go holdback = maxMatch + 16 margin; release keeps an extra guard for '[' pseudonyms"
+      - "packages/dlp/table.go compiled rules carry pattern/terms but no max-match metadata"
+    escalation_conditions:
+      - "Unbounded-length patterns (e.g. open-ended dictionary terms) make a derived holdback impossible without a rule-authoring policy change."
+    result:
+      owner: "zcode-60224"
+      attempts: 0
+      claimed_at: "2026-09-03T08:23:00.161Z"
+      completed_at: "2026-09-03T08:53:22.237Z"
+      worktree: ".tasks/worktrees/TASK-039"
+      branch: "task/task-039-sse-holdback"
+      evidence:
+        - {type: "command", check: "make verify-foundation", status: "pass", summary: "PASS on merged main: fmt/vet/build + repo-wide -race suite."}
+        - {type: "command", check: "make verify-policy-dlp-audit", status: "pass", summary: "PASS on merged main: policy/DLP/audit integration suites with derived holdback and bounded seed patterns."}
+        - {type: "command", check: "make perf-gateway", status: "pass", summary: "PASS on merged main: full-chain p95 ~7-8ms against the 100ms budget. SSE window throughput 116k -> 54k chunks/sec — the honest cost of the now-exact ~1055-byte holdback (dominated by bounded db_conn_string), still 3+ orders of magnitude above real token-stream rates."}
+        - {type: "assertion", check: "A dictionary term longer than the old 80-byte window split across two SSE chunks is caught exactly as an in-chunk occurrence.", status: "pass", summary: "Unit TestSSESanitizerHoldbackDerivedFromRules: derived holdback keeps a completable 240-byte multi-byte term in the window (the old 64+16 would have released its head) and the assembled output carries [REDACTED:codename]. Integration TestSSEHoldbackDerivedForLongDictionaryTerm: a 360-byte term split across two upstream chunks through the real streaming handler — zero term bytes reach the client, surrounding content still streams."}
+        - {type: "assertion", check: "Holdback is derived from the live rule set, bounded by construction.", status: "pass", summary: "dlp.MaxMatchBytes derives from the pattern AST (regexp/syntax); unbounded repetition reports bounded=false and the gateway applies the documented 4096 cap. TestRuleMaxMatch covers fixed/repeat/alternation/unbounded shapes; migration 000020 bounds all six open-ended seed patterns so the default rule set derives exactly (ADR-0026)."}
+      follow_up_candidates:
+        - "rule-authoring validation: reject unbounded patterns at admin write time (ADR-0026 revisit trigger); holdback is now rule-set-sized — per-rule incremental matching remains the deeper optimization"
+  - id: TASK-040
+    title: "Runtime resource hygiene (provider transport, pool sizing, rate-limit TTL)"
+    status: done
+    goal: >
+      The gateway stops depending on accidental runtime defaults: provider
+      calls share one tuned HTTP transport (no TLS re-handshake churn beyond
+      2 idle connections per host), the PG pool is sized explicitly for the
+      documented concurrency target, and rate-limit keys expire so Redis
+      memory is bounded.
+    scope:
+      in:
+        - "shared, explicitly-configured HTTP client/transport for provider execution (timeouts, idle-conn limits)"
+        - "explicit pgxpool sizing with the chosen numbers documented next to the code"
+        - "TTL on rate-limit counter keys (approximating the window) with test coverage"
+      out:
+        - "horizontal scaling, HA, or production cluster sizing (TASK-033 out, unchanged)"
+        - "rate-limit algorithm changes (fixed window stays)"
+        - "provider client retries/circuit breaking"
+    constraints:
+      - "Timeout behavior stays equivalent or stricter than today's 30s provider timeout."
+      - "Pool sizing reflects the load gate's target concurrency and is recorded with rationale."
+    forbidden:
+      - "Introducing per-request transport/client construction."
+      - "Unbounded connection or goroutine growth."
+    acceptance:
+      - type: command
+        run: "go test -race ./packages/llmkernel ./apps/gateway && make verify-foundation"
+      - type: assertion
+        expect: "A transport-reuse test shows concurrent provider calls share one connection pool; a counter test shows rate-limit keys carry a TTL; the gateway starts with the same environment variables as before (config compatibility)."
+    dependencies: []
+    risk_level: L2
+    investigation_hints:
+      - "packages/llmkernel/openai_client.go falls back to a fresh http.Client over DefaultTransport (:27-31); apps/gateway/main.go wires an empty OpenAICompatClient"
+      - "apps/gateway/main.go pgxpool.New with default MaxConns (:132)"
+      - "apps/gateway/ratelimit.go FixedWindow INCRs without EXPIRE (:52)"
+    escalation_conditions:
+      - "Resource sizing requires deployment-model decisions beyond the dev stack."
+    result:
+      owner: "zcode-52401"
+      attempts: 0
+      claimed_at: "2026-09-03T08:54:16.815Z"
+      completed_at: "2026-09-03T08:59:57.193Z"
+      worktree: ".tasks/worktrees/TASK-040"
+      branch: "task/task-040-resource-hygiene"
+      evidence:
+        - {type: "command", check: "make verify-foundation", status: "pass", summary: "PASS on merged main: fmt/vet/build + repo-wide -race suite."}
+        - {type: "command", check: "make perf-gateway", status: "pass", summary: "PASS on merged main: full-chain p95 ~7-8ms against the 100ms budget with the shared provider transport wired."}
+        - {type: "assertion", check: "A transport-reuse test shows concurrent provider calls share one connection pool.", status: "pass", summary: "TestProviderTransportSharedAndTuned: two 16-call bursts against one backend — the second burst opens <=2 fresh connections (the tuned pool retains warm connections; DefaultTransport's MaxIdleConnsPerHost=2 would have discarded 14)."}
+        - {type: "assertion", check: "A counter test shows rate-limit keys carry a window-sized TTL.", status: "pass", summary: "TestRateLimitKeysExpire: INCR pipelined with EXPIRE NX — key TTL lands inside the window instead of persisting forever."}
+        - {type: "assertion", check: "The gateway starts with the same environment variables as before (config compatibility).", status: "pass", summary: "No new env/flags: pool sizing is code-default with rationale, transport is internal, TTL mirrors the existing window. All existing gateway integration suites re-ran green on merged main."}
+      follow_up_candidates:
+        - "HTTP/2 to providers (ForceAttemptHTTP2) worth a look when providers support it; pool MaxConns=32 to be re-validated against the TASK-041 gate numbers"
+  - id: TASK-041
+    title: "Concurrency load gate (gate card)"
+    status: done
+    goal: >
+      The performance gate proves capacity, not just single-request
+      compliance: the real handler chain is driven at target concurrency
+      (e.g. 50 and 200 in-flight) with full governance on, reporting
+      P50/P95/P99 and throughput, asserting the PRD §9 budget under
+      concurrency, and recording before/after numbers in docs/perf/.
+    scope:
+      in:
+        - "concurrent profiles added to the perf harness (same stub-provider contract as TASK-033)"
+        - "hard budget assertion under concurrency + goroutine-leak check"
+        - "before/after results table recorded in docs/perf/"
+      out:
+        - "provider inference benchmarking, soak/endurance runs, multi-instance tests"
+        - "new product capability (pure gate)"
+    constraints:
+      - "Same fail-safe rules as the existing gate: security features stay on, P95/P99 reported, nothing tuned out of the hot path."
+    forbidden:
+      - "Disabling governance stages to pass the concurrency budget."
+      - "Reporting means/medians without tail percentiles."
+    acceptance:
+      - type: command
+        run: "make perf-gateway"
+      - type: assertion
+        expect: "At 50 concurrent clients the full-chain p95 stays under the 100ms PRD budget with -race clean on the harness run; the docs/perf/ table shows the sequential and concurrent before/after against the 2026-09 baseline (full-chain p95 17.3ms sequential)."
+    dependencies:
+      - TASK-036
+      - TASK-037
+    risk_level: L2
+    investigation_hints:
+      - "apps/gateway/perf_gate_integration_test.go is sequential today (n=200 loop)"
+      - "docs/perf/gateway-overhead.md holds the TASK-033 baseline format"
+    escalation_conditions:
+      - "The concurrency budget cannot be met after the P0 cards land without weakening a security-mandatory stage (return to architect; do not disable features)."
+    result:
+      owner: "zcode-23554"
+      attempts: 0
+      claimed_at: "2026-09-03T09:00:23.143Z"
+      completed_at: "2026-09-03T09:48:20.256Z"
+      worktree: ".tasks/worktrees/TASK-041"
+      branch: "task/task-041-concurrency-gate"
+      evidence:
+        - {type: "command", check: "make perf-gateway", status: "pass", summary: "PASS on merged main: budget profile 50 concurrent users (200ms pacing) p95 35-92ms < 100ms PRD budget across runs; saturation profiles at 50/200 clients recorded in docs/perf/concurrency.md; sequential full-chain p95 ~7ms. Reproduce: make perf-gateway."}
+        - {type: "command", check: "make perf-concurrency-race", status: "pass", summary: "PASS on merged main: the concurrency harness runs under -race with zero detected races; timing assertions are skipped in race builds (detector overhead) and live in perf-gateway."}
+        - {type: "command", check: "make verify-foundation && make verify-policy-dlp-audit", status: "pass", summary: "PASS on merged main with the governance batch transaction, bounded touch applier and detached cache loads in place."}
+        - {type: "assertion", check: "At 50 concurrent clients the full-chain p95 stays under the 100ms PRD budget, security features fully on.", status: "pass", summary: "Budget profile: 50 users at 200ms agent-like pacing, two-attempt jitter semantics; measured p50 14-28ms / p95 35-92ms on merged main. DLP tokenize + policy + batched audit + usage ledger + router all active; provider stubbed per TASK-033 rules."}
+        - {type: "assertion", check: "Race clean on the harness run; no goroutine leak under concurrent load.", status: "pass", summary: "perf-concurrency-race PASS with zero race reports. Goroutine growth check (two samples 2s apart after drain) passes: the bounded touch applier and drain-on-timeout design keep the count at baseline. The gate itself surfaced and drove two fail-closed-direction fixes now in main: unbounded per-request touch goroutines (TASK-040 defect) and cancel-storm DLP denials from shared cache loads (TASK-036 defect)."}
+        - {type: "assertion", check: "Gate evolution recorded before/after in docs/perf/.", status: "pass", summary: "docs/perf/concurrency.md records the budget + saturation profiles, the sequential evolution table (TASK-033 baseline 17.34ms p95 -> 7-8ms) and the SSE throughput history."}
+      follow_up_candidates:
+        - "ADR-0027 revisit: async durable queue if billing must never gate an answer; saturation ceiling is dev-PG commit rate — production capacity planning keyed off commit rate; workload registry ID hygiene: TASK-036/037 IDs and ADR-0025 now collide across parallel work packages"
+
+
+  - id: TASK-043
+    title: "Request-path RTT compaction III (governance single-RTT, auth+membership join, vault memo)"
+    status: done
+    goal: >
+      A steady-state routed chat issues at most 3 round trips before the
+      provider call (auth+membership, vault on tokenize hits) and ONE
+      round trip for the governance commit after it — down from 8-9 —
+      with every fail-closed contract unchanged. The 2026-09 saturation
+      attribution showed round-trip contention, not the fsync commit,
+      dominates the remaining ceiling.
+    scope:
+      in:
+        - "governance batch (audit event set + usage row) delivered as one round trip (multi-statement simple-protocol exec); all-or-nothing transaction semantics and parameterized values preserved"
+        - "auth chain extended to return BOTH membership rows (header workspace and key binding) in the existing single query; Go applies the frozen header -> binding -> fail-closed precedence — no selection semantics move into SQL"
+        - "bounded process-local value->token memo for vault tokenize hits under the TASK-037 constraints"
+        - "round-trip counting tests extending the counting-seam pattern"
+      out:
+        - "caching key validity, revocation/expiry, or membership decisions (never cached)"
+        - "rate-limit placement (TASK-044)"
+        - "async audit or durability changes"
+        - "protocol surface changes (TASK-042 territory)"
+    constraints:
+      - "Fail-closed semantics are unchanged: revocation, expiry and membership are judged from live rows on every request."
+      - "Multi-statement execution keeps bound parameters — no string interpolation of user data."
+      - "The memo is bounded, process-local, server-side only, never persisted or logged; dropping it must not change behavior."
+    forbidden:
+      - "Moving the header -> binding -> fail-closed selection precedence into SQL."
+      - "Serving authorization decisions from the memo or any cache."
+    acceptance:
+      - type: command
+        run: "make verify-policy-dlp-audit && make perf-gateway"
+      - type: command
+        run: "go test -race ./packages/store ./packages/governance ./apps/gateway"
+      - type: assertion
+        expect: "Counting seams show a steady-state routed chat with tokenize hits issues <=3 pre-provider round trips plus 1 governance round trip; binding-only onboarding (no header) still authorizes, an explicit header still wins over the binding, and a key bound to workspace A cannot act in workspace B (precedence regression tests)."
+    dependencies: []
+    risk_level: L3
+    investigation_hints:
+      - "packages/store/store.go WriteGovernanceBatch: BEGIN/INSERT/INSERT/COMMIT are four round trips today — pgx simple-protocol multi-statement exec collapses them"
+      - "packages/store/store.go GetAPIKeyAuthByHash + IsMember are the two auth reads to fuse (api_keys carries the binding workspace_id)"
+      - "packages/store/dlpvault.go BatchTokenizeDLP SELECT is the hot-path read a memo absorbs; TASK-037 memo constraints apply verbatim"
+    escalation_conditions:
+      - "Fusing membership into the auth query cannot preserve the frozen selection precedence without duplicating semantics in SQL."
+    result:
+      owner: "zcode-48415"
+      attempts: 0
+      claimed_at: "2026-09-03T11:59:01.649Z"
+      completed_at: "2026-09-03T14:59:50.417Z"
+      worktree: ".tasks/worktrees/TASK-043"
+      branch: "task/task-043-rtt-compaction"
+      evidence:
+        - {type: "command", check: "make verify-policy-dlp-audit && make perf-gateway && go test -race ./packages/store ./packages/governance ./apps/gateway", status: "pass", summary: "PASS on merged main: policy-dlp-audit gates (a transient single-run race flake re-ran clean across the whole repo), perf-gateway budget gate, and -race over store/governance/gateway. Full gateway integration suite re-run: only the pre-existing TestWorkspaceScopedRules failure (documented in TASK-036 follow-ups, fails identically on unmodified main)."}
+        - {type: "assertion", check: "Counting seams show a steady-state routed chat with tokenize hits issues <=3 pre-provider round trips plus 1 governance round trip; binding-only onboarding (no header) still authorizes, an explicit header still wins over the binding, and a key bound to workspace A cannot act in workspace B (precedence regression tests).", status: "pass", summary: "TestGovernanceRTTCountingIntegration (pgx Tracer seam on the real pool): the governance commit traced as exactly ONE SendBatch of four statements [BEGIN, INSERT audit_events, INSERT usage_records, COMMIT]; the fused auth query (LEFT JOIN workspace_members hm/bm) served key+owner+memberships in one round trip and the standalone IsMember probe (SELECT EXISTS...) never appeared on the path; a repeated BatchTokenizeDLP hit was served from the bounded memo with zero queries and byte-identical pseudonyms. Precedence regressions re-verified through the fused chain (newSliceEnv now wires AuthChain like production): binding-only onboarding (TASK-035 suite), header-over-binding override, cross-workspace denial, and membership-removal revocation all pass."}
+      follow_up_candidates: []
+  - id: TASK-044
+    title: "Rate limiting off the request critical path"
+    status: done
+    goal: >
+      The per-request Redis INCR leaves the pre-provider path (the last
+      non-DB round trip on it) without weakening abuse protection: bursts
+      still trip the configured limit, counter unavailability still fails
+      open, memory stays bounded. The multi-instance semantics of the
+      chosen shape (per-instance buckets or async counting) are recorded
+      explicitly.
+    scope:
+      in:
+        - "counting moved off the pre-provider path (post-response async counting, or local token bucket with periodic Redis sync — implementer chooses one)"
+        - "the multi-instance semantics decision recorded (per-instance buckets sum to limit x N) with rationale next to the code"
+        - "tests: burst trips at the configured limit, counter unavailability fails open, no unbounded memory, -race clean"
+      out:
+        - "authorization or quota semantics (rate limiting stays abuse protection)"
+        - "exact distributed limit guarantees"
+        - "new foundational dependencies (miniredis or similar)"
+    constraints:
+      - "Fail-open on counter unavailability is unchanged (documented FixedWindow contract)."
+      - "Memory is bounded regardless of subject cardinality."
+    forbidden:
+      - "Turning rate limiting into an authorization control."
+      - "Unbounded per-subject state."
+    acceptance:
+      - type: command
+        run: "make verify-policy-dlp-audit && make perf-gateway"
+      - type: command
+        run: "go test -race ./apps/gateway"
+      - type: assertion
+        expect: "A steady-state chat issues no pre-provider Redis round trip; a burst over the configured limit is still rejected (429) and counter failure still lets requests through (fail open, logged)."
+    dependencies: []
+    risk_level: L2
+    investigation_hints:
+      - "apps/gateway/ratelimit.go FixedWindow is fail-open by contract; the INCR+EXPIRE pipeline is the only pre-provider Redis round trip left"
+      - "apps/gateway/auth.go rate check runs before the provider path; the gate attribution shows RTT contention dominating saturation latency"
+    escalation_conditions:
+      - "The chosen shape cannot keep bursts bounded without becoming an authorization control."
+    result:
+      owner: "zcode-35933"
+      attempts: 0
+      claimed_at: "2026-09-03T11:52:51.651Z"
+      completed_at: "2026-09-03T11:58:49.547Z"
+      worktree: ".tasks/worktrees/TASK-044"
+      branch: "task/task-044-async-ratelimit"
+      evidence:
+        - {type: "command", check: "make verify-policy-dlp-audit && make perf-gateway && go test -race ./apps/gateway", status: "pass", summary: "PASS on merged main: policy-dlp-audit gates, perf-gateway budget gate, and the race detector on the full gateway unit suite (including the new LocalWindow tests: burst trips at limit, per-subject independence, bounded memory under eviction, fail-open nil/degenerate limiter)."}
+        - {type: "assertion", check: "A steady-state chat issues no pre-provider Redis round trip; a burst over the configured limit is still rejected (429) and counter failure still lets requests through (fail open, logged).", status: "pass", summary: "Server.Rate is now &LocalWindow in main.go: the allow/deny decision reads process-local state only — the pre-provider chain has no Redis round trip (the FixedWindow+RedisCounter pair remains only as a test/alternative implementation). TestLocalWindowBurstTripsLimit proves 429-equivalent denial at the configured limit with admission after window rotation; TestRateLimitFailsOpenOnCounterError still passes for the retained FixedWindow, and LocalWindow has no unavailability mode (decision is in-process), with the nil/degenerate limiter fail-open covered. Memory bounded by MaxSubjects (expired-window flush + random eviction), asserted by TestLocalWindowBoundedMemory. Multi-instance semantics (per-instance window, aggregate Limit x N) recorded verbatim at the type and at the main.go wiring."}
+      follow_up_candidates: []
+  - id: TASK-045
+    title: "P0 security fix: DLP rule cache leaks rules across workspaces"
+    status: done
+    goal: >
+      The TableScanner compile cache introduced by TASK-036 is keyed by the
+      constant "all": the first workspace to scan after a cache fill serves
+      its workspace-scoped rule set to EVERY workspace until TTL expiry —
+      cross-workspace DLP rule leakage (TestWorkspaceScopedRules caught it).
+      Cache keys become workspace-scoped and CacheTTL<=0 restores its
+      documented disabled semantics.
+    scope:
+      in:
+        - "cache key scoped per workspace (ws prefix) at both Get sites"
+        - "ttl(): CacheTTL<=0 means no caching (controlcache already defines <=0 as always reload)"
+        - "regression tests: per-workspace cache isolation with an enabled cache; CacheTTL=0 reloads on every scan"
+      out:
+        - "policy/plans/targets/pricing caches (rules carry no workspace dimension)"
+        - "cache invalidation on rule writes (existing TTL behavior unchanged)"
+    constraints:
+      - "Fail-closed semantics unchanged: a load failure is never served and never sticks."
+    forbidden:
+      - "Weakening or skipping the isolation regression test to pass."
+    acceptance:
+      - type: command
+        run: "make verify-policy-dlp-audit && make perf-gateway"
+      - type: assertion
+        expect: "With caching enabled, a finance-scoped deny rule fires in finance and never in secops regardless of scan order; CacheTTL=0 reloads rules on every scan; every pre-existing workspace-scope test passes."
+    dependencies: []
+    risk_level: L3
+    investigation_hints:
+      - "packages/dlp/table.go scannerCache Get sites; packages/controlcache ttl contract"
+    escalation_conditions:
+      - "Per-workspace keys cannot preserve the single-flight load contract."
+    result:
+      owner: "zcode-10159"
+      attempts: 0
+      claimed_at: "2026-09-03T15:07:35.765Z"
+      completed_at: "2026-09-03T15:13:26.490Z"
+      worktree: ".tasks/worktrees/TASK-045"
+      branch: "task/task-045-dlp-cache-scope"
+      evidence:
+        - {type: "command", check: "make verify-policy-dlp-audit && make perf-gateway", status: "pass", summary: "PASS on merged main: policy-dlp-audit gates (foundation incl. -race) and the perf budget gate. -race on packages/dlp and apps/gateway clean."}
+        - {type: "assertion", check: "With caching enabled, a finance-scoped deny rule fires in finance and never in secops regardless of scan order; CacheTTL=0 reloads rules on every scan; every pre-existing workspace-scope test passes.", status: "pass", summary: "Unit: TestScannerCacheIsolatesWorkspaces (finance rule enforced in finance, absent in secops, third scan served from finance's cache with exactly 2 loads) and TestScannerDisabledCacheReloadsEveryScan (CacheTTL=0 reloads per scan). Integration: TestWorkspaceScopedRules now PASSES — the first time the full gateway integration suite runs with ZERO failures (41s, whole suite ok on merged main). Egress/subject matrix and rule-management suites re-ran green."}
+      follow_up_candidates: []

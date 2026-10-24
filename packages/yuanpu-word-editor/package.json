@@ -17,5 +17,5 @@
     "demo": "node examples/demo.mjs",
     "import:engine": "node scripts/import-engine.mjs"
   },
-  "engines": { "node": ">=24.15.0 <25" }
+  "engines": { "node": ">=24.22.1 <25" }
 }

@@ -68,8 +68,10 @@ function durableTool<T extends TSchema>(tool: AssistantTool<T>): ToolRegistratio
     replay: tool.replay === 'safe' ? 'safe' : 'unsafe',
     async execute(input, api) {
       const result = await tool.execute(api.callId, input);
-      return { content: result.content,
-        ...(result.details === undefined ? {} : { details: JSON.parse(JSON.stringify(result.details)) }) };
+      return {
+        output: result.content,
+        ...(result.details === undefined ? {} : { details: JSON.parse(JSON.stringify(result.details)) }),
+      };
     },
   };
 }

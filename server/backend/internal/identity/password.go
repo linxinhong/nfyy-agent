@@ -13,8 +13,8 @@ import (
 const passwordPrefix = "argon2id$v=19$m=19456,t=2,p=1$"
 
 func HashPassword(password string) (string, error) {
-	if len(password) < 12 || len(password) > 1024 {
-		return "", errors.New("password must contain 12 to 1024 bytes")
+	if len(password) < 8 || len(password) > 1024 {
+		return "", errors.New("password must contain 8 to 1024 bytes")
 	}
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {

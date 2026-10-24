@@ -1,0 +1,8 @@
+checks:
+  - id: source_required
+    field: source
+  - id: redaction_confirmed
+    field: redacted
+  - id: citation_reference
+    field: sections.citations
+    instruction: 引用法规须注明条文编号，引用案例须注明案号；没有引用时明确写“无”。

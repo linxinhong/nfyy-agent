@@ -1,0 +1,628 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@source "./app/**/*.tsx";
+@source "./components/**/*.tsx";
+/* streamdown 的类名在它自己的 dist 里，Tailwind 扫不到源码目录 —— 必须显式指向。 */
+@source "../node_modules/streamdown/dist/*.js";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ─── Geist 自托管字体 ──────────────────────────────────────────────────
+ * SIL Open Font License 1.1（见 public/static/fonts/OFL.txt），允许再分发。
+ * 用 variable woff2：一个文件覆盖 100–900 全字重，比多个静态文件省请求。
+ * font-display: swap —— 字体未到时先用系统字体渲染，不留空白。
+ */
+@font-face {
+	font-family: Geist;
+	src:
+		url("/static/fonts/Geist-Variable.woff2") format("woff2-variations"),
+		url("/static/fonts/Geist-Variable.woff2") format("woff2");
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: Geist;
+	src:
+		url("/static/fonts/Geist-Italic-Variable.woff2") format("woff2-variations"),
+		url("/static/fonts/Geist-Italic-Variable.woff2") format("woff2");
+	font-weight: 100 900;
+	font-style: italic;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Geist Mono";
+	src:
+		url("/static/fonts/GeistMono-Variable.woff2") format("woff2-variations"),
+		url("/static/fonts/GeistMono-Variable.woff2") format("woff2");
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Geist Mono";
+	src:
+		url("/static/fonts/GeistMono-Italic-Variable.woff2") format("woff2-variations"),
+		url("/static/fonts/GeistMono-Italic-Variable.woff2") format("woff2");
+	font-weight: 100 900;
+	font-style: italic;
+	font-display: swap;
+}
+
+:root {
+	--font-sans-stack: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Roboto", sans-serif;
+	--font-mono-stack: "Geist Mono", ui-monospace, "SFMono-Regular", "Menlo", "Monaco", "Liberation Mono", monospace;
+}
+
+/* ─── 第 2 层：语义变量 → Tailwind 工具类 ────────────────────────────────
+ * 关键性质：暗色模式**只覆盖第 1 层**（下面的 :root / .dark 块），这一层不动。
+ * 所以 `bg-primary` 写一次即两个模式都正确，组件里永远不需要 dark: 变体来切色。
+ */
+@theme inline {
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--font-sans: var(--font-sans-stack);
+	--font-mono: var(--font-mono-stack);
+
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+
+	/* 四个语义状态轴 —— 每轴三档：主色 / 前景 / 弱底。
+	 * bifrost 只有 destructive 一个，success/warning/info 缺 token 导致
+	 * 1289 处直接用 Tailwind 调色板、Badge 的 success/warning 无暗色变体。
+	 * 这里补齐是本模板对 bifrost 的主要修正。 */
+	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
+	--color-destructive-muted: var(--destructive-muted);
+	--color-success: var(--success);
+	--color-success-foreground: var(--success-foreground);
+	--color-success-muted: var(--success-muted);
+	--color-warning: var(--warning);
+	--color-warning-foreground: var(--warning-foreground);
+	--color-warning-muted: var(--warning-muted);
+	--color-info: var(--info);
+	--color-info-foreground: var(--info-foreground);
+	--color-info-muted: var(--info-muted);
+
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+
+	--color-sidebar: var(--sidebar);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-ring: var(--sidebar-ring);
+
+	/* 图表色 —— 组件必须消费 var(--chart-N) 而非硬编码 hex。
+	 * bifrost 定义了这 5 个但零消费（真实调色板硬编码在 chartUtils.ts），
+	 * 代价是图表色不随明暗切换。 */
+	--color-chart-1: var(--chart-1);
+	--color-chart-2: var(--chart-2);
+	--color-chart-3: var(--chart-3);
+	--color-chart-4: var(--chart-4);
+	--color-chart-5: var(--chart-5);
+
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
+
+	/* h-base —— 内容区可用高度，供全页居中的状态视图（404 / 500 / loader）使用。
+	 * 减掉的是外层壳占据的空间：上下各 8px 外边距 + 主区 16px 内边距 × 2。
+	 * 改 appShell 的 my-2 / p-4 时这里要跟着改。 */
+	--height-base: calc(100dvh - 4rem);
+
+	/* 字号阶梯覆盖 —— sm/base 各下调 0.05rem，行高不动。
+	 * 效果是 text-sm 的行高比从 1.43 拉到 1.52，密排时更透气。
+	 * 实测 bifrost 用量：text-sm 926 次 / text-xs 857 次 / text-base 14 次
+	 * → 13.2px 是正文主力，12px 承担元信息，base 基本不用。 */
+	--text-xs: 0.75rem; /* 12px */
+	--text-xs--line-height: 1rem; /* 16px */
+	--text-sm: 0.825rem; /* 13.2px ← 正文默认 */
+	--text-sm--line-height: 1.25rem; /* 20px */
+	--text-base: 0.95rem; /* 15.2px */
+	--text-base--line-height: 1.5rem; /* 24px */
+}
+
+/* ─── 第 1 层：明色裸变量 ────────────────────────────────────────────────
+ * 全部用 oklch()：感知均匀，做 /90 /50 这类透明度派生时不会像 hsl 那样发灰。
+ * 换品牌只需改 --primary 一行。
+ */
+:root {
+	--radius: 0.5rem;
+
+	--background: oklch(0.9691 0 0);
+	--foreground: oklch(0.141 0.005 285.823);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.141 0.005 285.823);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.141 0.005 285.823);
+
+	--primary: oklch(0.5081 0.1049 165.61);
+	--primary-foreground: oklch(0.985 0 0);
+	--secondary: oklch(0.967 0.001 286.375);
+	--secondary-foreground: oklch(0.21 0.006 285.885);
+	--muted: oklch(0.967 0.001 286.375);
+	--muted-foreground: oklch(0.552 0.016 285.938);
+	--accent: oklch(0.967 0.001 286.375);
+	--accent-foreground: oklch(0.21 0.006 285.885);
+
+	/* 四个语义轴。-muted 是弱底色（用于 badge/alert 背景），
+	 * -foreground 是压在弱底上的文字色 —— 二者对比度须 ≥ 4.5:1。 */
+	--destructive: oklch(0.577 0.245 27.325);
+	--destructive-foreground: oklch(0.396 0.156 27.325);
+	--destructive-muted: oklch(0.958 0.033 17.38);
+	--success: oklch(0.596 0.145 163.225);
+	--success-foreground: oklch(0.393 0.095 152.535);
+	--success-muted: oklch(0.962 0.044 156.743);
+	--warning: oklch(0.681 0.162 75.834);
+	--warning-foreground: oklch(0.473 0.137 46.201);
+	--warning-muted: oklch(0.973 0.071 103.193);
+	--info: oklch(0.588 0.158 254.624);
+	--info-foreground: oklch(0.424 0.199 265.638);
+	--info-muted: oklch(0.958 0.032 240.222);
+
+	--border: oklch(0.92 0.004 286.32);
+	--input: oklch(0.92 0.004 286.32);
+	--ring: oklch(0.705 0.015 286.067);
+
+	--chart-1: oklch(0.646 0.222 41.116);
+	--chart-2: oklch(0.6 0.118 184.704);
+	--chart-3: oklch(0.398 0.07 227.392);
+	--chart-4: oklch(0.828 0.189 84.429);
+	--chart-5: oklch(0.769 0.188 70.08);
+
+	/* 侧栏半透明 —— 三层层次成立的关键之一：body 底色透过侧栏显出来。 */
+	--sidebar: color-mix(in oklch, oklch(0.98 0 0) 20%, transparent);
+	--sidebar-foreground: oklch(0.141 0.005 285.823);
+	--sidebar-primary: oklch(0.21 0.006 285.885);
+	--sidebar-primary-foreground: oklch(0.985 0 0);
+	--sidebar-accent: oklch(0.94 0.001 286.375);
+	--sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+	--sidebar-border: oklch(0.92 0.004 286.32);
+	--sidebar-ring: oklch(0.705 0.015 286.067);
+}
+
+/* ─── 第 1 层：暗色覆盖 ──────────────────────────────────────────────────
+ * 只重定义裸变量，@theme inline 那层完全不动。
+ * 语义轴在暗色下把主色调亮、弱底调暗 —— 弱底不能沿用明色的浅色，
+ * 否则出现 bifrost badge 那种「暗色模式下仍是浅绿底 + 黑字」的断层。
+ */
+.dark {
+	--background: oklch(0.2134 0 0);
+	--foreground: oklch(0.985 0 0);
+	--card: oklch(0.21 0.006 285.885);
+	--card-foreground: oklch(0.985 0 0);
+	--popover: oklch(0.21 0.006 285.885);
+	--popover-foreground: oklch(0.985 0 0);
+
+	--primary: oklch(0.696 0.17 162.48);
+	--primary-foreground: oklch(0.21 0.006 285.885);
+	--secondary: oklch(0.274 0.006 286.033);
+	--secondary-foreground: oklch(0.985 0 0);
+	--muted: oklch(0.274 0.006 286.033);
+	--muted-foreground: oklch(0.705 0.015 286.067);
+	--accent: oklch(0.274 0.006 286.033);
+	--accent-foreground: oklch(0.985 0 0);
+
+	--destructive: oklch(0.704 0.191 22.216);
+	--destructive-foreground: oklch(0.885 0.062 18.334);
+	--destructive-muted: oklch(0.271 0.105 12.094);
+	--success: oklch(0.725 0.176 158.85);
+	--success-foreground: oklch(0.871 0.15 154.449);
+	--success-muted: oklch(0.262 0.061 158.221);
+	--warning: oklch(0.795 0.162 86.047);
+	--warning-foreground: oklch(0.879 0.169 91.605);
+	--warning-muted: oklch(0.279 0.077 45.635);
+	--info: oklch(0.707 0.165 254.624);
+	--info-foreground: oklch(0.809 0.105 251.813);
+	--info-muted: oklch(0.282 0.091 267.935);
+
+	--border: oklch(1 0 0 / 10%);
+	--input: oklch(1 0 0 / 15%);
+	--ring: oklch(0.552 0.016 285.938);
+
+	--chart-1: oklch(0.488 0.243 264.376);
+	--chart-2: oklch(0.696 0.17 162.48);
+	--chart-3: oklch(0.769 0.188 70.08);
+	--chart-4: oklch(0.627 0.265 303.9);
+	--chart-5: oklch(0.645 0.246 16.439);
+
+	--sidebar: color-mix(in oklch, oklch(0.141 0.005 285.823) 20%, transparent);
+	--sidebar-foreground: oklch(0.985 0 0);
+	--sidebar-primary: oklch(0.488 0.243 264.376);
+	--sidebar-primary-foreground: oklch(0.985 0 0);
+	--sidebar-accent: oklch(0.274 0.006 286.033);
+	--sidebar-accent-foreground: oklch(0.985 0 0);
+	--sidebar-border: oklch(1 0 0 / 10%);
+	--sidebar-ring: oklch(0.552 0.016 285.938);
+}
+
+/* ─── 配色包（data-palette）─────────────────────────────────────────────
+ * 只覆盖品牌色 --primary，与明暗（.dark）正交。中性色与四个语义轴不动 ——
+ * 它们的 WCAG 关系已复算，配色包不该误伤。
+ *
+ * 默认（无 data-palette 或 =emerald）用 :root 里已定义的值，此处不重复。
+ * 每个配色明暗两版：明色 primary 较深（压白字），暗色提亮（压深底）。
+ *
+ * 加配色包：在 lib/constants/palettes.ts 加一项 + 此处加一段明暗块。
+ */
+[data-palette="blue"] {
+	--primary: oklch(0.55 0.2 255);
+}
+.dark[data-palette="blue"] {
+	--primary: oklch(0.62 0.19 255);
+}
+
+[data-palette="violet"] {
+	--primary: oklch(0.55 0.22 295);
+}
+.dark[data-palette="violet"] {
+	--primary: oklch(0.64 0.2 295);
+}
+
+[data-palette="amber"] {
+	--primary: oklch(0.62 0.17 65);
+}
+.dark[data-palette="amber"] {
+	--primary: oklch(0.72 0.16 65);
+}
+
+@layer base {
+	* {
+		@apply border-border outline-none;
+	}
+	body {
+		@apply bg-background text-foreground;
+	}
+}
+
+body {
+	overscroll-behavior: none;
+}
+
+/* ─── 自定义滚动条 ──────────────────────────────────────────────────────
+ * 平时隐形、hover 容器才显形、hover 滚动条本身再加深。
+ * 用 token 而非硬编码 rgba，所以暗色下自动适配（bifrost 这里写死了 rgba）。
+ */
+@utility custom-scrollbar {
+	overflow: auto !important;
+	scrollbar-width: thin;
+	scrollbar-color: var(--border) transparent;
+
+	&::-webkit-scrollbar {
+		width: 8px;
+		height: 8px;
+	}
+
+	&::-webkit-scrollbar-track {
+		background-color: transparent;
+	}
+
+	&::-webkit-scrollbar-thumb {
+		background-color: var(--border);
+		border-radius: 8px;
+		opacity: 0;
+		visibility: hidden;
+	}
+
+	&:hover::-webkit-scrollbar-thumb {
+		opacity: 1;
+		visibility: visible;
+	}
+
+	&::-webkit-scrollbar-thumb:hover {
+		background-color: var(--muted-foreground);
+	}
+}
+
+@utility no-scrollbar {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+/* 内容容器的 padding/border 逃逸钩子 —— 子树声明 .no-padding-parent
+ * 即可让外层容器去掉内边距（全屏表格、地图这类要贴边的场景）。 */
+div.content-container:has(.no-padding-parent) {
+	@apply p-0!;
+}
+
+div.content-container main.content-container-inner:has(.no-padding-parent) {
+	@apply p-0!;
+}
+
+div.content-container:has(.no-border-parent) {
+	@apply border-0!;
+}
+
+/* 骨架屏进度条动画 —— 与 index.html 内联的 @keyframes p 同形。 */
+@keyframes update-progress {
+	0% {
+		transform: translateX(-110%);
+	}
+	50% {
+		transform: translateX(110%);
+	}
+	100% {
+		transform: translateX(310%);
+	}
+}
+
+/* Toast 保持可点击 —— Radix 的 react-remove-scroll 会在弹窗遮罩上
+ * 设置 pointer-events:none，波及到 portal 出去的 toast。 */
+[data-sonner-toaster] {
+	pointer-events: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+}
+
+/*
+ * 知识库正文：服务端渲染并清洗后的 HTML（goldmark + bluemonday），这里只管排版。
+ * 没有引入 typography 插件，元素覆盖范围与服务端白名单一致即可。
+ */
+@layer components {
+	.wiki-shell {
+		display: grid;
+		grid-template-columns: clamp(15rem, 18vw, 19rem) minmax(0, 1fr);
+		min-height: calc(100dvh - 7rem);
+		overflow: hidden;
+		border: 1px solid var(--border);
+		border-radius: 0.75rem;
+		background: var(--card);
+	}
+	.wiki-sidebar {
+		min-width: 0;
+		border-right: 1px solid var(--border);
+		background: color-mix(in oklab, var(--muted) 28%, var(--card));
+	}
+	.wiki-sidebar-search {
+		padding: 1rem;
+		border-bottom: 1px solid var(--border);
+	}
+	.wiki-sidebar-content {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		padding: 0.75rem;
+	}
+	.wiki-tree-group {
+		display: block;
+		padding: 0.625rem 0.75rem 0.4rem;
+		color: var(--muted-foreground);
+		font-size: 0.75rem;
+		font-weight: 600;
+	}
+	.wiki-tree-row {
+		display: flex;
+		width: 100%;
+		align-items: center;
+		gap: 0.625rem;
+		min-height: 2.25rem;
+		padding: 0.375rem 0.625rem;
+		border-radius: 0.4rem;
+		color: var(--muted-foreground);
+		font-size: 0.875rem;
+		text-align: left;
+		transition:
+			background-color 120ms,
+			color 120ms;
+	}
+	.wiki-tree-row:hover {
+		color: var(--foreground);
+		background: var(--muted);
+	}
+	.wiki-tree-row-active {
+		color: var(--foreground);
+		background: var(--muted);
+		font-weight: 600;
+	}
+	.wiki-content {
+		min-width: 0;
+	}
+	.wiki-content-inner {
+		display: flex;
+		min-height: 100%;
+		flex-direction: column;
+		max-width: 88rem;
+		margin-inline: auto;
+		padding: 2rem clamp(1.5rem, 2.5vw, 3rem) 2.5rem;
+	}
+	.wiki-document {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		min-width: 0;
+	}
+	.wiki-breadcrumb {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		min-width: 0;
+		color: var(--muted-foreground);
+		font-size: 0.75rem;
+	}
+	.wiki-document-title {
+		margin-top: 1.5rem;
+		font-size: clamp(1.65rem, 2.4vw, 2.15rem);
+		font-weight: 650;
+		line-height: 1.3;
+		letter-spacing: -0.025em;
+	}
+	.wiki-document-summary {
+		margin-top: 0.75rem;
+		color: var(--muted-foreground);
+		line-height: 1.7;
+	}
+	.wiki-document-meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.625rem;
+		margin-top: 1.5rem;
+		padding-bottom: 1.25rem;
+		border-bottom: 1px solid var(--border);
+		color: var(--muted-foreground);
+		font-size: 0.75rem;
+	}
+	.wiki-document-nav {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.75rem;
+		margin-top: auto;
+		padding-top: 2rem;
+	}
+	.wiki-document-nav button {
+		display: flex;
+		min-width: 0;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		border: 1px solid var(--border);
+		border-radius: 0.6rem;
+		padding: 0.875rem 1rem;
+		color: var(--foreground);
+		text-align: left;
+	}
+	.wiki-document-nav button:hover {
+		background: var(--muted);
+	}
+	.wiki-document-nav button:last-child {
+		text-align: right;
+	}
+	.wiki-document-nav button span {
+		display: grid;
+		min-width: 0;
+		gap: 0.2rem;
+	}
+	.wiki-document-nav button small {
+		color: var(--muted-foreground);
+		font-size: 0.75rem;
+	}
+	.wiki-document-nav button strong {
+		overflow: hidden;
+		font-size: 0.875rem;
+		font-weight: 600;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	@media (max-width: 767px) {
+		.wiki-shell {
+			grid-template-columns: 1fr;
+			min-height: 0;
+		}
+		.wiki-sidebar {
+			max-height: 16rem;
+			overflow: auto;
+			border-right: 0;
+			border-bottom: 1px solid var(--border);
+		}
+		.wiki-content-inner {
+			padding: 1.75rem 1.25rem 3rem;
+		}
+		.wiki-document-nav {
+			grid-template-columns: 1fr;
+		}
+		.wiki-document-nav > span {
+			display: none;
+		}
+	}
+	.wiki-body {
+		margin-top: 1.5rem;
+		font-size: 1rem;
+		line-height: 1.8;
+	}
+	.wiki-body :where(h1, h2, h3, h4) {
+		font-weight: 600;
+		margin: 1.25em 0 0.5em;
+	}
+	.wiki-body h1 {
+		font-size: 1.25rem;
+	}
+	.wiki-body h2 {
+		font-size: 1.125rem;
+	}
+	.wiki-body h3 {
+		font-size: 1rem;
+	}
+	.wiki-body :where(p, ul, ol, blockquote, pre, table) {
+		margin: 0.6em 0;
+	}
+	.wiki-body ul {
+		list-style: disc;
+		padding-left: 1.5em;
+	}
+	.wiki-body ol {
+		list-style: decimal;
+		padding-left: 1.5em;
+	}
+	.wiki-body a {
+		color: var(--primary);
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+	.wiki-body blockquote {
+		border-left: 3px solid var(--border);
+		padding-left: 0.75em;
+		color: var(--muted-foreground);
+	}
+	.wiki-body code {
+		font-family: var(--font-mono, ui-monospace, monospace);
+		font-size: 0.85em;
+		background: var(--muted);
+		padding: 0.1em 0.3em;
+		border-radius: 4px;
+	}
+	.wiki-body pre {
+		background: var(--muted);
+		padding: 0.75em;
+		border-radius: 6px;
+		overflow-x: auto;
+	}
+	.wiki-body pre code {
+		background: none;
+		padding: 0;
+	}
+	.wiki-body table {
+		border-collapse: collapse;
+		width: 100%;
+	}
+	.wiki-body :where(th, td) {
+		border: 1px solid var(--border);
+		padding: 0.35em 0.6em;
+		text-align: left;
+	}
+	.wiki-body img {
+		max-width: 100%;
+	}
+}

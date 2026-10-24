@@ -2,17 +2,21 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 
-import { app, BrowserWindow, dialog, ipcMain, Notification, safeStorage, shell, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Notification, safeStorage, session, shell, type IpcMainInvokeEvent } from 'electron';
 import { autoUpdater } from 'electron-updater';
-import type { NotificationNavigationTarget, RuntimeRecoveryNotice } from '@yuanpu-agent/protocol';
+import type { NotificationNavigationTarget, RuntimeRecoveryNotice, ServerCenterResult, ServerCenterUser } from '@yuanpu-agent/protocol';
 
 import { BrowserGuestManager } from './browser-guest-manager.js';
 import { startBrowserControlService } from './browser-control-service.js';
 import { RuntimeManager } from './runtime-manager.js';
 import { ElectronNotificationHost, type NativeNotification } from './notification-host.js';
 import { isTrustedRendererUrl, packagedRendererUrl } from './renderer-security.js';
-import { defaultServerUrl, getServerCenterStatus, getServerWikiPreview, ServerCenterSession } from './server-center.js';
+import { getServerWikiPreview, ServerCenterSession } from './server-center.js';
+import { getKnowledgeCenterStatus } from './knowledge-center-status.js';
+import { checkKnowledgeCenterKey } from './knowledge-center-key.js';
+import { forwardKnowledgeCenterRequest, getKnowledgeCenterProfile, type PortalRequest } from './knowledge-center-portal.js';
 import { ServerCenterCredentialStore } from './server-center-credential.js';
+import { isCenterPortalUrl, normalizeServerCenterEndpoint, ServerCenterEndpointStore } from './server-center-endpoint.js';
 
 let runtime: RuntimeManager;
 let mainWindow: BrowserWindow | undefined;
@@ -23,6 +27,8 @@ let notificationHost: ElectronNotificationHost | undefined;
 let pendingNotificationTarget: NotificationNavigationTarget | undefined;
 let notificationsEnabled = true;
 let runtimeRecoveryNotice: RuntimeRecoveryNotice | undefined;
+const centerPortalPartition = 'yuanpu-center';
+let centerPortalEndpoint = '';
 
 function readEmoBrand(): { name: string; icon: string } {
   const appRoot = app.isPackaged ? join(process.resourcesPath, 'app') : resolve(__dirname, '../../app');
@@ -64,6 +70,17 @@ function assertTrustedRenderer(event: IpcMainInvokeEvent): void {
     || !isTrustedRendererUrl(event.senderFrame.url, trustedRendererEntry)
   ) {
     throw new Error('Rejected IPC from an untrusted renderer frame');
+  }
+}
+
+function assertCenterPortalGuest(event: IpcMainInvokeEvent): void {
+  const guest = event.sender;
+  if (!mainWindow || guest.getType() !== 'webview'
+    || guest.hostWebContents !== mainWindow.webContents
+    || guest.session !== session.fromPartition(centerPortalPartition)
+    || event.senderFrame !== guest.mainFrame
+    || !isCenterPortalUrl(event.senderFrame.url, centerPortalEndpoint)) {
+    throw new Error('Rejected request from an untrusted center frame');
   }
 }
 
@@ -113,8 +130,17 @@ function createWindow(): void {
     webPreferences.contextIsolation = true;
     webPreferences.sandbox = true;
     delete webPreferences.preload;
+    delete (params as Record<string, unknown>).preload;
     delete (params as Record<string, unknown>).nodeintegration;
     delete (params as Record<string, unknown>).disablewebsecurity;
+    if (params.partition === centerPortalPartition && !isCenterPortalUrl(params.src ?? '', centerPortalEndpoint)) {
+      event.preventDefault();
+      return;
+    }
+    if (params.partition === centerPortalPartition) {
+      (params as Record<string, unknown>).useragent = `${window.webContents.getUserAgent()} YuanpuAgentDesktop/${app.getVersion()}`;
+      webPreferences.preload = join(__dirname, 'center-portal-preload.cjs');
+    }
     if (!/^https?:\/\//i.test(params.src ?? '') && params.src !== 'about:blank') {
       event.preventDefault();
     }
@@ -173,10 +199,15 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   );
 
   ipcMain.handle('runtime:info', trustedHandler(() => runtime.info()));
-  const serverUrl = process.env.YUANPU_SERVER_URL || defaultServerUrl;
+  const serverCenterEndpoint = new ServerCenterEndpointStore(join(app.getPath('userData'), 'server-center-endpoint.json'),
+    process.env.YUANPU_CENTER_URL || 'http://127.0.0.1:8790');
+  let serverUrl = await serverCenterEndpoint.load();
+  centerPortalEndpoint = serverUrl;
   const serverCenterCredentials = new ServerCenterCredentialStore(join(app.getPath('userData'), 'server-center-credential.json'), safeStorage);
-  const serverCenterSession = new ServerCenterSession(serverUrl, () => serverCenterCredentials.loadKey());
-  ipcMain.handle('server:center:status', trustedHandler(() => getServerCenterStatus(serverUrl)));
+  let serverCenterSession = new ServerCenterSession(serverUrl, () => serverCenterCredentials.loadKey());
+  let endpointChanging = false;
+  let apiKeyWrite: Promise<unknown> | undefined;
+  ipcMain.handle('server:center:status', trustedHandler(() => getKnowledgeCenterStatus(serverUrl)));
   ipcMain.handle('server:center:wiki-preview', trustedHandler(() => getServerWikiPreview(serverUrl)));
   ipcMain.handle('server:center:catalog', trustedHandler((query: string) => serverCenterSession.searchCatalog(query)));
   ipcMain.handle('server:center:restore', trustedHandler(() => serverCenterSession.restore()));
@@ -185,14 +216,67 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     await serverCenterCredentials.removeKey();
   }));
   ipcMain.handle('server:center:credential-status', trustedHandler(() => serverCenterCredentials.status()));
-  ipcMain.handle('server:center:save-api-key', trustedHandler(async (apiKey: string) => {
-    const result = await serverCenterSession.useAPIKey(apiKey);
-    if (result.ok) {
-      try { await serverCenterCredentials.saveKey(apiKey); }
-      catch (error) { await serverCenterSession.logout(); throw error; }
-    }
-    return result;
+  ipcMain.handle('server:center:endpoint', trustedHandler(() => serverUrl));
+  ipcMain.handle('server:center:save-endpoint', trustedHandler(async (value: string) => {
+    if (endpointChanging) throw new Error('中心端点正在更新，请稍后重试。');
+    const nextUrl = normalizeServerCenterEndpoint(value);
+    if (nextUrl === serverUrl) return { url: serverUrl, keyCleared: false };
+    endpointChanging = true;
+    try {
+      if (apiKeyWrite) await apiKeyWrite.catch(() => undefined);
+      await serverCenterSession.logout();
+      await serverCenterCredentials.removeKey();
+      await serverCenterEndpoint.save(nextUrl);
+      serverUrl = nextUrl;
+      centerPortalEndpoint = nextUrl;
+      serverCenterSession = new ServerCenterSession(serverUrl, () => serverCenterCredentials.loadKey());
+      return { url: serverUrl, keyCleared: true };
+    } finally { endpointChanging = false; }
   }));
+  const saveCenterAPIKey = async (apiKey: string): Promise<ServerCenterResult<ServerCenterUser>> => {
+    if (endpointChanging) return { ok: false, code: 'UNAVAILABLE' };
+    const work = (async () => {
+      const session = serverCenterSession;
+      const result = await checkKnowledgeCenterKey(serverUrl, apiKey);
+      if (endpointChanging || session !== serverCenterSession) {
+        await session.logout();
+        return { ok: false as const, code: 'UNAVAILABLE' as const };
+      }
+      if (result.ok) {
+        try { await serverCenterCredentials.saveKey(apiKey); }
+        catch (error) { await session.logout(); throw error; }
+      }
+      return result;
+    })();
+    apiKeyWrite = work;
+    try { return await work; }
+    finally { if (apiKeyWrite === work) apiKeyWrite = undefined; }
+  };
+  ipcMain.handle('server:center:save-api-key', trustedHandler(saveCenterAPIKey));
+  ipcMain.handle('server:center:portal-restore', async (event) => {
+    assertCenterPortalGuest(event);
+    const key = await serverCenterCredentials.loadKey();
+    if (!key) return null;
+    try { return await getKnowledgeCenterProfile(serverUrl, key); }
+    catch { return null; }
+  });
+  ipcMain.handle('server:center:portal-request', async (event, input: PortalRequest) => {
+    assertCenterPortalGuest(event);
+    const key = await serverCenterCredentials.loadKey();
+    if (!key) throw new Error('Center API key is not configured');
+    return forwardKnowledgeCenterRequest(serverUrl, key, input);
+  });
+  ipcMain.handle('server:center:portal-save-api-key', async (event, apiKey: string) => {
+    assertCenterPortalGuest(event);
+    const result = await saveCenterAPIKey(apiKey);
+    if (!result.ok) return result;
+    return { ok: true, user: result.value, token: await serverCenterSession.portalToken() };
+  });
+  ipcMain.handle('server:center:portal-clear-api-key', async (event) => {
+    assertCenterPortalGuest(event);
+    await serverCenterSession.logout();
+    await serverCenterCredentials.removeKey();
+  });
   ipcMain.handle('server:center:remove-api-key', trustedHandler(async () => {
     await serverCenterSession.logout();
     await serverCenterCredentials.removeKey();
@@ -334,16 +418,18 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
 
   app.on('web-contents-created', (event, contents) => {
     if (contents.getType() !== 'webview') return;
+    const centerPortal = contents.session === session.fromPartition(centerPortalPartition);
+    if (centerPortal) contents.setUserAgent(`${contents.getUserAgent()} YuanpuAgentDesktop/${app.getVersion()}`);
     const allowBrowserUrl = (url: string) => /^https?:\/\//i.test(url) || url === 'about:blank';
     contents.on('will-navigate', (navigationEvent, url) => {
-      if (!allowBrowserUrl(url)) navigationEvent.preventDefault();
+      if (centerPortal ? !isCenterPortalUrl(url, serverUrl) : !allowBrowserUrl(url)) navigationEvent.preventDefault();
     });
     contents.on('will-redirect', (redirectEvent, url) => {
-      if (!allowBrowserUrl(url)) redirectEvent.preventDefault();
+      if (centerPortal ? !isCenterPortalUrl(url, serverUrl) : !allowBrowserUrl(url)) redirectEvent.preventDefault();
     });
     contents.setWindowOpenHandler(({ url }) => {
       // Guest popups are denied; http(s) targets hand off to the system browser.
-      if (/^https?:\/\//i.test(url)) void shell.openExternal(url).catch(() => undefined);
+      if (!centerPortal && /^https?:\/\//i.test(url)) void shell.openExternal(url).catch(() => undefined);
       return { action: 'deny' };
     });
   });

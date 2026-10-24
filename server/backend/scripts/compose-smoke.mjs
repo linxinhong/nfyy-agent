@@ -40,7 +40,7 @@ try {
   const databaseAddress = await run('docker', [...compose, 'port', 'db', '5432'], { quiet: true });
   const client = createServerClient({ baseUrl: `http://${serverAddress}` });
   assert.equal((await client.health()).apiVersion, 1);
-  assert.equal((await client.ready()).schemaVersion, 4);
+  assert.equal((await client.ready()).schemaVersion, 8);
   await run('go', ['-C', 'server/backend', 'test', './internal/database', './internal/httpapi', './internal/identity', '-v', '-count=1'], {
     env: { ...env, YUANPU_TEST_DATABASE_URL: `postgres://yuanpu:${password}@${databaseAddress}/yuanpu?sslmode=disable` },
   });

@@ -9,12 +9,19 @@ export type ErrorResponse = components['schemas']['ErrorResponse'];
 export type ServerUser = components['schemas']['User'];
 export type ServerTeam = components['schemas']['Team'];
 export type LoginResponse = components['schemas']['LoginResponse'];
+export type PortalContext = components['schemas']['PortalContext'];
 export type ServerResource = components['schemas']['Resource'];
 export type ResourceInput = components['schemas']['ResourceInput'];
 export type CatalogItem = components['schemas']['CatalogItem'];
 export type CatalogSearchResponse = components['schemas']['CatalogSearchResponse'];
 export type ServerAPIKey = components['schemas']['ApiKey'];
 export type IssuedAPIKey = components['schemas']['IssuedApiKey'];
+export type RolePermission = components['schemas']['RolePermission'];
+export type OperationLogInput = components['schemas']['OperationLogInput'];
+export type DataUpload = components['schemas']['DataUpload'];
+export type IndustryPack = components['schemas']['IndustryPack'];
+export type IndustrySubmission = components['schemas']['IndustrySubmission'];
+export type IndustryValidation = components['schemas']['IndustryValidation'];
 
 export interface ServerClientOptions {
   baseUrl: string;
@@ -65,6 +72,11 @@ export function createServerClient(options: ServerClientOptions) {
     const detail = error?.error;
     return new ServerApiError(response.status, detail?.code ?? 'HTTP_ERROR', detail?.message ?? fallback, response.headers.get('x-request-id') ?? undefined);
   };
+  const endpointURL = (path: string) => {
+    const endpoint = new URL(url);
+    endpoint.pathname = `${endpoint.pathname.replace(/\/$/, '')}${path}`;
+    return endpoint;
+  };
 
   return {
     async health(request: RequestOptions = {}): Promise<HealthResponse> {
@@ -111,6 +123,34 @@ export function createServerClient(options: ServerClientOptions) {
       }
       return data;
     },
+    async getIndustry(request: RequestOptions = {}): Promise<IndustryPack> {
+      const { data, error, response } = await client.GET('/v1/industry', {
+        signal: requestSignal(request.signal), headers, redirect: 'error',
+      });
+      if (!response.ok || !data) throw responseError(response, error, 'Industry lookup failed');
+      return data;
+    },
+    async getIndustryTemplate(type: string, request: RequestOptions = {}): Promise<string> {
+      const { data, error, response } = await client.GET('/v1/industry/templates/{type}', {
+        params: { path: { type } }, signal: requestSignal(request.signal), headers, redirect: 'error',
+      });
+      if (!response.ok || !data) throw responseError(response, error, 'Industry template lookup failed');
+      return data.markdown;
+    },
+    async validateIndustrySubmission(input: IndustrySubmission, request: RequestOptions = {}): Promise<IndustryValidation> {
+      const { data, error, response } = await client.POST('/v1/industry/validate', {
+        body: input, signal: requestSignal(request.signal), headers, redirect: 'error',
+      });
+      if (!response.ok || !data) throw responseError(response, error, 'Industry validation failed');
+      return data;
+    },
+    async bookStackStatus(request: RequestOptions = {}): Promise<components['schemas']['IntegrationStatus']> {
+      const { data, error, response } = await client.GET('/v1/integrations/bookstack/status', {
+        signal: requestSignal(request.signal), headers, redirect: 'error',
+      });
+      if (!response.ok || !data) throw responseError(response, error, 'BookStack connection check failed');
+      return data;
+    },
     async searchCatalog(query = '', request: RequestOptions = {}): Promise<CatalogSearchResponse> {
       const { data, error, response } = await client.GET('/v1/catalog/search', {
         params: { query: { q: query } }, signal: requestSignal(request.signal), headers, redirect: 'error',
@@ -132,18 +172,32 @@ export function createServerClient(options: ServerClientOptions) {
       if (!response.ok || !data) throw responseError(response, error, 'Catalog item lookup failed');
       return data;
     },
-    async login(email: string, password: string, request: RequestOptions = {}): Promise<LoginResponse> {
-      const { data, error, response } = await client.POST('/v1/auth/login', {
-        body: { email, password }, signal: requestSignal(request.signal), headers, redirect: 'error',
-      });
-      if (!response.ok || !data) throw responseError(response, error, 'Login failed');
-      return data;
-    },
     async loginWithAPIKey(apiKey: string, request: RequestOptions = {}): Promise<LoginResponse> {
       const { data, error, response } = await client.POST('/v1/auth/api-key', {
         body: { apiKey }, signal: requestSignal(request.signal), headers, redirect: 'error',
       });
       if (!response.ok || !data) throw responseError(response, error, 'API key login failed');
+      return data;
+    },
+    async portalContext(request: RequestOptions = {}): Promise<PortalContext> {
+      const { data, error, response } = await client.GET('/v1/portal/context', {
+        signal: requestSignal(request.signal), headers, redirect: 'error',
+      });
+      if (!response.ok || !data) throw responseError(response, error, 'Portal context lookup failed');
+      return data;
+    },
+    async loginWithPassword(email: string, password: string, request: RequestOptions = {}): Promise<LoginResponse> {
+      const { data, error, response } = await client.POST('/v1/auth/password', {
+        body: { email, password }, signal: requestSignal(request.signal), headers, redirect: 'error',
+      });
+      if (!response.ok || !data) throw responseError(response, error, 'Password login failed');
+      return data;
+    },
+    async issueOwnDeviceKey(request: RequestOptions = {}): Promise<IssuedAPIKey> {
+      const { data, error, response } = await client.POST('/v1/auth/device-key', {
+        signal: requestSignal(request.signal), headers, redirect: 'error',
+      });
+      if (!response.ok || !data) throw responseError(response, error, 'Device key issuance failed');
       return data;
     },
     async me(request: RequestOptions = {}): Promise<ServerUser> {
@@ -194,6 +248,26 @@ export function createServerClient(options: ServerClientOptions) {
       if (!response.ok || !data) throw responseError(response, error, 'Member update failed');
       return data;
     },
+    async setUserPassword(id: string, password: string, request: RequestOptions = {}): Promise<void> {
+      const { error, response } = await client.PUT('/v1/admin/users/{id}/password', {
+        params: { path: { id } }, body: { password }, signal: requestSignal(request.signal), headers, redirect: 'error',
+      });
+      if (!response.ok) throw responseError(response, error, 'Password update failed');
+    },
+    async listRolePermissions(request: RequestOptions = {}): Promise<RolePermission[]> {
+      const { data, error, response } = await client.GET('/v1/admin/roles', {
+        signal: requestSignal(request.signal), headers, redirect: 'error',
+      });
+      if (!response.ok || !data) throw responseError(response, error, 'Role permissions failed');
+      return data;
+    },
+    async updateRolePermission(role: RolePermission['role'], action: RolePermission['action'], scope: RolePermission['scope'], request: RequestOptions = {}): Promise<RolePermission> {
+      const { data, error, response } = await client.PUT('/v1/admin/roles/{role}/{action}', {
+        params: { path: { role, action } }, body: { scope }, signal: requestSignal(request.signal), headers, redirect: 'error',
+      });
+      if (!response.ok || !data) throw responseError(response, error, 'Role permission update failed');
+      return data;
+    },
     async listAPIKeys(request: RequestOptions = {}): Promise<ServerAPIKey[]> {
       const { data, error, response } = await client.GET('/v1/admin/api-keys', {
         signal: requestSignal(request.signal), headers, redirect: 'error',
@@ -219,6 +293,13 @@ export function createServerClient(options: ServerClientOptions) {
         params: { query }, signal: requestSignal(request.signal), headers, redirect: 'error',
       });
       if (!response.ok || !data) throw responseError(response, error, 'Resource list failed');
+      return data;
+    },
+    async listMyResources(request: RequestOptions = {}): Promise<ServerResource[]> {
+      const { data, error, response } = await client.GET('/v1/resources/mine', {
+        signal: requestSignal(request.signal), headers, redirect: 'error',
+      });
+      if (!response.ok || !data) throw responseError(response, error, 'Own resource list failed');
       return data;
     },
     async getResource(id: string, request: RequestOptions = {}): Promise<ServerResource> {
@@ -276,6 +357,31 @@ export function createServerClient(options: ServerClientOptions) {
       });
       if (!response.ok || !data) throw responseError(response, error, 'Review queue failed');
       return data;
+    },
+    async postOperationLog(input: OperationLogInput, request: RequestOptions = {}): Promise<components['schemas']['LogReceipt']> {
+      const { data, error, response } = await client.POST('/v1/logs', {
+        body: input, signal: requestSignal(request.signal), headers, redirect: 'error',
+      });
+      if (!response.ok || !data) throw responseError(response, error, 'Operation log upload failed');
+      return data;
+    },
+    async uploadData(filename: string, contentType: string, payload: Uint8Array, resourceId?: string, request: RequestOptions = {}): Promise<DataUpload> {
+      const endpoint = endpointURL('/v1/data-uploads');
+      if (resourceId) endpoint.searchParams.set('resourceId', resourceId);
+      const response = await (options.fetch ?? globalThis.fetch)(endpoint, {
+        method: 'POST', headers: { ...headers, 'Content-Type': contentType, 'X-File-Name': filename },
+        body: new Uint8Array(payload), signal: requestSignal(request.signal), redirect: 'error',
+      });
+      const data = await response.json() as DataUpload | ErrorResponse;
+      if (!response.ok) throw responseError(response, data as ErrorResponse, 'Data upload failed');
+      return data as DataUpload;
+    },
+    async downloadData(id: string, request: RequestOptions = {}): Promise<Blob> {
+      const response = await (options.fetch ?? globalThis.fetch)(endpointURL(`/v1/data-uploads/${encodeURIComponent(id)}`), {
+        headers, signal: requestSignal(request.signal), redirect: 'error',
+      });
+      if (!response.ok) throw responseError(response, await response.json() as ErrorResponse, 'Data download failed');
+      return response.blob();
     },
   };
 }

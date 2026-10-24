@@ -1,0 +1,293 @@
+{
+  "dataset_sha256": "39016633682391ab61d8222fd8d2a97c35e4adb34d972d127ef8a621d47c246f",
+  "embedder": "knowledge.HashEmbedder{Dims:256}",
+  "evidence_scope": "offline ranking only; no SQL, auth, DLP, audit or provider qualification",
+  "results": [
+    {
+      "empty": false,
+      "group": "exact",
+      "hits": [
+        {
+          "id": "d04",
+          "seq": 0,
+          "score": 0.3611575592573077
+        },
+        {
+          "id": "d07",
+          "seq": 0,
+          "score": 0.20134681656420736
+        },
+        {
+          "id": "d05",
+          "seq": 0,
+          "score": 0.15430334996209188
+        }
+      ],
+      "mrr_at_3": 1,
+      "ndcg_at_3": 1,
+      "query": "q01",
+      "recall_at_3": 1
+    },
+    {
+      "empty": false,
+      "group": "exact",
+      "hits": [
+        {
+          "id": "d08",
+          "seq": 0,
+          "score": 0.4082482904638631
+        },
+        {
+          "id": "d03",
+          "seq": 0,
+          "score": 0.11470786693528091
+        }
+      ],
+      "mrr_at_3": 1,
+      "ndcg_at_3": 1,
+      "query": "q02",
+      "recall_at_3": 1
+    },
+    {
+      "empty": false,
+      "group": "chinese",
+      "hits": [
+        {
+          "id": "d02",
+          "seq": 0,
+          "score": 0.6851601597031489
+        },
+        {
+          "id": "d01",
+          "seq": 0,
+          "score": 0.1443375672974064
+        },
+        {
+          "id": "d08",
+          "seq": 0,
+          "score": 0.1178511301977579
+        }
+      ],
+      "mrr_at_3": 1,
+      "ndcg_at_3": 1,
+      "query": "q03",
+      "recall_at_3": 1
+    },
+    {
+      "empty": false,
+      "group": "chinese",
+      "hits": [
+        {
+          "id": "d05",
+          "seq": 0,
+          "score": 0.3372266367167312
+        },
+        {
+          "id": "d04",
+          "seq": 0,
+          "score": 0.287018923940964
+        },
+        {
+          "id": "d07",
+          "seq": 0,
+          "score": 0.24002133617819937
+        }
+      ],
+      "mrr_at_3": 1,
+      "ndcg_at_3": 1,
+      "query": "q04",
+      "recall_at_3": 1
+    },
+    {
+      "empty": false,
+      "group": "paraphrase",
+      "hits": [
+        {
+          "id": "d01",
+          "seq": 0,
+          "score": 0.12126781251816648
+        },
+        {
+          "id": "d02",
+          "seq": 0,
+          "score": 0.06642111641550716
+        },
+        {
+          "id": "d06",
+          "seq": 0,
+          "score": 0.058823529411764705
+        }
+      ],
+      "mrr_at_3": 1,
+      "ndcg_at_3": 1,
+      "query": "q05",
+      "recall_at_3": 1
+    },
+    {
+      "empty": false,
+      "group": "paraphrase",
+      "hits": [
+        {
+          "id": "d06",
+          "seq": 0,
+          "score": 0.31311214554257477
+        },
+        {
+          "id": "d04",
+          "seq": 0,
+          "score": 0.2691909510290828
+        },
+        {
+          "id": "d02",
+          "seq": 0,
+          "score": 0.16499158227686112
+        }
+      ],
+      "mrr_at_3": 1,
+      "ndcg_at_3": 1,
+      "query": "q06",
+      "recall_at_3": 1
+    },
+    {
+      "empty": false,
+      "group": "paraphrase",
+      "hits": [
+        {
+          "id": "d04",
+          "seq": 0,
+          "score": 0.1713977925477653
+        },
+        {
+          "id": "d06",
+          "seq": 0,
+          "score": 0.15949044456578004
+        },
+        {
+          "id": "d02",
+          "seq": 0,
+          "score": 0.15007505629691614
+        }
+      ],
+      "mrr_at_3": 0,
+      "ndcg_at_3": 0,
+      "query": "q07",
+      "recall_at_3": 0
+    },
+    {
+      "empty": false,
+      "group": "no_result",
+      "hits": [
+        {
+          "id": "d08",
+          "seq": 0,
+          "score": 0.1666666666666667
+        },
+        {
+          "id": "d05",
+          "seq": 0,
+          "score": 0.10910894511799617
+        },
+        {
+          "id": "d01",
+          "seq": 0,
+          "score": 0.10206207261596577
+        }
+      ],
+      "mrr_at_3": 0,
+      "ndcg_at_3": null,
+      "query": "q08",
+      "recall_at_3": null
+    },
+    {
+      "empty": false,
+      "group": "no_result",
+      "hits": [
+        {
+          "id": "d08",
+          "seq": 0,
+          "score": 0.316227766016838
+        },
+        {
+          "id": "d06",
+          "seq": 0,
+          "score": 0.1252448582170299
+        },
+        {
+          "id": "d03",
+          "seq": 0,
+          "score": 0.11846977555181851
+        }
+      ],
+      "mrr_at_3": 0,
+      "ndcg_at_3": null,
+      "query": "q09",
+      "recall_at_3": null
+    },
+    {
+      "empty": false,
+      "group": "workspace_trap",
+      "hits": [
+        {
+          "id": "d05",
+          "seq": 0,
+          "score": 0.05976143046671967
+        },
+        {
+          "id": "d07",
+          "seq": 0,
+          "score": 0.05198752449100365
+        },
+        {
+          "id": "d02",
+          "seq": 0,
+          "score": 0.04082482904638631
+        }
+      ],
+      "mrr_at_3": 0,
+      "ndcg_at_3": null,
+      "query": "q10",
+      "recall_at_3": null
+    },
+    {
+      "empty": false,
+      "group": "workspace_trap",
+      "hits": [
+        {
+          "id": "d01",
+          "seq": 0,
+          "score": 0.8291561975888502
+        },
+        {
+          "id": "d02",
+          "seq": 0,
+          "score": 0.22019275302527214
+        },
+        {
+          "id": "d06",
+          "seq": 0,
+          "score": 0.2193817272381392
+        }
+      ],
+      "mrr_at_3": 1,
+      "ndcg_at_3": 1,
+      "query": "q11",
+      "recall_at_3": 1
+    },
+    {
+      "empty": false,
+      "group": "workspace_trap",
+      "hits": [
+        {
+          "id": "x01",
+          "seq": 0,
+          "score": 0.38924947208076155
+        }
+      ],
+      "mrr_at_3": 1,
+      "ndcg_at_3": 1,
+      "query": "q12",
+      "recall_at_3": 1
+    }
+  ],
+  "source_revision": "0c8abee (knowledge implementation unchanged from 0658a30)"
+}

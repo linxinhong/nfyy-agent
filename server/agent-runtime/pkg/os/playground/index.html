@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>xingding-agent-runtime Playground</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f5f5;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    header h1 { margin: 0; font-size: 18px; }
+    header select, header button {
+      padding: 6px 10px;
+      border-radius: 4px;
+      border: none;
+      font-size: 14px;
+    }
+    header select { min-width: 160px; }
+    header button { background: #4f46e5; color: #fff; cursor: pointer; }
+    header button:hover { background: #4338ca; }
+    main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+    #sessions {
+      width: 260px;
+      background: #fff;
+      border-right: 1px solid #ddd;
+      overflow-y: auto;
+      padding: 10px;
+    }
+    #sessions h3 { margin: 0 0 10px; font-size: 14px; color: #666; }
+    .session-item {
+      padding: 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-bottom: 6px;
+      font-size: 13px;
+      background: #f9fafb;
+      border: 1px solid transparent;
+    }
+    .session-item:hover, .session-item.active {
+      background: #eef2ff;
+      border-color: #c7d2fe;
+    }
+    #chat {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+    }
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    .message {
+      max-width: 80%;
+      margin-bottom: 16px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    .message.user { align-self: flex-end; background: #4f46e5; color: #fff; margin-left: auto; }
+    .message.assistant { background: #f3f4f6; color: #111; }
+    #input-area {
+      display: flex;
+      gap: 10px;
+      padding: 16px 20px;
+      border-top: 1px solid #eee;
+    }
+    #input-area textarea {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      resize: none;
+      height: 60px;
+      font-family: inherit;
+      font-size: 14px;
+    }
+    #input-area button {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      background: #4f46e5;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    #input-area button:disabled { background: #a5b4fc; cursor: not-allowed; }
+    #empty {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #999;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>xingding-agent-runtime Playground</h1>
+    <select id="resource-type">
+      <option value="agents">Agent</option>
+      <option value="teams">Team</option>
+      <option value="workflows">Workflow</option>
+    </select>
+    <select id="resource-id"></select>
+    <button id="new-session">New Session</button>
+  </header>
+  <main>
+    <aside id="sessions">
+      <h3>Sessions</h3>
+      <div id="session-list"></div>
+    </aside>
+    <section id="chat">
+      <div id="empty">Select a resource and start a conversation.</div>
+      <div id="messages" style="display:none;"></div>
+      <div id="input-area" style="display:none;">
+        <textarea id="message-input" placeholder="Type a message..."></textarea>
+        <button id="send-btn">Send</button>
+      </div>
+    </section>
+  </main>
+  <script>
+    const resourceTypeEl = document.getElementById('resource-type');
+    const resourceIdEl = document.getElementById('resource-id');
+    const newSessionBtn = document.getElementById('new-session');
+    const sessionListEl = document.getElementById('session-list');
+    const messagesEl = document.getElementById('messages');
+    const inputAreaEl = document.getElementById('input-area');
+    const emptyEl = document.getElementById('empty');
+    const messageInput = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-btn');
+
+    let config = { agents: [], teams: [], workflows: [] };
+    let currentResource = { type: 'agents', id: null };
+    let currentSessionId = null;
+    let isStreaming = false;
+
+    async function loadConfig() {
+      const resp = await fetch('/config');
+      config = await resp.json();
+      populateResourceIds();
+    }
+
+    function populateResourceIds() {
+      const type = resourceTypeEl.value;
+      const items = config[type] || [];
+      resourceIdEl.innerHTML = '';
+      items.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item.id;
+        opt.textContent = item.name || item.id;
+        resourceIdEl.appendChild(opt);
+      });
+      currentResource = { type, id: items[0]?.id || null };
+      loadSessions();
+    }
+
+    async function loadSessions() {
+      if (!currentResource.id) {
+        sessionListEl.innerHTML = '<div class="session-item">No resource selected</div>';
+        return;
+      }
+      // Sessions are agent-scoped for now.
+      const resp = await fetch(`/sessions?agent_id=${currentResource.id}&limit=50`);
+      const data = await resp.json();
+      sessionListEl.innerHTML = '';
+      (data.sessions || []).forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'session-item' + (s.session_id === currentSessionId ? ' active' : '');
+        div.textContent = s.session_id.slice(0, 8) + ' - ' + (s.summary || 'Untitled');
+        div.onclick = () => selectSession(s.session_id);
+        sessionListEl.appendChild(div);
+      });
+    }
+
+    function selectSession(sessionId) {
+      currentSessionId = sessionId;
+      loadSessions();
+      emptyEl.style.display = 'none';
+      messagesEl.style.display = 'block';
+      inputAreaEl.style.display = 'flex';
+      messagesEl.innerHTML = '';
+    }
+
+    async function createSession() {
+      if (!currentResource.id) return;
+      const body = {
+        agent_id: currentResource.type === 'agents' ? currentResource.id : undefined,
+        user_id: 'playground-user'
+      };
+      const resp = await fetch('/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const s = await resp.json();
+      selectSession(s.session_id);
+      loadSessions();
+    }
+
+    async function sendMessage() {
+      const text = messageInput.value.trim();
+      if (!text || isStreaming || !currentResource.id) return;
+
+      appendMessage('user', text);
+      messageInput.value = '';
+      sendBtn.disabled = true;
+      isStreaming = true;
+
+      const assistantMsg = appendMessage('assistant', '');
+
+      const url = `/${currentResource.type}/${currentResource.id}/runs?stream=true`;
+      const body = JSON.stringify({ message: text, session_id: currentSessionId, user_id: 'playground-user' });
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body
+      });
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        let event = null;
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            event = line.slice(7);
+          } else if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (event === 'message') {
+              try {
+                const payload = JSON.parse(data);
+                assistantMsg.textContent += payload.content || '';
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+              } catch (e) {}
+            } else if (event === 'run_completed') {
+              try {
+                const payload = JSON.parse(data);
+                if (payload.session_id) currentSessionId = payload.session_id;
+                loadSessions();
+              } catch (e) {}
+            }
+          }
+        }
+      }
+
+      sendBtn.disabled = false;
+      isStreaming = false;
+    }
+
+    function appendMessage(role, text) {
+      const div = document.createElement('div');
+      div.className = 'message ' + role;
+      div.textContent = text;
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return div;
+    }
+
+    resourceTypeEl.addEventListener('change', populateResourceIds);
+    resourceIdEl.addEventListener('change', () => {
+      currentResource.id = resourceIdEl.value;
+      currentSessionId = null;
+      loadSessions();
+      emptyEl.style.display = 'flex';
+      messagesEl.style.display = 'none';
+      inputAreaEl.style.display = 'none';
+      messagesEl.innerHTML = '';
+    });
+    newSessionBtn.addEventListener('click', createSession);
+    sendBtn.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    loadConfig();
+  </script>
+</body>
+</html>

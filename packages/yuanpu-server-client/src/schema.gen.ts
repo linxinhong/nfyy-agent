@@ -55,6 +55,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/industry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the configured industry knowledge types and validation fields */
+        get: operations["getIndustry"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/industry/templates/{type}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a submission template from the configured industry pack */
+        get: operations["getIndustryTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/industry/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Validate a structured submission using the configured industry pack */
+        post: operations["validateIndustrySubmission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/integrations/bookstack/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Check the configured private BookStack API connection */
+        get: operations["getBookStackStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/catalog/search": {
         parameters: {
             query?: never;
@@ -123,23 +191,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/auth/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Exchange account credentials for a twelve-hour bearer session */
-        post: operations["login"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/auth/api-key": {
         parameters: {
             query?: never;
@@ -151,6 +202,57 @@ export interface paths {
         put?: never;
         /** Exchange a valid member API key for a twelve-hour bearer session */
         post: operations["loginWithApiKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/portal/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Presentation context derived from the HTTP User-Agent; never authorizes access */
+        get: operations["getPortalContext"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign in to the browser or desktop enrollment flow with account credentials */
+        post: operations["loginWithPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/device-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue a desktop API key from a password-authenticated session */
+        post: operations["issueOwnDeviceKey"];
         delete?: never;
         options?: never;
         head?: never;
@@ -219,7 +321,7 @@ export interface paths {
         /** List organization members; administrator only */
         get: operations["listUsers"];
         put?: never;
-        /** Create a member and return its initial password once; administrator only */
+        /** Create a member; administrator can set a password separately */
         post: operations["createUser"];
         delete?: never;
         options?: never;
@@ -239,6 +341,57 @@ export interface paths {
         get?: never;
         /** Replace member role, team, and active state; administrator only */
         put: operations["updateUser"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users/{id}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set a member password and revoke existing password sessions; administrator only */
+        put: operations["setUserPassword"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List role permissions; administrator only */
+        get: operations["listRolePermissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/roles/{role}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set the scope granted to a role for one action */
+        put: operations["updateRolePermission"];
         post?: never;
         delete?: never;
         options?: never;
@@ -301,6 +454,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/resources/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the current author's resources, including drafts and submissions */
+        get: operations["listMyResources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/resources/{id}": {
         parameters: {
             query?: never;
@@ -332,7 +502,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Submit the latest draft for review */
+        /** Author confirms the latest draft and submits it for independent review */
         post: operations["submitResource"];
         delete?: never;
         options?: never;
@@ -414,10 +584,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload a bounded structured operation log without conversation content */
+        post: operations["postOperationLog"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/data-uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload a bounded data file, optionally attached to an authored resource */
+        post: operations["uploadData"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/data-uploads/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download a stored file as its uploader */
+        get: operations["downloadData"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        IndustryPack: {
+            id: string;
+            name: string;
+            knowledgeTypes: components["schemas"]["IndustryKnowledgeType"][];
+            areas: components["schemas"]["IndustryArea"][];
+            requiredSections: string[];
+            confidences: string[];
+        };
+        IndustryKnowledgeType: {
+            id: string;
+            name: string;
+            requiredFields: string[];
+        };
+        IndustryArea: {
+            id: string;
+            name: string;
+        };
+        IndustryTemplate: {
+            markdown: string;
+        };
+        IndustrySubmission: {
+            title: string;
+            type: string;
+            author: string;
+            submittedAt: string;
+            area: string;
+            source: string;
+            confidence: string;
+            redacted: boolean;
+            matterId?: string;
+            fields: {
+                [key: string]: string;
+            };
+            sections: {
+                [key: string]: string;
+            };
+        };
+        IndustryValidation: {
+            valid: boolean;
+            violations: components["schemas"]["IndustryViolation"][];
+        };
+        IndustryViolation: {
+            field: string;
+            message: string;
+        };
+        IntegrationStatus: {
+            /** @enum {string} */
+            status: "ready";
+        };
         User: {
             id: string;
             /** Format: email */
@@ -427,6 +697,46 @@ export interface components {
             role: "admin" | "reviewer" | "team_lead" | "member";
             teamId: string | null;
             active: boolean;
+            permissions?: {
+                [key: string]: "none" | "own" | "team" | "all";
+            };
+        };
+        RolePermission: {
+            /** @enum {string} */
+            role: "admin" | "reviewer" | "team_lead" | "member";
+            /** @enum {string} */
+            action: "create" | "read" | "edit" | "submit" | "review" | "withdraw";
+            /** @enum {string} */
+            scope: "none" | "own" | "team" | "all";
+        };
+        UpdateRolePermissionRequest: {
+            /** @enum {string} */
+            scope: "none" | "own" | "team" | "all";
+        };
+        OperationLogInput: {
+            idempotencyKey: string;
+            resourceId?: string;
+            runId?: string;
+            /** @enum {string} */
+            kind: "agent_run" | "tool_step" | "resource_use";
+            /** @enum {string} */
+            outcome: "succeeded" | "failed" | "cancelled";
+            durationMs: number;
+            /** Format: date-time */
+            occurredAt: string;
+        };
+        LogReceipt: {
+            id: string;
+        };
+        DataUpload: {
+            id: string;
+            resourceId?: string | null;
+            filename: string;
+            contentType: string;
+            byteSize: number;
+            sha256: string;
+            /** Format: date-time */
+            createdAt: string;
         };
         Team: {
             id: string;
@@ -463,15 +773,19 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        LoginRequest: {
-            /** Format: email */
-            email: string;
-            /** Format: password */
-            password: string;
-        };
         LoginResponse: {
             user: components["schemas"]["User"];
             token: string;
+        };
+        PortalContext: {
+            agentBrowser: boolean;
+        };
+        PasswordLoginRequest: {
+            email: string;
+            password: string;
+        };
+        SetPasswordRequest: {
+            password: string;
         };
         ApiKeyLoginRequest: {
             apiKey: string;
@@ -513,7 +827,6 @@ export interface components {
         };
         CreateUserResponse: {
             user: components["schemas"]["User"];
-            initialPassword: string;
         };
         UpdateUserRequest: {
             /** @enum {string} */
@@ -653,6 +966,110 @@ export interface operations {
             };
         };
     };
+    getIndustry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active industry pack */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndustryPack"];
+                };
+            };
+        };
+    };
+    getIndustryTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                type: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Markdown template */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndustryTemplate"];
+                };
+            };
+            /** @description Unknown knowledge type */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    validateIndustrySubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndustrySubmission"];
+            };
+        };
+        responses: {
+            /** @description Validation result; no knowledge is published */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndustryValidation"];
+                };
+            };
+        };
+    };
+    getBookStackStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description BookStack API is reachable */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationStatus"];
+                };
+            };
+            /** @description BookStack API is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     searchCatalog: {
         parameters: {
             query?: {
@@ -771,39 +1188,6 @@ export interface operations {
             };
         };
     };
-    login: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LoginRequest"];
-            };
-        };
-        responses: {
-            /** @description Authenticated session */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LoginResponse"];
-                };
-            };
-            /** @description Invalid credentials */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     loginWithApiKey: {
         parameters: {
             query?: never;
@@ -827,6 +1211,88 @@ export interface operations {
                 };
             };
             /** @description Invalid, expired, revoked, or deactivated API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getPortalContext: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Browser presentation context */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalContext"];
+                };
+            };
+        };
+    };
+    loginWithPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordLoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Password-authenticated session */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponse"];
+                };
+            };
+            /** @description Invalid credentials */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    issueOwnDeviceKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Newly issued key; secret shown once */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssuedApiKey"];
+                };
+            };
+            /** @description Password session required */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -1025,6 +1491,86 @@ export interface operations {
             };
         };
     };
+    setUserPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Password set */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Administrator required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listRolePermissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Role permission matrix */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RolePermission"][];
+                };
+            };
+        };
+    };
+    updateRolePermission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role: "admin" | "reviewer" | "team_lead" | "member";
+                action: "create" | "read" | "edit" | "submit" | "review" | "withdraw";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRolePermissionRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated permission */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RolePermission"];
+                };
+            };
+        };
+    };
     listApiKeys: {
         parameters: {
             query?: never;
@@ -1141,6 +1687,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Resource"];
+                };
+            };
+        };
+    };
+    listMyResources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Own resources */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Resource"][];
                 };
             };
         };
@@ -1306,6 +1872,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Resource"][];
+                };
+            };
+        };
+    };
+    postOperationLog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperationLogInput"];
+            };
+        };
+        responses: {
+            /** @description Stored log receipt */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogReceipt"];
+                };
+            };
+        };
+    };
+    uploadData: {
+        parameters: {
+            query?: {
+                resourceId?: string;
+            };
+            header: {
+                "X-File-Name": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Stored file metadata */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataUpload"];
+                };
+            };
+        };
+    };
+    downloadData: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description File bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
                 };
             };
         };

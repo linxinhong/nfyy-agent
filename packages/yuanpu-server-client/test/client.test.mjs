@@ -74,6 +74,34 @@ test('wiki preview rejects an incompatible payload', async (context) => {
   await assert.rejects(createServerClient({ baseUrl }).wikiPreview(), { code: 'INVALID_RESPONSE' });
 });
 
+test('industry and BookStack methods stay behind the authenticated server client', async (context) => {
+  const calls = [];
+  const baseUrl = await fixture(context, async (request, response) => {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    calls.push({ method: request.method, path: request.url, authorization: request.headers.authorization, body: Buffer.concat(chunks).toString() });
+    response.setHeader('content-type', 'application/json');
+    if (request.url === '/v1/industry') response.end(JSON.stringify({ id: 'legal', name: '律所知识', knowledgeTypes: [], areas: [], requiredSections: [], confidences: [] }));
+    else if (request.url === '/v1/industry/templates/case_experience') response.end(JSON.stringify({ markdown: '# 办案经验' }));
+    else if (request.url === '/v1/industry/validate') response.end(JSON.stringify({ valid: false, violations: [{ field: 'source', message: 'required' }] }));
+    else response.end(JSON.stringify({ status: 'ready' }));
+  });
+  const client = createServerClient({ baseUrl, token: 'member-session' });
+  assert.equal((await client.getIndustry()).id, 'legal');
+  assert.equal(await client.getIndustryTemplate('case_experience'), '# 办案经验');
+  assert.equal((await client.validateIndustrySubmission({
+    title: '', type: 'case_experience', author: '', submittedAt: '', area: '', source: '', confidence: '',
+    redacted: false, fields: {}, sections: {},
+  })).violations[0].field, 'source');
+  assert.equal((await client.bookStackStatus()).status, 'ready');
+  assert.deepEqual(calls.map(({ method, path }) => `${method} ${path}`), [
+    'GET /v1/industry', 'GET /v1/industry/templates/case_experience', 'POST /v1/industry/validate',
+    'GET /v1/integrations/bookstack/status',
+  ]);
+  assert.ok(calls.every(({ authorization }) => authorization === 'Bearer member-session'));
+  assert.equal(JSON.parse(calls[2].body).type, 'case_experience');
+});
+
 test('catalog client searches and reads Go directory entries', async (context) => {
   const baseUrl = await fixture(context, (request, response) => {
     response.setHeader('content-type', 'application/json');
@@ -99,19 +127,19 @@ test('account client sends bearer sessions only to the configured server', async
     for await (const chunk of request) chunks.push(chunk);
     requests.push({ path: request.url, method: request.method, authorization: request.headers.authorization, body: Buffer.concat(chunks).toString() });
     response.setHeader('content-type', 'application/json');
-    if (request.url === '/v1/auth/login') response.end(JSON.stringify({ user: { id: 'a', email: 'a@example.com', name: 'A', role: 'admin', teamId: null, active: true }, token: 'session-token' }));
+    if (request.url === '/v1/auth/api-key') response.end(JSON.stringify({ user: { id: 'a', email: 'a@example.com', name: 'A', role: 'admin', teamId: null, active: true }, token: 'session-token' }));
     else if (request.url === '/v1/admin/teams' && request.method === 'POST') response.end(JSON.stringify({ id: 'team', name: 'Team' }));
     else response.end(JSON.stringify([]));
   });
   const anonymous = createServerClient({ baseUrl });
-  const session = await anonymous.login('a@example.com', 'test password');
+  const session = await anonymous.loginWithAPIKey('ypk_test');
   const admin = createServerClient({ baseUrl, token: session.token });
   assert.equal((await admin.createTeam('Team')).id, 'team');
   assert.deepEqual(await admin.listTeams(), []);
   assert.equal(requests[0].authorization, undefined);
   assert.equal(requests[1].authorization, 'Bearer session-token');
   assert.equal(requests[2].authorization, 'Bearer session-token');
-  assert.equal(JSON.parse(requests[0].body).email, 'a@example.com');
+  assert.equal(JSON.parse(requests[0].body).apiKey, 'ypk_test');
 });
 
 test('API key client exchanges a secret and lets an administrator issue, list and revoke keys', async (context) => {
@@ -145,6 +173,39 @@ test('API key client exchanges a secret and lets an administrator issue, list an
   assert.equal(calls[0].authorization, undefined);
   assert.equal(JSON.parse(calls[0].body).apiKey, 'ypk_secret');
   assert.equal(calls[1].authorization, 'Bearer admin-session');
+});
+
+test('role, workflow, log and binary data methods use the configured prefix and bearer token', async (context) => {
+  const calls = [];
+  const base = await fixture(context, async (request, response) => {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    calls.push({ path: request.url, method: request.method, authorization: request.headers.authorization,
+      filename: request.headers['x-file-name'], body: Buffer.concat(chunks) });
+    if (request.url.endsWith('/data-uploads/file-1') && request.method === 'GET') {
+      response.writeHead(200, { 'content-type': 'text/plain' }); response.end('test data'); return;
+    }
+    response.setHeader('content-type', 'application/json');
+    if (request.url.endsWith('/admin/roles') && request.method === 'GET') response.end(JSON.stringify([{ role: 'member', action: 'read', scope: 'team' }]));
+    else if (request.url.endsWith('/admin/roles/member/read')) response.end(JSON.stringify({ role: 'member', action: 'read', scope: 'all' }));
+    else if (request.url.endsWith('/resources/mine')) response.end('[]');
+    else if (request.url.endsWith('/logs')) { response.writeHead(201); response.end('{"id":"log-1"}'); }
+    else { response.writeHead(201); response.end(JSON.stringify({ id: 'file-1', filename: 'note.txt', contentType: 'text/plain', byteSize: 9, sha256: 'a', createdAt: '2026-10-15T00:00:00Z' })); }
+  });
+  const api = createServerClient({ baseUrl: `${base}/center/`, token: 'session' });
+  assert.equal((await api.listRolePermissions())[0].scope, 'team');
+  assert.equal((await api.updateRolePermission('member', 'read', 'all')).scope, 'all');
+  assert.deepEqual(await api.listMyResources(), []);
+  assert.equal((await api.postOperationLog({ idempotencyKey: 'test-run-1', kind: 'agent_run', outcome: 'succeeded', durationMs: 10, occurredAt: '2026-10-15T00:00:00Z' })).id, 'log-1');
+  assert.equal((await api.uploadData('note.txt', 'text/plain', new TextEncoder().encode('test data'), 'resource-1')).id, 'file-1');
+  assert.equal(await (await api.downloadData('file-1')).text(), 'test data');
+  assert.deepEqual(calls.map((call) => `${call.method} ${call.path}`), [
+    'GET /center/v1/admin/roles', 'PUT /center/v1/admin/roles/member/read', 'GET /center/v1/resources/mine',
+    'POST /center/v1/logs', 'POST /center/v1/data-uploads?resourceId=resource-1', 'GET /center/v1/data-uploads/file-1',
+  ]);
+  assert.ok(calls.every((call) => call.authorization === 'Bearer session'));
+  assert.equal(calls[4].filename, 'note.txt');
+  assert.equal(calls[4].body.toString(), 'test data');
 });
 
 test('resource client passes bearer auth and preserves structured denials', async (context) => {

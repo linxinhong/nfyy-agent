@@ -74,7 +74,7 @@ func TestMigrations(t *testing.T) {
 	for range 2 {
 		go func() {
 			version, err := store.Migrate(ctx)
-			if err == nil && version != 4 {
+			if err == nil && version != 8 {
 				err = fmt.Errorf("unexpected migration version %d", version)
 			}
 			results <- err
@@ -85,7 +85,7 @@ func TestMigrations(t *testing.T) {
 			t.Fatalf("concurrent migration was not idempotent: %v", err)
 		}
 	}
-	if version, err := store.Ready(ctx); err != nil || version != 4 {
+	if version, err := store.Ready(ctx); err != nil || version != 8 {
 		t.Fatalf("database not ready after migration: %d %v", version, err)
 	}
 	if _, err := pool.Exec(ctx, "UPDATE yuanpu_schema_migrations SET checksum = 'tampered' WHERE version = 1"); err != nil {

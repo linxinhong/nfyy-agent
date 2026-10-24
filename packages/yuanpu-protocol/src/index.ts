@@ -662,6 +662,8 @@ export interface DesktopBridge {
   restoreServerCenterSession(): Promise<ServerCenterResult<ServerCenterUser>>;
   logoutServerCenter(): Promise<void>;
   getServerCenterCredentialStatus(): Promise<ServerCenterCredentialStatus>;
+  getServerCenterEndpoint(): Promise<string>;
+  saveServerCenterEndpoint(url: string): Promise<{ url: string; keyCleared: boolean }>;
   saveServerCenterAPIKey(apiKey: string): Promise<ServerCenterResult<ServerCenterUser>>;
   removeServerCenterAPIKey(): Promise<void>;
   listServerResources(query: string): Promise<ServerCenterResult<ServerCenterResource[]>>;

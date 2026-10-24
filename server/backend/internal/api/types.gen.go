@@ -159,15 +159,72 @@ func (e HealthResponseStatus) Valid() bool {
 	}
 }
 
+// Defines values for IntegrationStatusStatus.
+const (
+	IntegrationStatusStatusReady IntegrationStatusStatus = "ready"
+)
+
+// Valid indicates whether the value is a known member of the IntegrationStatusStatus enum.
+func (e IntegrationStatusStatus) Valid() bool {
+	switch e {
+	case IntegrationStatusStatusReady:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for OperationLogInputKind.
+const (
+	AgentRun    OperationLogInputKind = "agent_run"
+	ResourceUse OperationLogInputKind = "resource_use"
+	ToolStep    OperationLogInputKind = "tool_step"
+)
+
+// Valid indicates whether the value is a known member of the OperationLogInputKind enum.
+func (e OperationLogInputKind) Valid() bool {
+	switch e {
+	case AgentRun:
+		return true
+	case ResourceUse:
+		return true
+	case ToolStep:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for OperationLogInputOutcome.
+const (
+	Cancelled OperationLogInputOutcome = "cancelled"
+	Failed    OperationLogInputOutcome = "failed"
+	Succeeded OperationLogInputOutcome = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the OperationLogInputOutcome enum.
+func (e OperationLogInputOutcome) Valid() bool {
+	switch e {
+	case Cancelled:
+		return true
+	case Failed:
+		return true
+	case Succeeded:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReadyResponseStatus.
 const (
-	Ready ReadyResponseStatus = "ready"
+	ReadyResponseStatusReady ReadyResponseStatus = "ready"
 )
 
 // Valid indicates whether the value is a known member of the ReadyResponseStatus enum.
 func (e ReadyResponseStatus) Valid() bool {
 	switch e {
-	case Ready:
+	case ReadyResponseStatusReady:
 		return true
 	default:
 		return false
@@ -276,6 +333,108 @@ func (e ResourceInputVisibility) Valid() bool {
 	}
 }
 
+// Defines values for RolePermissionAction.
+const (
+	RolePermissionActionCreate   RolePermissionAction = "create"
+	RolePermissionActionEdit     RolePermissionAction = "edit"
+	RolePermissionActionRead     RolePermissionAction = "read"
+	RolePermissionActionReview   RolePermissionAction = "review"
+	RolePermissionActionSubmit   RolePermissionAction = "submit"
+	RolePermissionActionWithdraw RolePermissionAction = "withdraw"
+)
+
+// Valid indicates whether the value is a known member of the RolePermissionAction enum.
+func (e RolePermissionAction) Valid() bool {
+	switch e {
+	case RolePermissionActionCreate:
+		return true
+	case RolePermissionActionEdit:
+		return true
+	case RolePermissionActionRead:
+		return true
+	case RolePermissionActionReview:
+		return true
+	case RolePermissionActionSubmit:
+		return true
+	case RolePermissionActionWithdraw:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RolePermissionRole.
+const (
+	RolePermissionRoleAdmin    RolePermissionRole = "admin"
+	RolePermissionRoleMember   RolePermissionRole = "member"
+	RolePermissionRoleReviewer RolePermissionRole = "reviewer"
+	RolePermissionRoleTeamLead RolePermissionRole = "team_lead"
+)
+
+// Valid indicates whether the value is a known member of the RolePermissionRole enum.
+func (e RolePermissionRole) Valid() bool {
+	switch e {
+	case RolePermissionRoleAdmin:
+		return true
+	case RolePermissionRoleMember:
+		return true
+	case RolePermissionRoleReviewer:
+		return true
+	case RolePermissionRoleTeamLead:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RolePermissionScope.
+const (
+	RolePermissionScopeAll  RolePermissionScope = "all"
+	RolePermissionScopeNone RolePermissionScope = "none"
+	RolePermissionScopeOwn  RolePermissionScope = "own"
+	RolePermissionScopeTeam RolePermissionScope = "team"
+)
+
+// Valid indicates whether the value is a known member of the RolePermissionScope enum.
+func (e RolePermissionScope) Valid() bool {
+	switch e {
+	case RolePermissionScopeAll:
+		return true
+	case RolePermissionScopeNone:
+		return true
+	case RolePermissionScopeOwn:
+		return true
+	case RolePermissionScopeTeam:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateRolePermissionRequestScope.
+const (
+	UpdateRolePermissionRequestScopeAll  UpdateRolePermissionRequestScope = "all"
+	UpdateRolePermissionRequestScopeNone UpdateRolePermissionRequestScope = "none"
+	UpdateRolePermissionRequestScopeOwn  UpdateRolePermissionRequestScope = "own"
+	UpdateRolePermissionRequestScopeTeam UpdateRolePermissionRequestScope = "team"
+)
+
+// Valid indicates whether the value is a known member of the UpdateRolePermissionRequestScope enum.
+func (e UpdateRolePermissionRequestScope) Valid() bool {
+	switch e {
+	case UpdateRolePermissionRequestScopeAll:
+		return true
+	case UpdateRolePermissionRequestScopeNone:
+		return true
+	case UpdateRolePermissionRequestScopeOwn:
+		return true
+	case UpdateRolePermissionRequestScopeTeam:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdateUserRequestRole.
 const (
 	UpdateUserRequestRoleAdmin    UpdateUserRequestRole = "admin"
@@ -294,6 +453,30 @@ func (e UpdateUserRequestRole) Valid() bool {
 	case UpdateUserRequestRoleReviewer:
 		return true
 	case UpdateUserRequestRoleTeamLead:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UserPermissions.
+const (
+	UserPermissionsAll  UserPermissions = "all"
+	UserPermissionsNone UserPermissions = "none"
+	UserPermissionsOwn  UserPermissions = "own"
+	UserPermissionsTeam UserPermissions = "team"
+)
+
+// Valid indicates whether the value is a known member of the UserPermissions enum.
+func (e UserPermissions) Valid() bool {
+	switch e {
+	case UserPermissionsAll:
+		return true
+	case UserPermissionsNone:
+		return true
+	case UserPermissionsOwn:
+		return true
+	case UserPermissionsTeam:
 		return true
 	default:
 		return false
@@ -333,6 +516,60 @@ const (
 func (e WikiPreviewResponsePreview) Valid() bool {
 	switch e {
 	case True:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateRolePermissionParamsRole.
+const (
+	UpdateRolePermissionParamsRoleAdmin    UpdateRolePermissionParamsRole = "admin"
+	UpdateRolePermissionParamsRoleMember   UpdateRolePermissionParamsRole = "member"
+	UpdateRolePermissionParamsRoleReviewer UpdateRolePermissionParamsRole = "reviewer"
+	UpdateRolePermissionParamsRoleTeamLead UpdateRolePermissionParamsRole = "team_lead"
+)
+
+// Valid indicates whether the value is a known member of the UpdateRolePermissionParamsRole enum.
+func (e UpdateRolePermissionParamsRole) Valid() bool {
+	switch e {
+	case UpdateRolePermissionParamsRoleAdmin:
+		return true
+	case UpdateRolePermissionParamsRoleMember:
+		return true
+	case UpdateRolePermissionParamsRoleReviewer:
+		return true
+	case UpdateRolePermissionParamsRoleTeamLead:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateRolePermissionParamsAction.
+const (
+	UpdateRolePermissionParamsActionCreate   UpdateRolePermissionParamsAction = "create"
+	UpdateRolePermissionParamsActionEdit     UpdateRolePermissionParamsAction = "edit"
+	UpdateRolePermissionParamsActionRead     UpdateRolePermissionParamsAction = "read"
+	UpdateRolePermissionParamsActionReview   UpdateRolePermissionParamsAction = "review"
+	UpdateRolePermissionParamsActionSubmit   UpdateRolePermissionParamsAction = "submit"
+	UpdateRolePermissionParamsActionWithdraw UpdateRolePermissionParamsAction = "withdraw"
+)
+
+// Valid indicates whether the value is a known member of the UpdateRolePermissionParamsAction enum.
+func (e UpdateRolePermissionParamsAction) Valid() bool {
+	switch e {
+	case UpdateRolePermissionParamsActionCreate:
+		return true
+	case UpdateRolePermissionParamsActionEdit:
+		return true
+	case UpdateRolePermissionParamsActionRead:
+		return true
+	case UpdateRolePermissionParamsActionReview:
+		return true
+	case UpdateRolePermissionParamsActionSubmit:
+		return true
+	case UpdateRolePermissionParamsActionWithdraw:
 		return true
 	default:
 		return false
@@ -424,8 +661,18 @@ type CreateUserRequestRole string
 
 // CreateUserResponse defines model for CreateUserResponse.
 type CreateUserResponse struct {
-	InitialPassword string `json:"initialPassword"`
-	User            User   `json:"user"`
+	User User `json:"user"`
+}
+
+// DataUpload defines model for DataUpload.
+type DataUpload struct {
+	ByteSize    int       `json:"byteSize"`
+	ContentType string    `json:"contentType"`
+	CreatedAt   time.Time `json:"createdAt"`
+	Filename    string    `json:"filename"`
+	Id          string    `json:"id"`
+	ResourceId  *string   `json:"resourceId,omitempty"`
+	Sha256      string    `json:"sha256"`
 }
 
 // ErrorResponse defines model for ErrorResponse.
@@ -455,6 +702,69 @@ type HealthResponseService string
 // HealthResponseStatus defines model for HealthResponse.Status.
 type HealthResponseStatus string
 
+// IndustryArea defines model for IndustryArea.
+type IndustryArea struct {
+	Id   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// IndustryKnowledgeType defines model for IndustryKnowledgeType.
+type IndustryKnowledgeType struct {
+	Id             string   `json:"id"`
+	Name           string   `json:"name"`
+	RequiredFields []string `json:"requiredFields"`
+}
+
+// IndustryPack defines model for IndustryPack.
+type IndustryPack struct {
+	Areas            []IndustryArea          `json:"areas"`
+	Confidences      []string                `json:"confidences"`
+	Id               string                  `json:"id"`
+	KnowledgeTypes   []IndustryKnowledgeType `json:"knowledgeTypes"`
+	Name             string                  `json:"name"`
+	RequiredSections []string                `json:"requiredSections"`
+}
+
+// IndustrySubmission defines model for IndustrySubmission.
+type IndustrySubmission struct {
+	Area        string            `json:"area"`
+	Author      string            `json:"author"`
+	Confidence  string            `json:"confidence"`
+	Fields      map[string]string `json:"fields"`
+	MatterId    *string           `json:"matterId,omitempty"`
+	Redacted    bool              `json:"redacted"`
+	Sections    map[string]string `json:"sections"`
+	Source      string            `json:"source"`
+	SubmittedAt string            `json:"submittedAt"`
+	Title       string            `json:"title"`
+	Type        string            `json:"type"`
+}
+
+// IndustryTemplate defines model for IndustryTemplate.
+type IndustryTemplate struct {
+	Markdown string `json:"markdown"`
+}
+
+// IndustryValidation defines model for IndustryValidation.
+type IndustryValidation struct {
+	Valid      bool                `json:"valid"`
+	Violations []IndustryViolation `json:"violations"`
+}
+
+// IndustryViolation defines model for IndustryViolation.
+type IndustryViolation struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+}
+
+// IntegrationStatus defines model for IntegrationStatus.
+type IntegrationStatus struct {
+	Status IntegrationStatusStatus `json:"status"`
+}
+
+// IntegrationStatusStatus defines model for IntegrationStatus.Status.
+type IntegrationStatusStatus string
+
 // IssueApiKeyRequest defines model for IssueApiKeyRequest.
 type IssueApiKeyRequest struct {
 	ExpiresInDays int    `json:"expiresInDays"`
@@ -468,16 +778,43 @@ type IssuedApiKey struct {
 	Secret string `json:"secret"`
 }
 
-// LoginRequest defines model for LoginRequest.
-type LoginRequest struct {
-	Email    openapi_types.Email `json:"email"`
-	Password string              `json:"password"`
+// LogReceipt defines model for LogReceipt.
+type LogReceipt struct {
+	Id string `json:"id"`
 }
 
 // LoginResponse defines model for LoginResponse.
 type LoginResponse struct {
 	Token string `json:"token"`
 	User  User   `json:"user"`
+}
+
+// OperationLogInput defines model for OperationLogInput.
+type OperationLogInput struct {
+	DurationMs     int                      `json:"durationMs"`
+	IdempotencyKey string                   `json:"idempotencyKey"`
+	Kind           OperationLogInputKind    `json:"kind"`
+	OccurredAt     time.Time                `json:"occurredAt"`
+	Outcome        OperationLogInputOutcome `json:"outcome"`
+	ResourceId     *string                  `json:"resourceId,omitempty"`
+	RunId          *string                  `json:"runId,omitempty"`
+}
+
+// OperationLogInputKind defines model for OperationLogInput.Kind.
+type OperationLogInputKind string
+
+// OperationLogInputOutcome defines model for OperationLogInput.Outcome.
+type OperationLogInputOutcome string
+
+// PasswordLoginRequest defines model for PasswordLoginRequest.
+type PasswordLoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// PortalContext defines model for PortalContext.
+type PortalContext struct {
+	AgentBrowser bool `json:"agentBrowser"`
 }
 
 // ReadyResponse defines model for ReadyResponse.
@@ -530,11 +867,40 @@ type ResourceInputKind string
 // ResourceInputVisibility defines model for ResourceInput.Visibility.
 type ResourceInputVisibility string
 
+// RolePermission defines model for RolePermission.
+type RolePermission struct {
+	Action RolePermissionAction `json:"action"`
+	Role   RolePermissionRole   `json:"role"`
+	Scope  RolePermissionScope  `json:"scope"`
+}
+
+// RolePermissionAction defines model for RolePermission.Action.
+type RolePermissionAction string
+
+// RolePermissionRole defines model for RolePermission.Role.
+type RolePermissionRole string
+
+// RolePermissionScope defines model for RolePermission.Scope.
+type RolePermissionScope string
+
+// SetPasswordRequest defines model for SetPasswordRequest.
+type SetPasswordRequest struct {
+	Password string `json:"password"`
+}
+
 // Team defines model for Team.
 type Team struct {
 	Id   string `json:"id"`
 	Name string `json:"name"`
 }
+
+// UpdateRolePermissionRequest defines model for UpdateRolePermissionRequest.
+type UpdateRolePermissionRequest struct {
+	Scope UpdateRolePermissionRequestScope `json:"scope"`
+}
+
+// UpdateRolePermissionRequestScope defines model for UpdateRolePermissionRequest.Scope.
+type UpdateRolePermissionRequestScope string
 
 // UpdateUserRequest defines model for UpdateUserRequest.
 type UpdateUserRequest struct {
@@ -548,13 +914,17 @@ type UpdateUserRequestRole string
 
 // User defines model for User.
 type User struct {
-	Active bool                `json:"active"`
-	Email  openapi_types.Email `json:"email"`
-	Id     string              `json:"id"`
-	Name   string              `json:"name"`
-	Role   UserRole            `json:"role"`
-	TeamId *string             `json:"teamId"`
+	Active      bool                        `json:"active"`
+	Email       openapi_types.Email         `json:"email"`
+	Id          string                      `json:"id"`
+	Name        string                      `json:"name"`
+	Permissions *map[string]UserPermissions `json:"permissions,omitempty"`
+	Role        UserRole                    `json:"role"`
+	TeamId      *string                     `json:"teamId"`
 }
+
+// UserPermissions defines model for User.Permissions.
+type UserPermissions string
 
 // UserRole defines model for User.Role.
 type UserRole string
@@ -580,9 +950,21 @@ type WikiPreviewResponse struct {
 // WikiPreviewResponsePreview defines model for WikiPreviewResponse.Preview.
 type WikiPreviewResponsePreview bool
 
+// UpdateRolePermissionParamsRole defines parameters for UpdateRolePermission.
+type UpdateRolePermissionParamsRole string
+
+// UpdateRolePermissionParamsAction defines parameters for UpdateRolePermission.
+type UpdateRolePermissionParamsAction string
+
 // SearchCatalogParams defines parameters for SearchCatalog.
 type SearchCatalogParams struct {
 	Q *string `form:"q,omitempty" json:"q,omitempty"`
+}
+
+// UploadDataParams defines parameters for UploadData.
+type UploadDataParams struct {
+	ResourceId *string `form:"resourceId,omitempty" json:"resourceId,omitempty"`
+	XFileName  string  `json:"X-File-Name"`
 }
 
 // ListResourcesParams defines parameters for ListResources.
@@ -597,6 +979,9 @@ type ListResourcesParamsKind string
 // IssueApiKeyJSONRequestBody defines body for IssueApiKey for application/json ContentType.
 type IssueApiKeyJSONRequestBody = IssueApiKeyRequest
 
+// UpdateRolePermissionJSONRequestBody defines body for UpdateRolePermission for application/json ContentType.
+type UpdateRolePermissionJSONRequestBody = UpdateRolePermissionRequest
+
 // CreateTeamJSONRequestBody defines body for CreateTeam for application/json ContentType.
 type CreateTeamJSONRequestBody = CreateTeamRequest
 
@@ -606,11 +991,20 @@ type CreateUserJSONRequestBody = CreateUserRequest
 // UpdateUserJSONRequestBody defines body for UpdateUser for application/json ContentType.
 type UpdateUserJSONRequestBody = UpdateUserRequest
 
+// SetUserPasswordJSONRequestBody defines body for SetUserPassword for application/json ContentType.
+type SetUserPasswordJSONRequestBody = SetPasswordRequest
+
 // LoginWithApiKeyJSONRequestBody defines body for LoginWithApiKey for application/json ContentType.
 type LoginWithApiKeyJSONRequestBody = ApiKeyLoginRequest
 
-// LoginJSONRequestBody defines body for Login for application/json ContentType.
-type LoginJSONRequestBody = LoginRequest
+// LoginWithPasswordJSONRequestBody defines body for LoginWithPassword for application/json ContentType.
+type LoginWithPasswordJSONRequestBody = PasswordLoginRequest
+
+// ValidateIndustrySubmissionJSONRequestBody defines body for ValidateIndustrySubmission for application/json ContentType.
+type ValidateIndustrySubmissionJSONRequestBody = IndustrySubmission
+
+// PostOperationLogJSONRequestBody defines body for PostOperationLog for application/json ContentType.
+type PostOperationLogJSONRequestBody = OperationLogInput
 
 // CreateResourceJSONRequestBody defines body for CreateResource for application/json ContentType.
 type CreateResourceJSONRequestBody = ResourceInput

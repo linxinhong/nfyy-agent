@@ -64,6 +64,12 @@ export class ServerCenterSession {
 
   constructor(private readonly baseUrl: string, private readonly loadAPIKey?: () => Promise<string | undefined>) {}
 
+  /** A short-lived session for the trusted center website; the API key stays in the host. */
+  async portalToken(): Promise<string | undefined> {
+    const result = await this.restore();
+    return result.ok ? this.token : undefined;
+  }
+
   private client(token = '') {
     return createServerClient({ baseUrl: this.baseUrl, token, timeoutMs: 8_000 });
   }

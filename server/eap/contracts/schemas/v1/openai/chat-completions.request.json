@@ -1,0 +1,11 @@
+{
+  "model": "coding-high",
+  "messages": [
+    { "role": "system", "content": "You are a helpful engineering assistant." },
+    { "role": "user", "content": "Summarize the failing test." }
+  ],
+  "temperature": 0.2,
+  "top_p": 1,
+  "stream": true,
+  "max_tokens": 1024
+}

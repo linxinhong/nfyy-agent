@@ -29,7 +29,7 @@ pnpm dev
 
 `pnpm dev` 会构建 Runtime 和 Electron main/preload，同时启动技能市场服务、Vite 和 Electron。
 
-`pnpm dev:server` 独立启动 Go 中心；`pnpm check:server` 验证 Go 服务与 TS SDK；`pnpm smoke:server:compose` 在临时容器中验证真实数据库迁移和部署，结束后清理自己的测试数据。
+`pnpm dev:server` 启动 EAP 知识服务中心；`pnpm check:server` 验证 Go 网关、整理运行时与 Portal。EAP 需要 PostgreSQL 和 Redis；旧中心的部署冒烟仍可通过 `pnpm smoke:server:compose` 执行。详见[中心说明](server/README.md)。
 
 ## 本地 Agent 配置
 

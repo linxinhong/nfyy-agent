@@ -1,0 +1,36 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"lib": ["DOM", "DOM.Iterable", "ES2023"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+
+		// react-jsx（非 preserve）—— Vite 自己做 JSX 转换。
+		// bifrost 用的是 "preserve"，那是从 Next.js 迁移留下的遗留值：Next 会接手转换，
+		// Vite 不会。留着 preserve 在纯 Vite 项目里没有实际收益。
+		"jsx": "react-jsx",
+
+		"strict": true,
+		"noUncheckedIndexedAccess": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noFallthroughCasesInSwitch": true,
+
+		"skipLibCheck": true,
+		"noEmit": true,
+		"esModuleInterop": true,
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"verbatimModuleSyntax": true,
+		"incremental": true,
+		"types": ["vite/client", "node"],
+
+		"paths": {
+			"@/*": ["./*"],
+			// 知识服务中心契约生成的类型，仅类型导入。
+			"@contract/schema": ["../../api/schema.gen.ts"]
+		}
+	},
+	"include": ["**/*.ts", "**/*.tsx"],
+	"exclude": ["node_modules", "dist"]
+}

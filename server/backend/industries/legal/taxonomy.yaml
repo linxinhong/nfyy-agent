@@ -1,0 +1,9 @@
+areas:
+  - id: litigation
+    name: 诉讼
+  - id: corporate
+    name: 公司并购
+  - id: intellectual_property
+    name: 知识产权
+  - id: labor
+    name: 劳动

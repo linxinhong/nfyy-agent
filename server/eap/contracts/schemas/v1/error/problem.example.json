@@ -1,0 +1,6 @@
+{
+  "code": "workspace_forbidden",
+  "message": "principal is not a member of workspace finance",
+  "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "retriable": false
+}

@@ -1,0 +1,21 @@
+{
+  "id": "chatcmpl_eap_0001",
+  "object": "chat.completion",
+  "created": 1780000000,
+  "model": "coding-high",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "The failing test asserts workspace isolation."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 128,
+    "completion_tokens": 64,
+    "total_tokens": 192
+  }
+}

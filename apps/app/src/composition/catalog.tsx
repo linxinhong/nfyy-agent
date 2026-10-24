@@ -38,6 +38,7 @@ uiRegistry.register({ id: 'assistant', label: '助理', order: 20, render: ({ ac
 uiRegistry.register({ id: 'skills', label: '技能', order: 30, render: ({ active }) => <SkillPage active={active} /> });
 uiRegistry.register({ id: 'schedules', label: '定时任务', order: 40, render: ({ active, selectedScheduleId, openScheduledRun }) =>
   <ScheduleManagement active={active} requestedScheduleId={selectedScheduleId} onOpenRun={openScheduledRun} /> });
-uiRegistry.register({ id: 'knowledge', label: '知识库', order: 50, render: ({ active }) => <KnowledgePage active={active} /> });
-uiRegistry.register({ id: 'server', label: '元朴中心', order: 55, render: ({ active }) => <ServerCenterPage active={active} /> });
+uiRegistry.register({ id: 'knowledge', label: '知识库', order: 50, render: ({ active, navigate }) =>
+  <KnowledgePage active={active} onOpen={navigate} /> });
+uiRegistry.register({ id: 'server', label: '知识服务中心', order: 55, render: ({ active }) => <ServerCenterPage active={active} /> });
 uiRegistry.register({ id: 'settings', label: '设置', order: 60, render: ({ active, configRoot }) => <SettingsPage active={active} configRoot={configRoot} /> });

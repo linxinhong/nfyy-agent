@@ -92,7 +92,7 @@ func validInput(in Input) bool {
 func resourceFacts(resource Resource, published bool) authorization.ResourceFacts {
 	return authorization.ResourceFacts{
 		OwnerID: resource.OwnerID, Visibility: resource.Visibility,
-		TeamID: resource.TeamID, Published: published,
+		TeamID: resource.TeamID, Published: published, Status: resource.Status,
 	}
 }
 
@@ -109,7 +109,7 @@ func (s *Store) Create(ctx context.Context, user identity.User, in Input) (Resou
 	if !validInput(in) {
 		return Resource{}, ErrInvalid
 	}
-	if !authorization.Allowed(user, authorization.Create, authorization.ResourceFacts{Visibility: in.Visibility, TeamID: in.TeamID}) {
+	if !authorization.Allowed(user, authorization.Create, authorization.ResourceFacts{OwnerID: user.ID, Visibility: in.Visibility, TeamID: in.TeamID}) {
 		return Resource{}, ErrForbidden
 	}
 	if s.pool == nil {
@@ -187,8 +187,7 @@ func (s *Store) List(ctx context.Context, user identity.User, kind, query string
 	if s.pool == nil {
 		return nil, ErrUnavailable
 	}
-	var teamID *string = user.TeamID
-	rows, err := s.pool.Query(ctx, resourceSelect+` AND v.revision=r.published_revision WHERE r.published_revision IS NOT NULL AND (r.visibility='organization' OR (r.visibility='team' AND r.team_id=$1) OR $4::text IN ('admin','reviewer')) AND ($2='' OR r.kind=$2) AND ($3='' OR v.title ILIKE '%'||$3||'%' OR v.summary ILIKE '%'||$3||'%') ORDER BY r.updated_at DESC LIMIT 100`, teamID, kind, query, user.Role)
+	rows, err := s.pool.Query(ctx, resourceSelect+` AND v.revision=r.published_revision WHERE r.published_revision IS NOT NULL AND ($1='' OR r.kind=$1) AND ($2='' OR v.title ILIKE '%'||$2||'%' OR v.summary ILIKE '%'||$2||'%') ORDER BY r.updated_at DESC LIMIT 500`, kind, query)
 	if err != nil {
 		return nil, ErrUnavailable
 	}
@@ -199,7 +198,7 @@ func (s *Store) List(ctx context.Context, user identity.User, kind, query string
 		if err != nil {
 			return nil, ErrUnavailable
 		}
-		if authorization.Allowed(user, authorization.Read, resourceFacts(resource, true)) {
+		if authorization.Allowed(user, authorization.Read, resourceFacts(resource, true)) && len(items) < 100 {
 			items = append(items, resource)
 		}
 	}
@@ -216,7 +215,7 @@ func (s *Store) ReviewQueue(ctx context.Context, user identity.User) ([]Resource
 	if s.pool == nil {
 		return nil, ErrUnavailable
 	}
-	rows, err := s.pool.Query(ctx, resourceSelect+` AND v.revision=(SELECT max(revision) FROM yuanpu_resource_revisions WHERE resource_id=r.id) WHERE v.status='submitted' AND r.owner_id<>$1 AND ($2 IN ('admin','reviewer') OR ($2='team_lead' AND r.visibility='team' AND r.team_id=$3)) ORDER BY r.updated_at DESC LIMIT 100`, user.ID, user.Role, user.TeamID)
+	rows, err := s.pool.Query(ctx, resourceSelect+` AND v.revision=(SELECT max(revision) FROM yuanpu_resource_revisions WHERE resource_id=r.id) WHERE v.status='submitted' AND r.owner_id<>$1 ORDER BY r.updated_at DESC LIMIT 500`, user.ID)
 	if err != nil {
 		return nil, ErrUnavailable
 	}
@@ -227,7 +226,35 @@ func (s *Store) ReviewQueue(ctx context.Context, user identity.User) ([]Resource
 		if err != nil {
 			return nil, ErrUnavailable
 		}
-		if authorization.Allowed(user, authorization.Review, resourceFacts(resource, false)) {
+		if authorization.Allowed(user, authorization.Review, resourceFacts(resource, false)) && len(items) < 100 {
+			items = append(items, resource)
+		}
+	}
+	if rows.Err() != nil {
+		return nil, ErrUnavailable
+	}
+	return items, nil
+}
+
+func (s *Store) Mine(ctx context.Context, user identity.User) ([]Resource, error) {
+	if !user.Active {
+		return nil, ErrForbidden
+	}
+	if s.pool == nil {
+		return nil, ErrUnavailable
+	}
+	rows, err := s.pool.Query(ctx, resourceSelect+` AND v.revision=(SELECT max(revision) FROM yuanpu_resource_revisions WHERE resource_id=r.id) WHERE r.owner_id=$1 ORDER BY r.updated_at DESC LIMIT 100`, user.ID)
+	if err != nil {
+		return nil, ErrUnavailable
+	}
+	defer rows.Close()
+	items := make([]Resource, 0)
+	for rows.Next() {
+		resource, _, err := scanResource(rows)
+		if err != nil {
+			return nil, ErrUnavailable
+		}
+		if authorization.Allowed(user, authorization.Read, resourceFacts(resource, false)) {
 			items = append(items, resource)
 		}
 	}
@@ -334,6 +361,13 @@ func (s *Store) Transition(ctx context.Context, user identity.User, id, action s
 		if resource.Status != "submitted" {
 			return Resource{}, ErrConflict
 		}
+		var confirmed bool
+		if err := tx.QueryRow(ctx, `SELECT author_confirmed_at IS NOT NULL FROM yuanpu_resource_revisions WHERE resource_id=$1 AND revision=$2`, id, resource.Revision).Scan(&confirmed); err != nil {
+			return Resource{}, ErrUnavailable
+		}
+		if !confirmed {
+			return Resource{}, ErrConflict
+		}
 		if action == "approve" {
 			resource.Status = "approved"
 		} else {
@@ -358,7 +392,7 @@ func (s *Store) Transition(ctx context.Context, user identity.User, id, action s
 			resource.Status = "rejected"
 		}
 	} else {
-		if _, err := tx.Exec(ctx, `UPDATE yuanpu_resource_revisions SET status=$3,reviewed_by=CASE WHEN $3 IN ('approved','rejected') THEN $4::text ELSE NULL END,reviewed_at=CASE WHEN $3 IN ('approved','rejected') THEN now() ELSE NULL END WHERE resource_id=$1 AND revision=$2`, id, resource.Revision, resource.Status, user.ID); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE yuanpu_resource_revisions SET status=$3,author_confirmed_at=CASE WHEN $3='submitted' THEN now() ELSE author_confirmed_at END,reviewed_by=CASE WHEN $3 IN ('approved','rejected') THEN $4::text ELSE NULL END,reviewed_at=CASE WHEN $3 IN ('approved','rejected') THEN now() ELSE NULL END WHERE resource_id=$1 AND revision=$2`, id, resource.Revision, resource.Status, user.ID); err != nil {
 			return Resource{}, ErrUnavailable
 		}
 		if action == "approve" {

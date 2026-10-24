@@ -25,12 +25,13 @@ var (
 )
 
 type User struct {
-	ID     string  `json:"id"`
-	Email  string  `json:"email"`
-	Name   string  `json:"name"`
-	Role   string  `json:"role"`
-	TeamID *string `json:"teamId"`
-	Active bool    `json:"active"`
+	ID          string            `json:"id"`
+	Email       string            `json:"email"`
+	Name        string            `json:"name"`
+	Role        string            `json:"role"`
+	TeamID      *string           `json:"teamId"`
+	Active      bool              `json:"active"`
+	Permissions map[string]string `json:"permissions,omitempty"`
 }
 
 type Team struct {
@@ -74,49 +75,6 @@ func databaseError(err error) error {
 	return ErrUnavailable
 }
 
-func (s *Store) BootstrapAdmin(ctx context.Context, email, name, password string) (User, error) {
-	user := User{Email: normalizedEmail(email), Name: strings.TrimSpace(name), Role: "admin", Active: true}
-	if !validateUser(user) {
-		return User{}, ErrInvalid
-	}
-	hash, err := HashPassword(password)
-	if err != nil {
-		return User{}, ErrInvalid
-	}
-	if s.pool == nil {
-		return User{}, ErrUnavailable
-	}
-	user.ID, err = newID()
-	if err != nil {
-		return User{}, err
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return User{}, ErrUnavailable
-	}
-	defer tx.Rollback(context.Background())
-	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(796873211)"); err != nil {
-		return User{}, ErrUnavailable
-	}
-	var count int
-	if err := tx.QueryRow(ctx, "SELECT count(*) FROM yuanpu_users").Scan(&count); err != nil {
-		return User{}, ErrUnavailable
-	}
-	if count != 0 {
-		return User{}, ErrBootstrapClosed
-	}
-	if _, err := tx.Exec(ctx, `INSERT INTO yuanpu_users (id,email,name,role,password_hash) VALUES ($1,$2,$3,'admin',$4)`, user.ID, user.Email, user.Name, hash); err != nil {
-		return User{}, databaseError(err)
-	}
-	if _, err := tx.Exec(ctx, `INSERT INTO yuanpu_identity_audit (subject_id,action) VALUES ($1,'bootstrap_admin')`, user.ID); err != nil {
-		return User{}, ErrUnavailable
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return User{}, ErrUnavailable
-	}
-	return user, nil
-}
-
 func (s *Store) CreateTeam(ctx context.Context, actor User, name string) (Team, error) {
 	if actor.Role != "admin" || !actor.Active {
 		return Team{}, ErrUnauthorized
@@ -149,71 +107,37 @@ func (s *Store) CreateTeam(ctx context.Context, actor User, name string) (Team, 
 	return Team{ID: id, Name: name}, nil
 }
 
-func (s *Store) CreateUser(ctx context.Context, actor User, email, name, role string, teamID *string) (User, string, error) {
+func (s *Store) CreateUser(ctx context.Context, actor User, email, name, role string, teamID *string) (User, error) {
 	if actor.Role != "admin" || !actor.Active {
-		return User{}, "", ErrUnauthorized
+		return User{}, ErrUnauthorized
 	}
 	user := User{Email: normalizedEmail(email), Name: strings.TrimSpace(name), Role: role, TeamID: teamID, Active: true}
 	if !validateUser(user) {
-		return User{}, "", ErrInvalid
+		return User{}, ErrInvalid
 	}
 	if s.pool == nil {
-		return User{}, "", ErrUnavailable
+		return User{}, ErrUnavailable
 	}
 	var err error
 	user.ID, err = newID()
 	if err != nil {
-		return User{}, "", err
-	}
-	secret := make([]byte, 24)
-	if _, err := rand.Read(secret); err != nil {
-		return User{}, "", err
-	}
-	initialPassword := base64.RawURLEncoding.EncodeToString(secret)
-	hash, err := HashPassword(initialPassword)
-	if err != nil {
-		return User{}, "", err
+		return User{}, err
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return User{}, "", ErrUnavailable
+		return User{}, ErrUnavailable
 	}
 	defer tx.Rollback(context.Background())
-	if _, err := tx.Exec(ctx, `INSERT INTO yuanpu_users (id,email,name,role,team_id,password_hash) VALUES ($1,$2,$3,$4,$5,$6)`, user.ID, user.Email, user.Name, user.Role, user.TeamID, hash); err != nil {
-		return User{}, "", databaseError(err)
+	if _, err := tx.Exec(ctx, `INSERT INTO yuanpu_users (id,email,name,role,team_id) VALUES ($1,$2,$3,$4,$5)`, user.ID, user.Email, user.Name, user.Role, user.TeamID); err != nil {
+		return User{}, databaseError(err)
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO yuanpu_identity_audit (actor_id,subject_id,action) VALUES ($1,$2,'create_user')`, actor.ID, user.ID); err != nil {
-		return User{}, "", ErrUnavailable
+		return User{}, ErrUnavailable
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return User{}, "", ErrUnavailable
+		return User{}, ErrUnavailable
 	}
-	return user, initialPassword, nil
-}
-
-func (s *Store) Login(ctx context.Context, email, password string) (User, string, error) {
-	if s.pool == nil {
-		return User{}, "", ErrUnavailable
-	}
-	var user User
-	var hash string
-	err := s.pool.QueryRow(ctx, `SELECT id,email,name,role,team_id,active,password_hash FROM yuanpu_users WHERE email=$1`, normalizedEmail(email)).Scan(&user.ID, &user.Email, &user.Name, &user.Role, &user.TeamID, &user.Active, &hash)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return User{}, "", ErrUnavailable
-	}
-	if err != nil || !user.Active || !VerifyPassword(hash, password) {
-		return User{}, "", ErrUnauthorized
-	}
-	secret := make([]byte, 32)
-	if _, err := rand.Read(secret); err != nil {
-		return User{}, "", err
-	}
-	token := base64.RawURLEncoding.EncodeToString(secret)
-	tokenHash := sha256.Sum256(secret)
-	if _, err := s.pool.Exec(ctx, `INSERT INTO yuanpu_sessions (token_hash,user_id,expires_at) VALUES ($1,$2,$3)`, tokenHash[:], user.ID, time.Now().Add(12*time.Hour)); err != nil {
-		return User{}, "", ErrUnavailable
-	}
-	return user, token, nil
+	return user, nil
 }
 
 func (s *Store) SessionUser(ctx context.Context, token string) (User, error) {
@@ -239,6 +163,9 @@ func (s *Store) SessionUser(ctx context.Context, token string) (User, error) {
 	if err != nil {
 		return User{}, ErrUnavailable
 	}
+	if user.Permissions, err = s.rolePermissions(ctx, user.Role); err != nil {
+		return User{}, err
+	}
 	return user, nil
 }
 
@@ -252,6 +179,85 @@ func (s *Store) RevokeSession(ctx context.Context, token string) error {
 	}
 	hash := sha256.Sum256(secret)
 	if _, err := s.pool.Exec(ctx, `UPDATE yuanpu_sessions SET revoked_at=now() WHERE token_hash=$1`, hash[:]); err != nil {
+		return ErrUnavailable
+	}
+	return nil
+}
+
+func (s *Store) LoginWithPassword(ctx context.Context, email, password string) (User, string, error) {
+	if s.pool == nil {
+		return User{}, "", ErrUnavailable
+	}
+	if len(password) > 1024 || len(email) > 254 {
+		return User{}, "", ErrUnauthorized
+	}
+	var user User
+	var hash *string
+	err := s.pool.QueryRow(ctx, `SELECT id,email,name,role,team_id,active,password_hash
+		FROM yuanpu_users WHERE email=$1 AND active`, normalizedEmail(email)).Scan(
+		&user.ID, &user.Email, &user.Name, &user.Role, &user.TeamID, &user.Active, &hash)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return User{}, "", ErrUnauthorized
+	}
+	if err != nil {
+		return User{}, "", ErrUnavailable
+	}
+	if hash == nil || !VerifyPassword(*hash, password) {
+		return User{}, "", ErrUnauthorized
+	}
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		return User{}, "", ErrUnavailable
+	}
+	token := base64.RawURLEncoding.EncodeToString(secret)
+	tokenHash := sha256.Sum256(secret)
+	tag, err := s.pool.Exec(ctx, `INSERT INTO yuanpu_sessions (token_hash,user_id,expires_at)
+		SELECT $1,id,$2 FROM yuanpu_users WHERE id=$3 AND active AND password_hash=$4`,
+		tokenHash[:], time.Now().Add(12*time.Hour), user.ID, *hash)
+	if err != nil {
+		return User{}, "", databaseError(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return User{}, "", ErrUnauthorized
+	}
+	if user.Permissions, err = s.rolePermissions(ctx, user.Role); err != nil {
+		return User{}, "", err
+	}
+	return user, token, nil
+}
+
+func (s *Store) SetUserPassword(ctx context.Context, actor User, userID, password string) error {
+	if actor.Role != "admin" || !actor.Active {
+		return ErrUnauthorized
+	}
+	hash, err := HashPassword(password)
+	if err != nil || userID == "" {
+		return ErrInvalid
+	}
+	if s.pool == nil {
+		return ErrUnavailable
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return ErrUnavailable
+	}
+	defer tx.Rollback(context.Background())
+	tag, err := tx.Exec(ctx, `UPDATE yuanpu_users SET password_hash=$2,updated_at=now() WHERE id=$1 AND active`, userID, hash)
+	if err != nil {
+		return databaseError(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	if _, err := tx.Exec(ctx, `UPDATE yuanpu_sessions SET revoked_at=now()
+		WHERE user_id=$1 AND api_key_id IS NULL AND revoked_at IS NULL`, userID); err != nil {
+		return ErrUnavailable
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO yuanpu_identity_audit (actor_id,subject_id,action)
+		VALUES ($1,$2,'set_password')`, actor.ID, userID); err != nil {
+		return ErrUnavailable
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return ErrUnavailable
 	}
 	return nil

@@ -1,6 +1,8 @@
 # Pi integration
 
-Yuanpu uses the official **1.0.4 npm packages**. `pnpm-lock.yaml` records their integrity; exact dependency versions and Pi-family overrides in `pnpm-workspace.yaml` prevent the upstream `^1.0.4` ranges from selecting 1.1.x. `docs/pi-upstream.json` records the release and the previous 0.86.1 source revision.
+Yuanpu uses the official **1.4.0 npm packages** (registry `latest` checked on 2026-10-22). `pnpm-lock.yaml` records their integrity; exact direct versions and Pi-family overrides in `pnpm-workspace.yaml` keep the published family on one release. `docs/pi-upstream.json` records the release and the previous 0.86.1 source revision.
+
+The 1.0.4 → 1.4.0 update brings provider and model fixes, more reliable resumed extension tools and MCP handling, and compaction fixes. Durable tool registrations return `output`; the Assistant adapter now forwards its tool content through that field so delegated tool results reach the model. The Assistant uses Durable's JSONL store, so 1.4.0's automatic **SQLite schema 2** migration does not touch its current session files. Durable also introduces sleeping tasks and changes retry behavior; a session written by 1.4.0 must not be assumed readable by 1.0.4 without a rollback test. Yuanpu does not call the removed `TaskRuntime.sleep()` or implement Durable storage itself. Pi 1.3 changes `kimi-coding` to Chat Completions; a user-supplied base URL for that provider must include `/v1`.
 
 ## Ownership and builds
 
@@ -57,7 +59,8 @@ Pi 1.0.3 renamed the built-in Azure provider to `azure`. Existing Azure users mu
 
 ## Upstream references
 
-- [Agent 1.0 breaking changes](https://github.com/earendil-works/pi/blob/v1.0.4/packages/agent/CHANGELOG.md)
-- [Durable harness API and experimental status](https://github.com/earendil-works/pi/blob/v1.0.4/packages/durable/README.md)
-- [Coding Agent changes, including MCP and Azure](https://github.com/earendil-works/pi/blob/v1.0.4/packages/coding-agent/CHANGELOG.md)
-- [MCP configuration](https://github.com/earendil-works/pi/blob/v1.0.4/packages/coding-agent/docs/mcp.md)
+- [Pi 1.4.0 release](https://github.com/earendil-works/pi/releases/tag/v1.4.0)
+- [Durable changelog and storage changes](https://github.com/earendil-works/pi/blob/v1.4.0/packages/durable/CHANGELOG.md)
+- [Coding Agent changelog](https://github.com/earendil-works/pi/blob/v1.4.0/packages/coding-agent/CHANGELOG.md)
+- [AI provider changelog](https://github.com/earendil-works/pi/blob/v1.4.0/packages/ai/CHANGELOG.md)
+- [MCP configuration](https://github.com/earendil-works/pi/blob/v1.4.0/packages/coding-agent/docs/mcp.md)

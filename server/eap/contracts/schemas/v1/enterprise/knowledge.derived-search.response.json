@@ -1,0 +1,31 @@
+{
+  "results": [
+    {
+      "document_id": "22222222-2222-4222-8222-222222222222",
+      "title": "Derived update guide",
+      "version": 1,
+      "seq": 0,
+      "score": 0.01639344262295082,
+      "score_kind": "rrf",
+      "content": "Derived summary: a failed build retains the active version.",
+      "source": {
+        "type": "derived",
+        "id": "src-derived-1",
+        "version": 1,
+        "derived": true,
+        "parents": [
+          {
+            "id": "src-upload-1",
+            "version": 2,
+            "locator": {
+              "kind": "text_range",
+              "start": 0,
+              "end": 42
+            },
+            "digest": "sha256:1bb366e9cf02d262d44967081e29b088e3ff0580bab280b7d6a3f8468fdd7bfb"
+          }
+        ]
+      }
+    }
+  ]
+}

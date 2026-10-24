@@ -21,7 +21,7 @@ export class ServerCenterCredentialStore {
     let configured = false;
     try {
       const file = await lstat(this.path);
-      if (!file.isFile()) throw new Error('元朴中心凭据配置文件不是普通文件。');
+      if (!file.isFile()) throw new Error('知识服务中心凭据配置文件不是普通文件。');
       configured = true;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
@@ -32,17 +32,17 @@ export class ServerCenterCredentialStore {
   async loadKey(): Promise<string | undefined> {
     const { configured } = await this.status();
     if (!configured) return undefined;
-    if (!this.available()) throw new Error('系统安全存储不可用，无法读取元朴中心 API key。');
+    if (!this.available()) throw new Error('系统安全存储不可用，无法读取知识服务中心 API key。');
     const file = JSON.parse(await readFile(this.path, 'utf8')) as { version?: unknown; encryptedKey?: unknown };
-    if (file.version !== 1 || typeof file.encryptedKey !== 'string') throw new Error('元朴中心凭据配置无效。');
+    if (file.version !== 1 || typeof file.encryptedKey !== 'string') throw new Error('知识服务中心凭据配置无效。');
     const key = this.protector.decryptString(Buffer.from(file.encryptedKey, 'base64'));
-    if (!/^ypk_[A-Za-z0-9_-]{43}$/.test(key)) throw new Error('元朴中心 API key 格式无效。');
+    if (!/^(?:ypk_[A-Za-z0-9_-]{43}|agk_(?:live|test)_[A-Za-z0-9]{32})$/.test(key)) throw new Error('知识服务中心 API key 格式无效。');
     return key;
   }
 
   async saveKey(key: string): Promise<void> {
-    if (typeof key !== 'string' || !/^ypk_[A-Za-z0-9_-]{43}$/.test(key)) throw new Error('元朴中心 API key 格式无效。');
-    if (!this.available()) throw new Error('系统安全存储不可用，无法保存元朴中心 API key。');
+    if (typeof key !== 'string' || !/^(?:ypk_[A-Za-z0-9_-]{43}|agk_(?:live|test)_[A-Za-z0-9]{32})$/.test(key)) throw new Error('知识服务中心 API key 格式无效。');
+    if (!this.available()) throw new Error('系统安全存储不可用，无法保存知识服务中心 API key。');
     // Refuse a pre-existing symlink before replacing the credential file.
     await this.status();
     const encryptedKey = this.protector.encryptString(key).toString('base64');

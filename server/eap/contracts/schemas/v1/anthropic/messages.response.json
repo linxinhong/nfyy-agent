@@ -1,0 +1,15 @@
+{
+  "id": "msg_eap_0001",
+  "type": "message",
+  "role": "assistant",
+  "model": "reasoning-high",
+  "content": [
+    { "type": "text", "text": "The isolation failure was caused by a missing workspace check." }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 96,
+    "output_tokens": 48
+  }
+}

@@ -54,7 +54,7 @@ interface PluginState {
 }
 
 const builtinMcpPlugin: InstalledPlugin = {
-  name: 'pi-mcp', version: '1.0.4', description: 'Pi 内置 MCP 服务连接',
+  name: 'pi-mcp', version: '1.4.0', description: 'Pi 内置 MCP 服务连接',
   source: 'builtin:pi-mcp', installPath: '', enabled: true, installedAt: '',
 };
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -21,12 +22,14 @@ func NewHTTP(store *Store) *HTTP { return &HTTP{store: store} }
 // Mount keeps identity route ownership in the identity module. The host
 // supplies only the shared router and HTTP response contract.
 func (h *HTTP) Mount(router chi.Router) {
-	router.Post("/v1/auth/login", h.login)
+	router.Get("/v1/portal/context", h.portalContext)
+	router.Post("/v1/auth/password", h.loginWithPassword)
 	router.Post("/v1/auth/api-key", h.loginWithAPIKey)
 	router.Group(func(protected chi.Router) {
 		protected.Use(h.Authenticate)
 		protected.Get("/v1/auth/me", h.me)
 		protected.Post("/v1/auth/logout", h.logout)
+		protected.Post("/v1/auth/device-key", h.issueDeviceKey)
 		protected.Group(func(admin chi.Router) {
 			admin.Use(requireAdmin)
 			admin.Get("/v1/admin/teams", h.listTeams)
@@ -34,11 +37,21 @@ func (h *HTTP) Mount(router chi.Router) {
 			admin.Get("/v1/admin/users", h.listUsers)
 			admin.Post("/v1/admin/users", h.createUser)
 			admin.Put("/v1/admin/users/{id}", h.updateUser)
+			admin.Put("/v1/admin/users/{id}/password", h.setPassword)
+			admin.Get("/v1/admin/roles", h.listRolePermissions)
+			admin.Put("/v1/admin/roles/{role}/{action}", h.updateRolePermission)
 			admin.Get("/v1/admin/api-keys", h.listAPIKeys)
 			admin.Post("/v1/admin/api-keys", h.issueAPIKey)
 			admin.Delete("/v1/admin/api-keys/{id}", h.revokeAPIKey)
 		})
 	})
+}
+
+func (h *HTTP) portalContext(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	httpkit.WriteJSON(w, 200, struct {
+		AgentBrowser bool `json:"agentBrowser"`
+	}{strings.Contains(r.UserAgent(), "YuanpuAgentDesktop/")})
 }
 
 // Authenticate is also the content module's channel boundary. Each request
@@ -94,30 +107,6 @@ func writeIdentityError(w http.ResponseWriter, r *http.Request, err error) {
 	}
 }
 
-func (h *HTTP) login(w http.ResponseWriter, r *http.Request) {
-	if h.store == nil {
-		httpkit.WriteError(w, r, 503, "IDENTITY_UNAVAILABLE", "Identity service is unavailable")
-		return
-	}
-	var input struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
-	if httpkit.DecodeJSON(r, &input, 8192) != nil || len(input.Email) > 254 || len(input.Password) > 1024 {
-		httpkit.WriteError(w, r, 400, "INVALID_INPUT", "Invalid login request")
-		return
-	}
-	user, token, err := h.store.Login(r.Context(), input.Email, input.Password)
-	if err != nil {
-		writeIdentityError(w, r, err)
-		return
-	}
-	httpkit.WriteJSON(w, 200, struct {
-		User  User   `json:"user"`
-		Token string `json:"token"`
-	}{user, token})
-}
-
 func (h *HTTP) loginWithAPIKey(w http.ResponseWriter, r *http.Request) {
 	if h.store == nil {
 		httpkit.WriteError(w, r, 503, "IDENTITY_UNAVAILABLE", "Identity service is unavailable")
@@ -139,6 +128,45 @@ func (h *HTTP) loginWithAPIKey(w http.ResponseWriter, r *http.Request) {
 		User  User   `json:"user"`
 		Token string `json:"token"`
 	}{user, token})
+}
+
+func (h *HTTP) loginWithPassword(w http.ResponseWriter, r *http.Request) {
+	if h.store == nil {
+		httpkit.WriteError(w, r, 503, "IDENTITY_UNAVAILABLE", "Identity service is unavailable")
+		return
+	}
+	var input struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if httpkit.DecodeJSON(r, &input, 4096) != nil || len(input.Email) > 254 || len(input.Password) > 1024 {
+		httpkit.WriteError(w, r, 400, "INVALID_INPUT", "Invalid login request")
+		return
+	}
+	user, token, err := h.store.LoginWithPassword(r.Context(), input.Email, input.Password)
+	if err != nil {
+		writeIdentityError(w, r, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	httpkit.WriteJSON(w, 200, struct {
+		User  User   `json:"user"`
+		Token string `json:"token"`
+	}{user, token})
+}
+
+func (h *HTTP) issueDeviceKey(w http.ResponseWriter, r *http.Request) {
+	actor, _ := UserFromContext(r.Context())
+	key, secret, err := h.store.IssueOwnAPIKey(r.Context(), actor, httpkit.BearerToken(r))
+	if err != nil {
+		writeIdentityError(w, r, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	httpkit.WriteJSON(w, 201, struct {
+		APIKey APIKey `json:"apiKey"`
+		Secret string `json:"secret"`
+	}{key, secret})
 }
 
 func (h *HTTP) me(w http.ResponseWriter, r *http.Request) {
@@ -203,15 +231,14 @@ func (h *HTTP) createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, _ := UserFromContext(r.Context())
-	created, password, err := h.store.CreateUser(r.Context(), user, input.Email, input.Name, input.Role, input.TeamID)
+	created, err := h.store.CreateUser(r.Context(), user, input.Email, input.Name, input.Role, input.TeamID)
 	if err != nil {
 		writeIdentityError(w, r, err)
 		return
 	}
 	httpkit.WriteJSON(w, 201, struct {
-		User            User   `json:"user"`
-		InitialPassword string `json:"initialPassword"`
-	}{created, password})
+		User User `json:"user"`
+	}{created})
 }
 
 func (h *HTTP) updateUser(w http.ResponseWriter, r *http.Request) {
@@ -236,6 +263,54 @@ func (h *HTTP) updateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpkit.WriteJSON(w, 200, updated)
+}
+
+func (h *HTTP) setPassword(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if !httpkit.ValidID(id) {
+		httpkit.WriteError(w, r, 404, "NOT_FOUND", "Member not found")
+		return
+	}
+	var input struct {
+		Password string `json:"password"`
+	}
+	if httpkit.DecodeJSON(r, &input, 4096) != nil {
+		httpkit.WriteError(w, r, 400, "INVALID_INPUT", "Invalid password request")
+		return
+	}
+	actor, _ := UserFromContext(r.Context())
+	if err := h.store.SetUserPassword(r.Context(), actor, id, input.Password); err != nil {
+		writeIdentityError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *HTTP) listRolePermissions(w http.ResponseWriter, r *http.Request) {
+	actor, _ := UserFromContext(r.Context())
+	items, err := h.store.ListRolePermissions(r.Context(), actor)
+	if err != nil {
+		writeIdentityError(w, r, err)
+		return
+	}
+	httpkit.WriteJSON(w, 200, items)
+}
+
+func (h *HTTP) updateRolePermission(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Scope string `json:"scope"`
+	}
+	if httpkit.DecodeJSON(r, &input, 8192) != nil {
+		httpkit.WriteError(w, r, 400, "INVALID_INPUT", "Invalid role permission")
+		return
+	}
+	actor, _ := UserFromContext(r.Context())
+	item, err := h.store.UpdateRolePermission(r.Context(), actor, chi.URLParam(r, "role"), chi.URLParam(r, "action"), input.Scope)
+	if err != nil {
+		writeIdentityError(w, r, err)
+		return
+	}
+	httpkit.WriteJSON(w, 200, item)
 }
 
 func (h *HTTP) listAPIKeys(w http.ResponseWriter, r *http.Request) {

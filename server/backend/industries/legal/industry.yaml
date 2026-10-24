@@ -1,0 +1,31 @@
+id: legal
+name: 律所知识
+confidences:
+  - 已验证
+  - 个人判断
+  - 待确认
+required_sections:
+  - conclusion
+  - background
+  - points
+  - citations
+  - limits
+knowledge_types:
+  - id: case_experience
+    name: 办案经验
+    required_fields: [cause, instance, region]
+  - id: judgment_view
+    name: 裁判观点
+    required_fields: [issue, case_numbers, court_level]
+  - id: contract_template
+    name: 合同范本
+    required_fields: [contract_type, scenario, risk_note]
+  - id: regulation_analysis
+    name: 法规解读
+    required_fields: [regulation_name, article_number, effective_date, validity]
+  - id: research_report
+    name: 检索报告
+    required_fields: [question, search_scope, cutoff_date]
+  - id: process_guide
+    name: 流程指引
+    required_fields: [institution, updated_date]

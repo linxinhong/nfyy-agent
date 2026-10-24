@@ -1,0 +1,35 @@
+{
+  "user": {
+    "id": "user_123",
+    "display_name": "Li Lei",
+    "email": "li.lei@example.com",
+    "organization_id": "org_default",
+    "department_id": "dept_platform"
+  },
+  "workspaces": [
+    {
+      "id": "secops",
+      "name": "Security Operations",
+      "default": true,
+      "roles": ["developer"]
+    }
+  ],
+  "model_aliases": ["coding-high", "daily-fast", "reasoning-high"],
+  "mcp_servers": [
+    {
+      "name": "gitlab",
+      "endpoint": "/mcp/gitlab",
+      "risk_levels": ["R0", "R1"]
+    }
+  ],
+  "skills": [],
+  "client_policy": {
+    "min_version": "1.6.0",
+    "recommended_version": "1.8.2",
+    "decision": "ALLOW"
+  },
+  "feature_flags": {
+    "knowledge_search": true,
+    "mcp_git_read": true
+  }
+}

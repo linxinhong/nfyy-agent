@@ -35,4 +35,4 @@ try {
 - `wikiPreview()` 只读取公开示例词条，不是正式组织 Wiki 读写接口。
 - `searchCatalog(query)` 与 `getCatalogItem(id)` 读取 Go 中心的公开技能目录；能力包安装仍由桌面 Runtime 完成。
 
-`src/schema.gen.ts` 来自 [OpenAPI](../../server/backend/api/openapi.yaml)，不要手改。运行 `pnpm generate:server` 同时更新 Go 和 TS 类型，再执行 `pnpm check:server`。
+`src/schema.gen.ts` 来自旧中心的 [OpenAPI](../../server/backend/api/openapi.yaml)，不要手改。旧中心维护时运行 `pnpm generate:server:legacy`，再执行 `pnpm check:server:legacy`。当前知识服务中心的契约位于 `server/eap/api/mindlink-openapi.yaml`。

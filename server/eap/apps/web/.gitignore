@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.pnpm-store/
+*.local
+.DS_Store
+.vite/
+
+# 路由树由 tanstackRouter 插件在 dev/build 时生成
+
+# TS 增量构建缓存
+*.tsbuildinfo
+test-results/
+playwright-report/

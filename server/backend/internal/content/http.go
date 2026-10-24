@@ -34,6 +34,7 @@ func (h *HTTP) Mount(router chi.Router) {
 		}
 		protected.Get("/v1/resources", h.list)
 		protected.Post("/v1/resources", h.create)
+		protected.Get("/v1/resources/mine", h.mine)
 		protected.Get("/v1/resources/{id}", h.get)
 		protected.Put("/v1/resources/{id}", h.edit)
 		protected.Post("/v1/resources/{id}/submit", h.transition("submit"))
@@ -42,6 +43,19 @@ func (h *HTTP) Mount(router chi.Router) {
 		protected.Post("/v1/resources/{id}/withdraw", h.transition("withdraw"))
 		protected.Get("/v1/review/queue", h.reviewQueue)
 	})
+}
+
+func (h *HTTP) mine(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.current(w, r)
+	if !ok {
+		return
+	}
+	items, err := h.store.Mine(r.Context(), user)
+	if err != nil {
+		writeContentError(w, r, err)
+		return
+	}
+	httpkit.WriteJSON(w, 200, items)
 }
 
 func writeContentError(w http.ResponseWriter, r *http.Request, err error) {

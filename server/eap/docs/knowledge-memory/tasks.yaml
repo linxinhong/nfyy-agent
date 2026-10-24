@@ -1,0 +1,813 @@
+version: 1
+project:
+  name: "Enterprise Agent Platform"
+feature:
+  title: "TencentDB Knowledge and Memory integration"
+  status: in_progress
+
+tasks:
+  - id: TASK-056
+    title: "冻结知识检索与复用契约"
+    status: done
+    goal: >
+      将现有 HashEmbedder 知识切片与 TencentDB 复用提案收敛为可评审的检索、模型执行、
+      generation、来源与安全契约，使实现者不必重新选择权限来源或迁移策略。
+    scope:
+      in:
+        - "维护 docs/knowledge-memory/design.md；新增编号经全仓核对的 ADR，记录检索存储变更及审查结论"
+        - "冻结受治理 Embedding 执行接口、身份上下文、模型配置摘要/维数、generation、索引激活与回滚契约"
+        - "冻结 upload/search 兼容性、score 语义、引用字段与来源映射；需要新 fixture 时归入 contracts/schemas/v1/enterprise"
+        - "钉版参考源码 828ac8907ccde2cfed14ca42acd0420bea19e409，列拟采用文件及其依赖、许可证、补丁边界"
+        - "确定与当前 PG16 兼容的 pgvector 扩展/镜像版本、迁移与恢复方案，按仓库规则完成架构评审"
+        - "在实施前冻结小型中英检索评测集、相关性标签、HashEmbedder 基线和质量/延迟判据；明确真实模型与 stub 各自证据用途"
+      out:
+        - "运行实现、生产部署、现有历史任务重写；MemoryProxy/Panel/Skill 控制面导入"
+        - "Wiki 生产服务装配决策；企业 Memory 产品优先级变更"
+    constraints:
+      - "历史基础依赖已在 main：Deliver the Workspace Knowledge vertical slice（TASK-012）、Complete LLM Policy, DLP effects and reliable governance audit（TASK-010）和身份基础；本注册表不复制其状态。"
+      - "本卡是检索共享契约唯一写入者；DDL、接口和迁移方案需独立架构审查，不能把本文提案当作已接受 ADR。"
+      - "记录现有知识处理器/embeddings 路由的实际治理链；缺失点明确由后续语义向量实现卡补齐，不能以旧任务 done 推定覆盖。"
+      - "评测集至少覆盖精确术语、中文、语义改写、无相关结果和跨 Workspace 陷阱；标签与阈值须在算法调优前固定。"
+      - "优先 PostgreSQL 原生词法检索加 pgvector/RRF；SQL 原生排名不冒称 BM25，不擅增新搜索服务。"
+    forbidden:
+      - "将实验性第三方默认身份/存储直接提升为 EAP 权威；未做版本核实就填写依赖版本。"
+      - "把模型调用失败静默转为另一个 embedding 模型，或混合不同模型/代际的向量。"
+    acceptance:
+      - type: command
+        run: "node ~/.agents/skills/task-integrator/bin/tasks.mjs validate --registry docs/knowledge-memory/tasks.yaml"
+      - type: assertion
+        expect: "ADR 明确请求权限、审计提交顺序、Provider egress、generation 激活、旧数据迁移、失败保留旧版本与回滚，并记录独立审查人/结论；未接受的架构决策不会解锁实现。"
+      - type: assertion
+        expect: "现有客户端的请求和引用响应可逐字段映射到新契约；score 变化、派生来源引用与未知 Usage 有明确语义。"
+      - type: assertion
+        expect: "每个后续实现卡能定位 owning seam、fixture、表迁移和验证入口；评测集摘要、基线与分组判据已固定，所有拟引入源码有钉版/许可处置。"
+    dependencies:
+      - TASK-064
+    risk_level: L4
+    recommended_model: "gpt-6 astra"
+    investigation_hints:
+      - "入口：docs/knowledge-memory/design.md；docs/01-PRD.md §6.8/§10、docs/03-System-Architecture.md §11-14；docs/adr/0012-knowledge-slice.md。"
+      - "实际装配：apps/gateway/main.go 的 knowledge.NewService；packages/knowledge/knowledge.go 的 Embedder/Service；migrations/000007_knowledge.sql；deploy/docker-compose.yml。"
+      - "治理接缝：apps/gateway/knowledge.go、protocols.go 的 handleEmbeddings；packages/llmkernel、policy、audit、governance、token。接口名和上下文来源需追踪调用方后冻结。"
+      - "来源：../TencentDB-Agent-Memory/MemoryCore/src/core/store/search-utils.ts；MemoryKnowledge/src/{module.ts,middleware/auth.ts,routes/tools.ts}。"
+      - "验证：先文档/契约对照与 registry 校验；本设计卡不以运行旧测试替代架构审查。"
+    escalation_conditions:
+      - "现有约束无法同时保证审计可靠、原子版本切换和外部调用失败可观测，或需新的身份/基础存储/公共协议。"
+    result:
+      owner: "codex-astra-k056"
+      attempts: 0
+      claimed_at: "2026-09-25T09:48:29.399Z"
+      completed_at: "2026-09-25T12:02:51.001Z"
+      worktree: "/Users/linxinhong/projects/Enterprise-Agent-Platform/.worktrees/astra-knowledge"
+      branch: "task/task-056-knowledge-contracts"
+      evidence:
+        - {type: "integration", check: "Knowledge retrieval contract and ADR-0029 merged to main", status: "passed", summary: "main merge commit 7ece16ceb6e412c2ea4fdf990ef832fc02e6acf0 contains branch tip 875ef6c54220d47c2626268fb35ed071dd244514. git diff --check, branch ancestry, and 11-card registry validate passed; only knowledge design, ADR, schema fixtures, fixed evaluation, and task memory changed. The preexisting opencode.jsonc deletion remains unstaged. Exact-path scoped rg/read fallback was used because the zvec index is unavailable."}
+        - {type: "verification", check: "Contract fixtures and frozen HashEmbedder baseline on integrated main", status: "passed", summary: "At main 7ece16ceb6e412c2ea4fdf990ef832fc02e6acf0, python3 docs/knowledge-memory/eval/validate-contracts.py passed dataset digest, labels, baseline shape, six compatibility fixtures, provenance digest/range, and links. python3 docs/knowledge-memory/eval/reproduce-frozen-baseline.py reproduced byte-identical output from fixed source 0c8abee7dcb2b818fcfa8afd62d3294bc6547946 and artifact f16976029f35ffd3a0b380ba37603203aea00a04. These checks do not qualify semantic retrieval or a real provider."}
+        - {type: "review", check: "Independent Sol architecture and contract review", status: "passed", summary: "Independent Sol reviewer accepted fixed design commit a10de920dff849cba40406bc4de4d9a9d2d427bb after governance-version and reliable denial-audit gaps were addressed. Final 875ef6c commit records that review and the explicit TASK-065 shared owner handoff in main cc3580da6da0f20975502fb1c91d5dd0846d1477. ADR-0029 consumes the shared revocation execution authority and defines source/generation CAS, score/usage/citation semantics, pgvector pin, recovery, and evaluation thresholds. Accepted is design-only; actual provider stop proof, pgvector migration, semantic quality, and production readiness remain future gates."}
+      follow_up_candidates: []
+  - id: TASK-057
+    title: "受治理的语义向量入库与版本切换"
+    status: pending
+    goal: >
+      员工文档与查询可通过 EAP 治理链获取真实模型向量，来源版本与模型 generation
+      一致地存入 PostgreSQL；模型或重建失败不暴露半成品，也不破坏现有可检索版本。
+    scope:
+      in:
+        - "按接受的契约适配 Knowledge Embedder 和既有 Provider 执行，补齐本链 Policy/DLP/可靠审计/Usage 与超时取消"
+        - "应用已评审的 pgvector、generation 和必要来源字段迁移，更新开发镜像钉版与数据库升级说明"
+        - "原有 HashEmbedder 数据的显式离线模式、可重试重建、原子激活和回滚；新旧模型向量绝不混查"
+        - "单文档 ingest 维持现有大小与同步响应约束；存量重建采用受限服务身份及持久进度，重试幂等且重验证权限"
+        - "接入现有知识测试目标，覆盖本次实际新增行为；更新采用的依赖归属与相关 ADR 实施记录"
+      out:
+        - "关键词/RRF 排序、Wiki 引擎、通用任务编排、任意文档格式解析"
+        - "面向员工新增模型密钥或第二个 LLM HTTP Gateway"
+    constraints:
+      - "只有接受的契约允许实现 DDL 与运行装配；model/version/config digest/dimension/preprocess 共同确定 generation。"
+      - "模型 egress 复用中央 Policy 和 DLP；exempt 用户查看权限不能豁免外发脱敏；local-only 无可用本地路由时阻断。"
+      - "新版本构建失败保留旧活动版本；首次失败无内容；构建期间不持有等待远程模型的数据库长事务。"
+      - "后台任务保留 Workspace/actor/source/trace，但不持久化短期 JWT 或员工 key；执行时获取受限身份并检查授权是否仍有效。"
+      - "远程取消、429、维数错误、非有限向量和依赖故障必须有明确失败；不静默回退 HashEmbedder。"
+      - "拥有 packages/knowledge、必要 gateway 接线、migration 和部署变更；共享 Makefile 修改串行完成。"
+    forbidden:
+      - "通过 localhost 请求 /v1/embeddings 并携带员工 key 代替内部受治理调用。"
+      - "切换模型时复用同维数旧向量，或先删除旧活动索引再尝试远程重建。"
+    acceptance:
+      - type: command
+        run: "go test -race ./packages/knowledge ./packages/llmkernel"
+      - type: command
+        run: "make verify-knowledge-slice"
+      - type: command
+        run: "make verify-foundation"
+      - type: assertion
+        expect: "真实 PostgreSQL/Redis 与记录出站 payload 的 embedding stub 下，授权上传/查询成功，Provider 收不到原始敏感值或 agk；跨 Workspace、Policy/DLP/审计失败、已撤销身份均不释放内容或激活新版本。"
+      - type: assertion
+        expect: "从既有数组表升级并重建后引用身份/版本正确；模型维数或配置变化触发新 generation，半完成任务重启幂等，失败保留旧版本，成功切换后旧内容不可查；回滚恢复数据与可运行索引且不恢复已删除/已撤销资料。"
+      - type: assertion
+        expect: "知识允许/拒绝/重建结果具有 trace-linked 持久审计；故障用例验证审计不可用的提交边界；模型用量未知时被明确标记而非伪装成零消耗。"
+    dependencies:
+      - TASK-056
+      - TASK-065
+    risk_level: L4
+    recommended_model: "gpt-6 sol"
+    investigation_hints:
+      - "入口：packages/knowledge/knowledge.go、apps/gateway/{knowledge.go,main.go,protocols.go}；最近行为测试 apps/gateway/knowledge_integration_test.go。"
+      - "现有 Provider 与凭据：packages/llmkernel/{router.go,stream_client.go}、apps/gateway/llm.go；不能仅复用 OpenAICompatClient.Embeddings 后宣称治理完成。"
+      - "数据：migrations/000007_knowledge.sql、packages/store；新增 migration 号执行前重新分配；deploy/docker-compose.yml 当前为 PG16。"
+      - "验证梯度：新包行为测试 -> 真实 PG/Redis 知识集成 -> verify-foundation；变更公共 embeddings 共用路径时再跑 make verify-llm-protocols。"
+    escalation_conditions:
+      - "需要新数据库/任务代理、扩大同步 ingest 上限、改变既定响应/版本语义或无法通过既有身份执行后台任务。"
+    result:
+      owner: null
+      attempts: 0
+      claimed_at: null
+      completed_at: null
+      worktree: null
+      branch: null
+      evidence: []
+      follow_up_candidates: []
+
+  - id: TASK-058
+    title: "Workspace 混合检索与 RRF 排序"
+    status: pending
+    goal: >
+      员工使用术语或自然语言改写查询时，获得同一 Workspace 内的相关文档片段和原有引用，
+      关键词与向量候选融合的效果和代价可通过固定评测集说明。
+    scope:
+      in:
+        - "PostgreSQL 原生词法候选与 pgvector 候选；按冻结的中文 token 规则建立索引"
+        - "参考钉版 RRF 算法做 Go 实现，稳定去重/排序、候选预算、top_k 和空结果语义"
+        - "两条候选查询内部强制 Workspace、活动 generation、有效文档版本；索引/查询计划及超时预算证据"
+        - "固定评测集比较 HashEmbedder、词法、语义与融合结果；测试与评测入口纳入既有知识 Make 目标"
+      out:
+        - "新增 BM25 扩展或 Elasticsearch、全局 ANN 后过滤、Reranker 模型、自动 Prompt 注入"
+        - "Wiki/Memory 路由和新 UI"
+    constraints:
+      - "生产模式使用语义向量切片的模型配置与 generation；查询失败显式报错，不更换模型或静默返回空命中。"
+      - "保留 document_id/title/version/seq/content 和已接受的 score 契约；RRF 分数不作为可信度或概率。"
+      - "内容 egress 按当前 DLP 规则处理，缓存不复用另一 Workspace/身份的已释放原文。"
+      - "精确检索可作为首版 pgvector 策略；记录随 corpus 增长的延迟，任何 ANN 引入另验证隔离和召回。"
+    forbidden:
+      - "把 SQL ts_rank 标注为 BM25；在融合后才做 Workspace 过滤。"
+      - "通过临时调整相关性标签或只选择有利 Query 宣称质量提升。"
+    acceptance:
+      - type: command
+        run: "go test -race ./packages/knowledge"
+      - type: command
+        run: "make verify-knowledge-slice"
+      - type: command
+        run: "make verify-foundation"
+      - type: assertion
+        expect: "两个 Workspace 放置同词不同内容和更高分的越权诱饵；任一分支、融合、翻页/重复查询和版本切换均无越权命中，允许命中具备正确来源与版本。"
+      - type: assertion
+        expect: "在契约卡固定数据集和配置上，语义改写 Hit@5 优于原 HashEmbedder 基线，精确术语分组不退化，整体 nDCG@5 不低于本轮最佳单分支；输出所有 Query 结果和失败例，不以 stub 代替真实语义质量资格验证。"
+      - type: assertion
+        expect: "并发查询、索引切换、空语料、无词法命中和中文查询返回确定结果；候选数量和时延满足冻结预算，race 测试无共享候选或缓存串扰。"
+    dependencies:
+      - TASK-057
+    risk_level: L3
+    recommended_model: "gpt-6 sol"
+    investigation_hints:
+      - "入口：packages/knowledge/knowledge.go 的 Service.Search；上游 RRF 为 ../TencentDB-Agent-Memory/MemoryCore/src/core/store/search-utils.ts。"
+      - "候选和 schema 以接受的 retrieval ADR 为准；现有 max top_k 为 20、缺省 5，兼容性必须保留或先评审。"
+      - "最近测试：apps/gateway/knowledge_integration_test.go；增加算法边界测试与同库 Workspace 隔离集成，验证 query plan 不做全局先取后滤。"
+      - "环境：真实 pgvector PostgreSQL/Redis；真实 Provider 只用于已授权质量评测，失败安全测试用可控 stub。"
+    escalation_conditions:
+      - "固定质量标准只能通过新搜索服务、外部重排模型或更改产品语义满足。"
+    result:
+      owner: null
+      attempts: 0
+      claimed_at: null
+      completed_at: null
+      worktree: null
+      branch: null
+      evidence: []
+      follow_up_candidates: []
+
+  - id: TASK-059
+    title: "知识检索增强阶段验证"
+    status: pending
+    goal: >
+      在集成分支证明员工上传、查询、替换、撤销与模型故障形成可审计的知识闭环，
+      使后续 Wiki 派生资料可以依赖已验证的检索与发布行为。
+    scope:
+      in:
+        - "独立后端业务验收：EAP HTTP API、实际 pgvector PostgreSQL/Redis、身份和审计存储"
+        - "验证旧数据迁移、模型 generation、来源引用、并发替换、权限撤销和安全故障"
+        - "记录 docs/knowledge-memory/verification.md 中稳定场景编号、commit、环境/模型、数据集摘要与缺陷"
+      out:
+        - "产品实现与安全修复；Wiki/Memory 功能；Portal 浏览器验收"
+    constraints:
+      - "验证 owner 独立于语义入库和检索主要实现者；只能在已集成主分支证据通过后完成。"
+      - "重用实现测试作为入口，增加跨切片事实检查；旧 make target 单独通过不能证明新检索行为。"
+      - "真实模型权限/凭据缺失时将质量部分标 unverified 并保留未完成状态，不索要生产访问替代本地验证。"
+      - "发现缺陷抽取修复卡并作为本门禁依赖；不在门禁内隐藏实现工作。"
+    forbidden:
+      - "用 trace ID 或日志行代替持久审计；只验证成功路径或把任务 done 当作业务验收。"
+    acceptance:
+      - type: command
+        run: "make verify-knowledge-slice"
+      - type: command
+        run: "make verify-foundation"
+      - type: assertion
+        expect: "KR-01：Workspace A 员工上传并以改写查询得到带引用结果；B 员工和被移出 A 的员工均不可读取同一内容，员工 key 从未出现在下游请求。"
+      - type: assertion
+        expect: "KR-02：同内容重传幂等；替换/重建失败保留旧活动版本，成功后旧内容立即不可查；重启/重复任务不重复发布，同维数不同模型也不混查。"
+      - type: assertion
+        expect: "KR-03：DLP/Policy/审计不可用或拒绝时不出站/不释放/不激活，Provider 返回畸形向量、超时和 429 可观测且无敏感日志；查询后更改规则仍影响已有内容。"
+      - type: assertion
+        expect: "KR-04：冻结中英评测集与真实允许的 embedding 模型达到检索卡判据，记录所有失败例、p50/p95、corpus 规模；回滚演练不恢复被撤销资料，证据与当前集成 commit 一致。"
+    dependencies:
+      - TASK-058
+    risk_level: L4
+    recommended_model: "gpt-6 sol"
+    investigation_hints:
+      - "规则来源：docs/knowledge-memory/design.md 与接受的 retrieval ADR；最近集成入口 apps/gateway/knowledge_integration_test.go。"
+      - "环境入口：docs/dev/LOCAL-DEV.md、deploy/docker-compose.yml；检查新增模型/数据库配置是否进入实际测试装配。"
+      - "可复用安全场景：apps/gateway/subject_dlp_integration_test.go、security_adversarial_integration_test.go；只复跑与本边界相关部分，再执行规定仓库门禁。"
+    escalation_conditions:
+      - "已接受契约与业务验收冲突，或实际部署未实现所声称的隔离/治理边界。"
+    result:
+      owner: null
+      attempts: 0
+      claimed_at: null
+      completed_at: null
+      worktree: null
+      branch: null
+      evidence: []
+      follow_up_candidates: []
+
+  - id: TASK-060
+    title: "Wiki/CodeGraph 内核拆分验证"
+    status: done
+    goal: >
+      用钉版源码和小型固定输入证明 Wiki/CodeGraph 能否脱离原 Panel、Proxy 与身份目录复用，
+      形成有代码和运行证据支持的采用或否决结论。
+    scope:
+      in:
+        - "EAP 内隔离实验目录 experiments/tencentdb-knowledge（新路径），以钉版副本或钉版构建输入试验，保留许可与 lockfile"
+        - "Wiki 文本输入到派生页面/来源映射；CodeGraph 本地固定 commit 到符号、调用边与文件行位置"
+        - "检查 Panel callback、llm_binding、SQLite/local files、native dependencies、安装脚本和引擎 package 的耦合及替换成本"
+        - "模拟服务器派生 Workspace/来源上下文、受治理模型桥、作业重试取消/清理、畸形文档和路径越界"
+        - "docs/knowledge-memory/engine-spike.md：复现方式、两引擎各自结论、性能/资源样本、许可清单与拟采用部署 ADR 草案"
+      out:
+        - "生产 Gateway 路由/迁移/身份/Portal 修改；外部源码仓库修改"
+        - "部署原始公开 API；远程私有 Git 或真实凭据；自动执行被索引仓库/文档中的程序"
+    constraints:
+      - "源码以 828ac8907ccde2cfed14ca42acd0420bea19e409 为证据基线；升级须记录新基线和差异。"
+      - "实验只处理非敏感 fixtures；模型先用 stub 验证边界，再用已有授权模型验证生成质量；无凭据时不伪造真实成功。"
+      - "getById(service_id, id) 和只读白名单不等于员工授权；模拟适配层从受验证身份派生所有隔离字段，并尝试伪造 body/header。"
+      - "临时存储必须能由 EAP 所有的原资料/来源版本重建；如不能，明确需要额外持久存储的原因和恢复责任。"
+      - "实验结论可以 no-go；完成本卡只表示证据充分，不自动解除 Wiki 生产卡的 needs_arch_review。"
+      - "本卡仅做隔离实验，使用现有设计的钉版源与服务器派生身份模拟，不消费未接受的 ADR-0029 或修改生产契约；采用结论仍由后续独立 ADR 决定。"
+    forbidden:
+      - "对 ../TencentDB-Agent-Memory 执行编辑/迁移；把实验端口暴露为员工入口。"
+      - "沿用 MemoryProxy 透传员工 key 或采用 Panel 资产目录作为另一权威来源。"
+    acceptance:
+      - type: assertion
+        expect: "从固定输入复现 Wiki 页与原文引用、CodeGraph 符号/调用位置；输入更新或删除后旧派生物可识别并清理；成功/失败均附执行命令、源码 commit、依赖版本和输出摘要。"
+      - type: assertion
+        expect: "在实验调用边界故意伪造 service/team/user/source 字段、穿越路径、取消模型调用和重启作业，说明每项安全责任位于引擎还是 EAP adapter；未满足项显式列为采用阻断。"
+      - type: assertion
+        expect: "独立架构审查可据报告决定复用模块、受限进程或放弃；报告清楚列出 EAP 单一权威存储是否可保持、MIT 及传递依赖归属、运行资源与补丁维护成本，不用 README 声明替代运行证据。"
+    dependencies: []
+    risk_level: L3
+    recommended_model: "gpt-6 sol"
+    investigation_hints:
+      - "源码入口：../TencentDB-Agent-Memory/MemoryKnowledge/src/{module.ts,engines/wiki,engines/code,store,callback.ts}；先沿已验证路径读缺失细节。"
+      - "隔离/鉴权：MemoryKnowledge/src/{middleware/auth.ts,routes/tools.ts}；LLM 与配置：engines/wiki/ingest-v2/llm.ts、store/llm-binding-store.ts、config.ts。"
+      - "验证梯度：最小引擎 fixture -> adapter 边界实验 -> 更新/删除/取消 -> 独立采用审查；在报告中提交实际可复现脚本，本卡不冒用 EAP 原有知识 gate 来证明 TypeScript 实验。"
+    escalation_conditions:
+      - "需要真实生产资料/外部账号、修改参考仓库，或只有运行其完整控制面才能验证核心能力。"
+    result:
+      owner: "codex-sol-k060-64339"
+      attempts: 0
+      claimed_at: "2026-09-25T10:18:08.528Z"
+      completed_at: "2026-09-25T10:34:33.768Z"
+      worktree: null
+      branch: "task/task-060-engine-spike"
+      evidence:
+        - {type: "command", check: "Integrated experiment reproduction", status: "pass", summary: "main d83ddd6290b97eedd118a72bb4729795b220067f: npm ci --ignore-scripts --no-audit --no-fund and LOG_LEVEL=error npm run verify in experiments/tencentdb-knowledge exited 0; fixed Wiki and CodeGraph digests matched."}
+        - {type: "assertion", check: "Source and isolation", status: "pass", summary: "Pinned TencentDB source 828ac8907ccde2cfed14ca42acd0420bea19e409 remains clean; 19 upstream files are byte-identical, MIT license retained, caller-supplied authority rejected in 12 cases, no production Gateway route was changed."}
+        - {type: "assertion", check: "Adoption decision and independent review", status: "pass", summary: "Independent Astra review of branch 888f485 accepted isolated experiment completion; Sol narrowed evidence wording in 1a7f2dd. Production Wiki adoption is NO-GO due to demonstrated symlink outside read/write; real model and native redistribution licenses remain unverified. TASK-061 stays needs_arch_review."}
+        - {type: "command", check: "Registry and integration", status: "pass", summary: "main d83ddd6290b97eedd118a72bb4729795b220067f: tasks.mjs validate passed for 10-card registry; task branch is ancestor of main; unrelated pre-existing opencode.jsonc deletion stayed unstaged."}
+      follow_up_candidates: []
+  - id: TASK-061
+    title: "Wiki 派生文档接入 EAP"
+    status: needs_arch_review
+    goal: >
+      一个已授权且固定版本的 Workspace 文本资料源可生成带来源标识的 Wiki 页面，
+      经同一 EAP 知识链发布并被员工检索；更新、撤销或失败不会留下可访问的过期副本。
+    scope:
+      in:
+        - "仅实现采用 ADR 接受的 Wiki 处理组件及 EAP adapter；生产代码路径由 ADR 确认，候选为 packages/knowledge 与受限内部 worker"
+        - "服务器生成的 SourceID/SourceVersion/Workspace/授权任务输入、派生页到原资料 provenance 映射、生成预算和取消"
+        - "受控资料入队、持久状态/幂等重试、生成结果 DLP、索引 generation 构建与原子发布"
+        - "通过现有 EAP Knowledge 查询返回派生页与原资料引用；API 必要扩展必须先冻结并更新 fixture"
+        - "可选进程的短期内部身份接收校验、受限服务凭据与网络边界；部署、备份/重建、回滚和依赖归属文档"
+      out:
+        - "CodeGraph 生产图查询、自动 Git 抓取、任意文件解析、Portal 页面"
+        - "MemoryCore/MemoryProxy/Panel 控制面、自动 Canonical 审核、会话采集"
+    constraints:
+      - "当前 needs_arch_review 源于尚未接受的新服务/存储/来源契约决策；独立评审接受生产 ADR 且依赖完成后才能改为 ready。实验完成或通过测试不能代替这一条件。"
+      - "若 Wiki 实验 no-go，保持本卡不可领取并记录处置；经授权撤销或重写本卡及后续门禁，不将 no-go 当作生产功能已完成。"
+      - "EAP 为 Workspace、来源、权限和活动版本唯一权威；引擎 SQLite/文件限可重建状态，不能依赖 Panel callback 同步两份权威目录。"
+      - "内容在生成模型出站前与结果入索引前均执行 DLP；Worker 不拿员工 key/Provider 明文；无进程间调用时不为形式而新设网络服务。"
+      - "派生页标明生成性质并可回到源版本；资料删除/权限撤回立即停止释放，再清理派生状态；重试不能复活撤销源。"
+      - "最小可信任务队列用接受的现有 PG/Redis 基础设施实现，不能偷偷增加通用工作流系统。"
+    forbidden:
+      - "把上游 /v3/tools/call 或 knowledge service_url 直接交给员工绕过 Gateway。"
+      - "把 Wiki 模型生成内容视为已审核 Canonical Knowledge，或用相同标题覆盖无关来源文档。"
+    acceptance:
+      - type: command
+        run: "make verify-knowledge-slice"
+      - type: command
+        run: "make verify-foundation"
+      - type: assertion
+        expect: "受控源文档完成生成/扫描/索引后，同 Workspace 员工从现有查询得到派生片段并追溯原文版本；跨 Workspace、猜测 SourceID 和未授权内部调用均不能访问。"
+      - type: assertion
+        expect: "相同 source/version 重试不重复发布；替换成功只查到新版本；模型失败、worker 中止/重启和审计失败不激活半成品；删除或权限收窄后待执行旧任务不能重新发布。"
+      - type: assertion
+        expect: "实际装配通过采用 ADR 的内部身份/audience 与网络边界检查，生成调用和发布均有可靠审计/Usage/trace；引擎状态丢失可由受控原件重建，关闭该组件仍可查询既有已发布普通知识。"
+    dependencies:
+      - TASK-059
+      - TASK-060
+      - TASK-066
+    risk_level: L4
+    recommended_model: "gpt-6 sol"
+    investigation_hints:
+      - "实现前置：接受的 engine adoption ADR 和 docs/knowledge-memory/engine-spike.md，先核实采用代码与实验 commit 未漂移。"
+      - "EAP 入口：packages/knowledge、apps/gateway/knowledge.go、packages/{token,policy,audit,store}、migrations 与 deploy；Worker/Source 管理入口为待 ADR 确认的新路径，不能当作已有能力。"
+      - "验证梯度：adapter 契约/恶意输出 -> 真实 PG/Redis 来源到查询 integration -> 更新的知识 gate -> foundation；若引入 TS worker，必须将其构建/测试明确接入门禁。"
+    escalation_conditions:
+      - "必须保留原 Panel 身份、额外持久权威数据库或公开上游 API；首个切片需要 CodeGraph、新 UI 或新的产品授权模型。"
+    result:
+      owner: null
+      attempts: 0
+      claimed_at: null
+      completed_at: null
+      worktree: null
+      branch: null
+      evidence: []
+      follow_up_candidates: []
+
+  - id: TASK-062
+    title: "Wiki 来源到检索业务验收"
+    status: pending
+    goal: >
+      独立证明一个资料源经过 Wiki 处理后在 EAP 中可控发布、检索、替换和撤销，
+      同一员工凭据及治理链覆盖全程，且未引入绕过 Gateway 的访问入口。
+    scope:
+      in:
+        - "真实服务/API、来源存储、worker、pgvector PostgreSQL/Redis 和已授权模型的端到端验收"
+        - "员工与跨 Workspace 用户双视角，来源引用核对、删除/撤销、审计中断及重启恢复"
+        - "使用一个已有受支持 Agent 或其真实 SDK 验证已接受的访问方式；如改公共协议，执行现有协议资格要求"
+        - "在 docs/knowledge-memory/verification.md 追加 WI 场景与复用的 KR 场景，记录独立验收结论"
+      out:
+        - "产品功能/修复、UI 开发、企业记忆或 CodeGraph 生产能力"
+    constraints:
+      - "验证 owner 独立于 Wiki 接入主要实现者；复用知识阶段已通过事实，对被改动边界重新验证。"
+      - "真实模型不可用时标 unverified；不能仅用 stub Wiki 文本宣布生成效果和真实客户端旅程通过。"
+      - "新增缺陷进入独立修复卡并阻断本门禁；只记录测试环境通过，不能把验收当作生产发布。"
+    forbidden:
+      - "绕过 EAP 用上游 service key 的成功请求替代员工旅程。"
+    acceptance:
+      - type: command
+        run: "make verify-knowledge-slice"
+      - type: command
+        run: "make verify-foundation"
+      - type: assertion
+        expect: "WI-01：管理员通过接受的受控导入方式提供源文档，员工仅使用 EAP 域名与原凭据查询到派生内容和可解析的原资料版本引用；另一 Workspace 无内容/元数据泄漏。"
+      - type: assertion
+        expect: "WI-02：源修改、删除、成员移除和权限收窄分别发生在排队、生成与发布阶段时，结果与授权一致；重启、重复 callback/任务不能复活旧源或重复发布。"
+      - type: assertion
+        expect: "WI-03：引擎返回恶意路径/来源、模型/DLP/审计故障和无效内部 audience 均按契约阻断；日志无原始敏感内容，下游无员工 key，可靠审计可串联导入到检索。"
+      - type: assertion
+        expect: "WI-04：真实模型和一个受支持客户端完成资料到带引用检索；关闭新组件和重建其临时状态的操作可复现，记录 commit/环境/步骤及回归的 KR 场景，所有 in-scope verdict 为 pass。"
+    dependencies:
+      - TASK-061
+    risk_level: L4
+    recommended_model: "gpt-6 sol"
+    investigation_hints:
+      - "规则来源：接受的 engine adoption ADR、docs/knowledge-memory/design.md；事实入口为实现卡提交的来源到查询 integration 与 worker 运行说明。"
+      - "复用环境：docs/dev/LOCAL-DEV.md、现有知识 gate 与 apps/gateway/knowledge_integration_test.go；同时核对实际 worker 使用同一身份/审计边界。"
+    escalation_conditions:
+      - "实际部署存在不可封闭的上游直连入口、双权威目录或无法恢复/撤销的派生数据。"
+    result:
+      owner: null
+      attempts: 0
+      claimed_at: null
+      completed_at: null
+      worktree: null
+      branch: null
+      evidence: []
+      follow_up_candidates: []
+
+  - id: TASK-063
+    title: "企业工作记忆边界设计"
+    status: done
+    goal: >
+      给出符合 PRD P2/V1.5+ 的企业工作记忆评审稿，明确个人/共享记忆与知识候选的价值、
+      权限和生命周期，使后续是否建设 Memory 有可核对的决策依据。
+    scope:
+      in:
+        - "新增独立 proposed ADR，比较显式任务结果采集、个人偏好与 Workspace 工作经验的首批场景"
+        - "借鉴 MemoryCore L0–L3，定义 EAP Principal/Workspace/Client/Agent 实例与记忆所有权的映射，避免同名对象误等价"
+        - "定义来源 lineage、修订/冲突、TTL、删除/派生重算、Workspace 成员撤销、员工离职和共享权限收窄"
+        - "设计 Working Memory -> Knowledge Candidate -> 审核 -> Canonical 的状态与决策，不新增第二份正式知识库"
+        - "比较在 EAP 中移植有限提取逻辑与封装 MemoryCore 的改造成本，列后续实现卡建议与真正待用户决定的产品选项"
+      out:
+        - "生产代码、DDL、运行部署、自动全量对话回写、Prompt 自动注入、Portal 页面与已批准实施任务"
+        - "把企业 Memory 提升为 V1 发布阻断项"
+    constraints:
+      - "默认以明确提交的 Artifact/任务结果为输入；自动捕获、跨 Workspace 个人记忆和共享默认值需要明确产品决策。"
+      - "记忆内容是带来源的不可信上下文，不因进入 L2/L3 而成为系统指令；候选不能自行提升共享范围或发布 Canonical。"
+      - "整个生命周期沿用 EAP DLP、Policy、审计和现有凭据边界；异步清理期间先停止召回，删除失败可观测且重试不会再生已删信息。"
+      - "本卡可以以充分的 proposed ADR 完成；明确区分已接受与待决项目，不用设计完成状态授权 Memory 实施。"
+      - "本卡只提出 P2/V1.5+ 产品与权威边界，不消费尚未接受的 ADR-0029 检索执行细节；检索接缝只按 PRD 和 System Architecture 标注后续校准。"
+    forbidden:
+      - "将 user_id/team_id 请求字段当作权限；将 agent_id 直接映射 ClientID 而不定义实例与客户端类型的区别。"
+      - "将原始 Conversation 自动视为 Canonical Knowledge，或永久存储全部聊天作为默认方案。"
+    acceptance:
+      - type: assertion
+        expect: "通过三组纸面场景逐状态验证：个人偏好只在授权范围召回；任务结果经审核晋升共享知识；原资料删除或员工退出 Workspace 后原记忆和各层派生物不可再召回。每步注明主体、来源、权限、审计及失败处理。"
+      - type: assertion
+        expect: "ADR 明确 Memory 与现有 Knowledge/Skill 的权威存储和生命周期关系，列出重算/去重/冲突/撤销、提示注入防护和模型出站 DLP 的责任，不依赖未实现的 Runtime。"
+      - type: assertion
+        expect: "独立产品/架构审查记录可选择实施或延期；产品待决点、两种复用方式成本和后续卡验收建议完整，PRD 优先级和已有 V1 任务未被静默改写。"
+    dependencies: []
+    risk_level: L4
+    recommended_model: "gpt-6 astra"
+    investigation_hints:
+      - "入口：docs/01-PRD.md 的 P6/P7、Knowledge Candidate 和 P2 范围；docs/03-System-Architecture.md Knowledge Governance；docs/adr/0010-eap-cli-v1.md。"
+      - "来源：../TencentDB-Agent-Memory/MemoryCore/{README.md,v3-api-memorycore-doc.md,src/gateway/v2-router.ts,src/core,src/services/pipeline-worker.ts}；文档隔离描述矛盾以代码验证。"
+      - "既有对象：packages/identity、packages/token、packages/knowledge、packages/capability；Skill 晋升按现有审核/签名链处理。"
+      - "验证为独立场景审阅和设计一致性核对，不运行无关代码测试，也不以本文档完成宣称 Memory 功能已实现。"
+    escalation_conditions:
+      - "首批场景必须跨 Workspace 共享个人记忆、自动记录全部会话、改变审计留存规则或引入新身份源。"
+    result:
+      owner: "codex-astra-k063-64339"
+      attempts: 0
+      claimed_at: "2026-09-25T10:38:52.540Z"
+      completed_at: "2026-09-25T10:46:30.240Z"
+      worktree: null
+      branch: "task/task-063-memory-boundary"
+      evidence:
+        - {type: "assertion", check: "Three state-by-state product scenarios", status: "pass", summary: "main 14fab75cddfbd66819a992a25b059ce0372f5fc2: ADR-0031 §6 records actor, source, authority, audit and failure outcomes for private preference, reviewed task-result promotion, and source deletion or membership departure."}
+        - {type: "assertion", check: "Identity, provenance and safety boundaries", status: "pass", summary: "ADR-0031 §§2-5 distinguish EAP Principal/Workspace/Client/Agent, keep Canonical Knowledge and Skill under existing authorities, require source lineage, deny-before-cleanup, no stale output revival, governed model egress and untrusted-content handling; source pin 828ac8907ccde2cfed14ca42acd0420bea19e409 remains clean."}
+        - {type: "assertion", check: "Independent product and architecture review", status: "pass", summary: "Independent Sol read-only review of candidate 1cb72793fa2060ceec9a8152eaa845a27ac424b7 found no design-card blockers; review recorded in ADR §9 by c67baa6. ADR remains Proposed, Memory remains P2/V1.5+, and no production implementation is approved."}
+        - {type: "command", check: "Integrated registry and branch verification", status: "pass", summary: "main 14fab75cddfbd66819a992a25b059ce0372f5fc2: tasks.mjs validate passed for 10-card registry, task branch is ancestor of main, merge diff --check passed; unrelated opencode.jsonc deletion stayed unstaged."}
+      follow_up_candidates: []
+  - id: TASK-064
+    title: "冻结全平台即时撤销与在途执行边界"
+    status: done
+    goal: >
+      为 PRD §12.6 的立即不可访问定义可执行的撤销完成点，覆盖新请求和已鉴权的
+      LLM 流、非流响应、MCP 工具及 Knowledge 外发/返回，避免知识切片独自定义较弱边界。
+    scope:
+      in:
+        - "新增 accepted 前需独立安全架构评审的 ADR；明确 Key、用户、Workspace 成员和设备凭据撤销的权威状态及跨实例传播"
+        - "冻结已开始 Provider/工具调用、排队发送、SSE chunk、普通响应和 Knowledge 内容释放与撤销完成的线性化及取消语义"
+        - "核对当前 DELETE /enterprise/v1/keys/{keyID} 的 204 契约；若必须改为异步/部分完成响应，先给兼容与迁移方案并升级公共协议评审"
+        - "确定可靠审计、数据库或网络故障、孤儿请求和重启时的 fail-closed 处理；列出可落地的多实例并发验证场景"
+        - "列出共享执行门禁与 TASK-056 Knowledge 契约的接缝、唯一 owner 和实施顺序；不新增身份权威"
+      out:
+        - "运行代码、数据库迁移、Knowledge 向量或 Wiki/Memory 实现"
+    constraints:
+      - "现有 requireAPIKey 每个新请求查询 canonical revoked_at；在途 Chat SSE 与 MCP 工具仅入口鉴权，不能用新请求测试代替在途证明。"
+      - "不可通过允许吊销后仍开始新的发送、无限等待吊销、以 2 秒超时撤销失败或清除孤儿 TTL 来伪称满足立即撤销。"
+      - "先证实与 PRD、System Architecture、Architecture Boundary 兼容；若无法兼得，保留未接受状态并记录明确的产品/架构决策。"
+    forbidden:
+      - "创建第二身份状态真相或以进程内 map 充当跨实例可靠撤销协议。"
+      - "仅覆盖 Knowledge，却宣称所有 Agent 能力的撤销已经解决。"
+    acceptance:
+      - type: command
+        run: "node ~/.agents/skills/task-integrator/bin/tasks.mjs validate --registry docs/knowledge-memory/tasks.yaml"
+      - type: assertion
+        expect: "独立审查人以当前 LLM SSE、非流 Chat/Responses/Messages、MCP 工具、Knowledge 和 CLI 凭据调用路径逐项核对 ADR；决定 accepted 或给出阻断，不以待决设计解锁实现。"
+      - type: assertion
+        expect: "撤销前后并发、慢 writer、断连、跨实例、审计失败、重复撤销和凭据/成员失效的可观察结果与 204 兼容要求被固定，且不允许撤销成功后继续释放旧权限内容或执行新副作用。"
+    dependencies: []
+    risk_level: L4
+    recommended_model: "gpt-6 astra"
+    investigation_hints:
+      - "产品与边界：docs/01-PRD.md §12.6、docs/03-System-Architecture.md、.tasks/architecture.md；现行 key 撤销为 apps/gateway/enterprise.go:handleRevokeKey 与 packages/store/store.go:RevokeAPIKey。"
+      - "调用方：apps/gateway/auth.go:authenticateAPIKey、apps/gateway/llm.go、protocols.go 的 SSE、mcp.go 的 tools/call、knowledge.go；设备凭据在 device.go。"
+      - "已独立复审的阻断记录在 task/task-056-knowledge-contracts 的 docs/adr/0029-knowledge-retrieval-generations.md §7；ZG 索引不存在时按这些精确入口用 rg 追踪。"
+    escalation_conditions:
+      - "必须改变现行 DELETE 204 公共契约、引入新身份/协调权威，或无法保证所有入口的撤销完成语义。"
+    result:
+      owner: "codex-astra-k064-64339"
+      attempts: 0
+      claimed_at: "2026-09-25T10:15:25.002Z"
+      completed_at: "2026-09-25T11:38:04.418Z"
+      worktree: "/Users/linxinhong/projects/Enterprise-Agent-Platform/.worktrees/astra-security"
+      branch: "task/task-064-revocation-contracts"
+      evidence:
+        - {type: "integration", check: "ADR-0030 and TASK-064 design record integrated", status: "passed", summary: "main merge commit 24efdd8f1d43611dff29850fc18db15bb580a82e contains task branch 8afe53a596db10e25506d750d65a4177419f97e7; only ADR-0030 and TASK-064 memory changed. git diff --check, branch ancestry, ADR-0010 link, and 11-card registry validate passed on main. The preexisting unstaged opencode.jsonc deletion was preserved. Exact-path rg/read fallback was used because the zvec index is unavailable."}
+        - {type: "architecture", check: "User-confirmed strong revocation and versioned pending/completed contract", status: "passed", summary: "User confirmed every in-flight LLM and MCP execution must stop after Key revocation and accepted an explicit pending-to-confirmed-completed interface. Accepted ADR-0030 freezes R vs C, v2 202/204 operation status, authorization, idempotency, commit-unknown, legacy 204 migration, rollback, reliable audit, and cross-instance failure requirements. Completion requires all EAP and relevant remote stopping proof plus committed audit; pending or unresolved never means stopped. This is a design decision, not implemented runtime behavior."}
+        - {type: "review", check: "Independent Sol architecture and protocol review", status: "passed", summary: "Independent Sol review accepted fixed candidate 2af93c9fdbe2814284c31150fa72553545f80740 as an architecture/contract decision after prior blockers were addressed. Final branch commit 8afe53a adds only requested nonblocking clarifications about phase-1 v2 completion proof and offline copies, with review record. Review covered current Chat/Responses/Messages/embeddings, MCP both paths, Knowledge/CLI, slow writer, partitions, orphan recovery, audit, and public protocol migration. No production tests were run for this document-only card."}
+        - {type: "deployment_gate", check: "Current provider and connector stop capability inventory", status: "passed", summary: "Independent Luna read-only inventory and Sol review found current OpenAICompatClient and MCP HTTPExecutor paths have only local context/HTTP cancellation, with no remote execution ID, cancellation acknowledgment, or terminal-status proof. ADR-0030 marks all current remote adapters no-go for strong-guarantee deployment and requires admission denial until a verified cooperative cancellation mechanism and TASK-065 multi-instance tests exist. Completing TASK-064 does not approve production activation."}
+      follow_up_candidates: []
+  - id: TASK-065
+    title: "实施全平台撤销后的在途能力阻断"
+    status: in_progress
+    goal: >
+      按已接受的撤销 ADR，使所有 Gateway 实例在员工凭据或成员权限撤销完成后停止
+      旧在途请求的模型输出、知识内容释放与 MCP 工具结果/后续副作用，并保留可靠审计。
+    scope:
+      in:
+        - "在现有身份与 Gateway 接缝实施冻结的跨实例撤销/取消协议；覆盖 API Key、成员移除、用户禁用和已启用的设备凭据"
+        - "将 LLM Chat/Responses/Messages 流与非流、MCP tools/call、Knowledge 响应及外部调用接入同一执行门禁，不绕过原 Policy/DLP/Workspace 检查"
+        - "在共享 Store/Gateway 接缝实现 Read/ReplaceGovernanceSnapshot 与 global/Workspace/target 治理 revision/digest；所有 Policy、DLP、Provider/Embedding 配置控制 writer 的新增、修改、删除必须同事务增版并经受控入口，不能由 Knowledge 自建版本真相"
+        - "使 Dispatch、Release 的实际写边界及 CommitMutation 同事务消费 ExpectedGovernanceSnapshot；治理变更先阻断相关 scope 新发送并排空旧 writer，再切换权威事实、版本与可靠审计，变化/失败时 fail closed，且不能拖住 canonical 身份撤销提交"
+        - "消费已接受的 ADR-0032：仅为受控演示 MCP 接收端实现可核验的幂等 accept/cancel/status、完整 binding 发送前持久化、同 canonical R 串行的 effect 门禁、工作线程 join 与签名终态证明，并接入两个 MCP 入口及跨实例恢复"
+        - "消费已接受的 ADR-0033：在同一 canonical 身份库落平台管理员 grant/受控引导与非 owner writer，建立 Workspace-free 专用控制会话，四类目标及 operation GET 的在线授权与权限收窄门禁；user-target 对外入口在完整回归前保持关闭"
+        - "消费已接受的 ADR-0034：保护有 grant/撤销历史的 canonical user 主体，保留未保护普通用户的可信邮箱关联；同邮箱新主体触及保护用户时拒绝自动链接，并提供证据充分的受控同人迁移及旧 session/key/device 失效"
+        - "维护已接受的 DELETE /enterprise/v1/keys/{keyID} 响应；若 ADR 批准协议变化，执行明确的兼容迁移与文档更新"
+        - "故障时可靠记录撤销与中止事实，处理跨实例、慢发送、取消、重启和孤儿执行；提供可观察指标与运维恢复入口"
+        - "实现并发与安全回归，并将受影响的协议、MCP、Knowledge 和 foundation 验证入口纳入交付证据"
+      out:
+        - "Knowledge 向量、pgvector、RRF、Wiki/Memory 产品功能"
+    constraints:
+      - "共享 Gateway/identity/store 文件由本卡唯一 owner 修改；完成后 TASK-057 再消费冻结接口和迁移。"
+      - "权威吊销状态必须可靠持久且即刻拒绝新请求；在途阻断不得将 Provider/MCP/员工密钥暴露给新组件或客户端。"
+      - "已开始的远端副作用无法物理收回，须在 ADR 确定的完成点、响应阻断、取消和审计中如实体现。"
+      - "治理快照是 Policy/DLP/Provider 控制事实的派生版本，不得成为第二授权权威；运行数据库角色须禁止绕过受控 writer 直接修改权威表，规则插入/删除与缓存失效同样受版本门禁。"
+      - "ADR-0032 只批准受控演示协议设计；演示验证不能为现有 HTTPExecutor、真实 MCP 服务或 LongCat/Ark 授予远端强停止资格。缺真实 Provider/connector 的终态证明时，强停止生产 admission 仍须拒绝。"
+      - "保留已完成 TASK-025 的 OIDC 同 Workspace additive role union 与手工 grant 重登录保留契约；ADR-0030 的角色收窄 R 应接入可信显式管理 writer。若要让 IdP 映射角色移除自动降权，须先评审 grant 来源及产品契约，不能在本卡静默精确替换。"
+      - "单 Workspace admin 不能授权全局 user 禁用；未实现 ADR-0033 的 canonical 平台 grant、Workspace-free 控制面身份与数据库内在线复核前，公开 user-target 撤销及 grant 管理 fail closed。"
+      - "用户已确认：即使普通员工仅撤销过自己的 Key，新 IdP 主体同邮箱也不得自动关联；确属同一人须走有证据的人工迁移。所有旧 UpsertUser/OIDC/Feishu writer 都须服从同一受控主体保护，不能只在新控制 session helper 检查。"
+      - "生产 IdP 身份写入遵守 ADR-0033 §2.2：通用 eap_gateway_runtime SQL 凭据不得直调任何可自报已验证 subject 创建身份/session 的函数；独立受限身份 principal 与受控适配器、部署固定 namespace 和单次 flow 构成信任边界，误配时 OIDC/Feishu 启动 fail closed。"
+    forbidden:
+      - "只在 HTTP 入口重验权、仅在单实例内广播、靠短 TTL 推断孤儿已停止。"
+      - "以最佳努力日志替代可靠安全审计，或在撤销已成功后返回旧权限响应。"
+    acceptance:
+      - type: command
+        run: "make verify-foundation"
+      - type: assertion
+        expect: "真实 PostgreSQL/Redis 的双 Gateway 实例并发场景证明：Key/成员/用户/设备撤销成功后，新请求被拒，旧 Chat/Responses/Messages SSE 无后续内容，MCP 工具与 Knowledge 无旧权限结果或新增副作用。"
+      - type: assertion
+        expect: "慢 writer、断连、审计/数据库失败、重启孤儿、重复撤销及控制请求超时均按 ADR 返回可区分结果；不会把未完成的撤销报告成功，安全审计与 trace 可追溯。"
+      - type: assertion
+        expect: "双 Gateway/真实 PostgreSQL 并发证明 Policy、DLP 与 Provider/Embedding 配置新增、修改、删除不会让旧治理决定在 Dispatch、Release 或 CommitMutation 后继续生效；治理切换失败时 scope fail closed 且 Key/用户/成员/设备 R 不被排空锁阻塞，直接 DML 绕过由运行角色拒绝。"
+      - type: assertion
+        expect: "受控演示 MCP 双入口按 ADR-0032 验证：A 发送前崩溃后 B 仅凭持久完整 binding 取消；R 已提交而 K 延迟且旧 JWT 有效时无新 accept/result/effect；取消墓碑、worker/result reader join、跨代可信收据与签名终态证明齐全后才可 C，未知保持 unresolved。"
+      - type: assertion
+        expect: "ADR-0033 双 Gateway 矩阵证明：Workspace admin 不能禁用全局用户，platform grant 由受控维护引导且在线核验，零 Workspace 管理员只持独立控制会话，原发起人失最后成员资格仍仅可最小 GET，禁用后由当前管理员接管；最后管理员、跨 actor alias、审计失败和权限在 R 前收窄均 fail closed。"
+      - type: assertion
+        expect: "ADR-0034 双主体/真实 IdP 回归证明：受保护用户同邮箱新 subject 在所有旧新入口均拒自动链接；未保护普通用户可按可信同 namespace 邮箱关联且旧票据全失效；受控同人迁移须在 R/C 及审计证据齐全后激活新绑定，不同人不继承旧 grant/历史 GET。"
+      - type: assertion
+        expect: "独立安全审查确认现行撤销 API 兼容，或确认已按接受的协议决策迁移；Gateway、Store 与文档在集成分支上完成验证。"
+    dependencies:
+      - TASK-064
+      - TASK-067
+      - TASK-068
+      - TASK-069
+    risk_level: L4
+    recommended_model: "gpt-6 sol"
+    investigation_hints:
+      - "执行入口：apps/gateway/{enterprise.go,auth.go,llm.go,protocols.go,mcp.go,knowledge.go,device.go}；持久状态：packages/store/store.go、迁移；身份边界：packages/identity。"
+      - "共享治理交接：docs/adr/0029-knowledge-retrieval-generations.md §3.1/§3.2 的 ExpectedGovernanceSnapshot、Read/ReplaceGovernanceSnapshot、控制 writer 与审计顺序；TASK-057 仅消费共享接口并负责 Knowledge-specific Policy action/source CAS。"
+      - "既有回归：apps/gateway/{integration_test.go,eap_v1_product_integration_test.go,sse_holdback_integration_test.go,mcp_governance_integration_test.go}；新协议必须覆盖实际字节释放与工具副作用。"
+      - "演示 MCP 协作停止协议：docs/adr/0032-demo-mcp-remote-stop-protocol.md；只有设计被接受，运行资格仍取决于本卡的真实双 Gateway/receiver 故障验证。"
+      - "全局管理授权：docs/adr/0033-platform-admin-authority.md；现有 requireAdmin 只代表单 Workspace admin，不得用于 user-target public R。"
+      - "主体关联迁移：docs/adr/0034-privileged-subject-binding.md；ADR-0020/TASK-023 普通邮箱关联只对未保护用户保持自动路径，旧 UpsertUser 仍是需封闭的共同 writer。"
+      - "消费 TASK-064/ADR-0030、TASK-067/ADR-0032 与 TASK-056/ADR-0029 的已接受设计；共享执行门禁由本卡实现，Knowledge-specific adapter 由 TASK-057 接线。"
+    escalation_conditions:
+      - "必须新增跨服务协调进程、改变已冻结的公共协议或无法在所有 Gateway 实例保证可靠撤销观察。"
+    result:
+      owner: "codex-sol-k065-64339-64339"
+      attempts: 0
+      claimed_at: "2026-09-25T11:38:56.831Z"
+      completed_at: null
+      worktree: "/Users/linxinhong/projects/Enterprise-Agent-Platform/.worktrees/sol-knowledge"
+      branch: "task/task-065-revocation-runtime"
+      evidence: []
+      follow_up_candidates: []
+  - id: TASK-066
+    title: "封闭 Wiki 候选文件读写边界"
+    status: done
+    goal: >
+      在隔离实验中消除已实测的 Wiki 符号链接越界读取与覆写，使受控来源生成的
+      候选页只在 EAP 授权的暂存边界内处理，并给生产采用评审提供可复现安全证据。
+    scope:
+      in:
+        - "只修改 experiments/tencentdb-knowledge 的运行副本、适配层、固定输入和报告；钉版 upstream/ 副本与参考仓库保持逐字节不变"
+        - "消除或强制限制旧页读取、模型 merge、目录创建、候选写入和清理中的文件路径接缝；验证中间/末尾符号链接、路径穿越、竞争替换与取消"
+        - "保持 Wiki 页到 EAP server-owned Workspace/SourceID/SourceVersion/文本范围的映射；不能由模型或调用 body 赋权"
+        - "更新 engine-spike.md 的缺陷处置、剩余风险和 Wiki 单独分发依赖/许可证清单，给独立安全评审提供采用资格结论"
+      out:
+        - "生产 Gateway/Knowledge/Worker 接线、实际模型调用、公开上游 API、CodeGraph 生产采用或修改 ../TencentDB-Agent-Memory"
+        - "把 TASK-061 自动解锁或声称真实资料/模型、跨实例运行与原子发布已经验证"
+    constraints:
+      - "TASK-060 的实证是：现有 safe-path.ts 只做词法路径检查；commitCandidates 在 merge 前可读到外部旧页，然后写到外部文件。补丁必须封闭读取与写入，不能仅过滤输出路径。"
+      - "私有临时目录、真实文件系统边界及外部 writer 能否竞争都须明确；只做 lstat/realpath 前置检查不能宣称抵御符号链接切换。"
+      - "允许以纯内存候选页接口完全移除不可信文件读写，返回字节与来源映射给未来 EAP-owned staging；不得把未实现的磁盘持久化称为已安全。"
+      - "仍使用 stub 和非敏感固定 fixture；直接 Provider 构造、原始模型输出 debug dump 与 Panel callback 不得进入可采用运行接缝。"
+      - "无安全实现时以可复现失败和 no-go 结论交付，不放宽 Wiki/CodeGraph 内核拆分验证（TASK-060）的安全事实。"
+    forbidden:
+      - "追随符号链接到授权暂存根外读取、写入或将旧页内容放进模型 prompt。"
+      - "用可预测共享临时目录、字符串前缀判断或进程内检查替代实际文件系统隔离证明。"
+    acceptance:
+      - type: command
+        run: "cd experiments/tencentdb-knowledge && LOG_LEVEL=error npm run verify"
+      - type: assertion
+        expect: "既存中间/末尾符号链接、穿越路径与可控切换竞态均不能使模型看到根外标记或改写根外文件；失败返回安全错误并清理受限暂存；合法 v1/v2 来源映射、更新、重放和取消仍可复现。"
+      - type: assertion
+        expect: "提交仅含隔离运行副本及明确补丁差异，upstream/ 与参考仓库钉版内容未改；Wiki 单独依赖、许可、部署边界和未验证的真实模型/生产恢复事实清楚列出。"
+      - type: assertion
+        expect: "独立安全审查判定文件边界是否足以消除 TASK-060 的具体 no-go；无论结果如何，TASK-061 仍需单独接受生产 ADR、检索阶段门禁与真实运行验证。"
+    dependencies:
+      - TASK-060
+    risk_level: L3
+    recommended_model: "gpt-6 sol"
+    investigation_hints:
+      - "固定复现：docs/knowledge-memory/engine-spike.md §Safety、experiments/tencentdb-knowledge/run.ts 的 symlink 场景；上游 safe-path.ts 与 index.ts:247,266-267，运行副本对应同路径。"
+      - "启动：experiments/tencentdb-knowledge/README.md 与 package-lock.json；尽量沿用 npm run verify 并扩充固定安全输入，不引入独立模型或第二知识存储。"
+      - "审查需同时观察模型 merge 输入和实际 OS 文件目标；测试未观测到的 swap race 不可标已通过。"
+    escalation_conditions:
+      - "必须引入新的特权进程、native 文件系统 helper 或无法在现有隔离实验边界内证明无越界读写。"
+    result:
+      owner: "codex-sol-k066-64339"
+      attempts: 0
+      claimed_at: "2026-09-25T10:48:58.761Z"
+      completed_at: "2026-09-25T11:14:31.787Z"
+      worktree: "/Users/linxinhong/projects/Enterprise-Agent-Platform/.worktrees/sol-knowledge"
+      branch: "task/task-066-wiki-file-boundary"
+      evidence:
+        - {type: "integration", check: "TASK-066 branch merged to main", status: "passed", summary: "Tested merge commit 16c248f4be773aa0f0ddae357d59be85c997492e; task branch 3ed5c6d976f82d650e0737ad509b2d23d2b3fcc1 is an ancestor. Only the isolated experiment adapter, harness, report, README, and task record changed. The unrelated preexisting opencode.jsonc deletion remains unstaged. Exact-path scoped Git diff and card review; zvec index unavailable, so scoped rg/read fallback was used."}
+        - {type: "verification", check: "LOG_LEVEL=error npm run verify on integrated main", status: "passed", summary: "At 16c248f4be773aa0f0ddae357d59be85c997492e, the fixed Wiki v1/v2 and CodeGraph outputs passed. Harness observed upstream symlink read/write as negative control and verified memory-only adapter ignored intermediate, final, and swapped symlinks; traversal and malformed paths rejected; forged source/lock fields stripped; cross-scope and concurrent session rejected; abort before dispatch and during merge protected prompt and candidate state."}
+        - {type: "review", check: "Independent Sol security review of isolated file boundary", status: "passed", summary: "Independent reviewer accepted fixed code commit 075dc910d6bcc43fecad1f0f8973c6d0f9b9ddfe as removing TASK-060's file escape from the new memory-only adapter. The final 3ed5c6d commit only records that review. Production provider cancellation, durable staging, source authorization, governance, audit, atomic publish, and recovery remain unverified; TASK-061 stays behind separate architecture and retrieval gates."}
+        - {type: "provenance", check: "Pinned upstream and reference source unchanged", status: "passed", summary: "Integrated diff contains no upstream/ files; TencentDB-Agent-Memory reference checkout is clean. The pinned source remains 828ac8907ccde2cfed14ca42acd0420bea19e409, and the report records Wiki-only dependency/license and deployment limits."}
+      follow_up_candidates: []
+  - id: TASK-067
+    title: "冻结演示 MCP 连接器的远端停止证明协议"
+    status: done
+    goal: >
+      在 ADR-0030 的强停止边界内，定义首批演示 MCP 连接器可实施、可独立验证的
+      远端执行标识、取消、终态证明及失败恢复协议，使 TASK-065 能判断何时允许
+      dispatch、何时只能报告撤销处理中或未解决。
+    scope:
+      in:
+        - "新增独立 ADR-0032，核对现有两个 MCP 入口、HTTPExecutor、执行 ledger/connector profile 接缝与 LLM Provider 路径；明确演示连接器是受控验证对象"
+        - "冻结 server-owned execution/attempt ID、幂等 accept/cancel/status、远端 incarnation、认证终态证明和停止后的副作用封闭语义；请求接收响应丢失后仍可按稳定 ID 查询和取消"
+        - "规定 R 后阻断新发送、跨实例取消与查询、C 聚合所需证据，以及超时、断连、重试、接收端崩溃和恢复时的 pending/unresolved/告警结果"
+        - "给出 demo receiver 与 Gateway adapter 的最小协议、信任/凭据边界、版本及部署资格门禁、可执行并发验证矩阵，并记录独立安全架构审查结论"
+        - "如现有服务边界无法提供可证明终止，记录具体 no-go 和需升级的架构决策，不以模拟 ACK 冒充完成"
+      out:
+        - "运行代码、数据库迁移、生产部署、演示连接器实现、真实 MCP 服务上线或厂商取消能力背书"
+        - "把 LongCat、Ark 或现有 OpenAI 兼容 HTTP 客户端认定为已具远端取消能力"
+    constraints:
+      - "消费已接受的 ADR-0030，不重开 Key 撤销 v2 public wire、R/C、可靠审计和 canonical identity 决策；TASK-065 仍是共享 Gateway/Store 运行代码唯一 owner。"
+      - "首批仅用仓库演示连接器验证；演示通过不自动提升任意真实 MCP 服务或 LLM Provider 的生产资格。"
+      - "取消 HTTP 成功、本地 context 结束、SSE 结束或固定等待都不是远端终态证明；证明必须绑定执行标识、接收端代际和副作用停止事实。"
+      - "不得把 API Key、MCP/Provider secret 或客户端自报 endpoint 当作取消授权；未知、失联和证据不可核验时 fail closed 并保留未完成状态。"
+    forbidden:
+      - "引入第二身份/权限权威，或绕过 Workspace、Policy、DLP、审计与已有共享 Dispatch/Release 门禁。"
+      - "用受控 demo 的证明替代 LongCat/Ark 的远端停止证明，或允许 TASK-065 在协议被接受前实现新的 MCP 远端 wire。"
+    acceptance:
+      - type: command
+        run: "node ~/.agents/skills/task-integrator/bin/tasks.mjs validate --registry docs/knowledge-memory/tasks.yaml"
+      - type: assertion
+        expect: "独立 Sol 安全架构审查逐项核对 ADR-0032 与 ADR-0030、两个 MCP 入口、LLM 三协议/embeddings 及共享 ledger/profile；记录 accepted 或具体阻断，未接受时不解锁新 wire 实现。"
+      - type: assertion
+        expect: "协议和状态矩阵覆盖响应丢失、重复发送/取消、R 与 accept/副作用竞态、延迟副作用、网络分区、远端崩溃或代际变化、伪造证明、配置/版本变化与跨实例恢复；每种情况给出 C 可否成立及观测证据。"
+      - type: assertion
+        expect: "演示接收端/adapter 的最小交接和可运行验证条件明确；现有 HTTPExecutor 与 LongCat/Ark 在缺供应商终态证明时保持强停止 no-go，不误报生产可用。"
+    dependencies:
+      - TASK-064
+    risk_level: L4
+    recommended_model: "gpt-6 astra"
+    investigation_hints:
+      - "基础决策：docs/adr/0030-platform-revocation-and-inflight-boundary.md §7.4；现有入口 apps/gateway/mcp.go、packages/mcpgateway、packages/capability/mcp_source.go；运行 owner 当前在 TASK-065 分支构建 ledger/profile。"
+      - "演示种子：migrations/000003_mcp.sql 的 gitlab:git_read_file 与 eap:internal_data_read；只作为受控 receiver/fixture，核对当前 endpoint 是否真有执行 ID/取消/查询。"
+      - "Provider 核对：apps/gateway/{llm.go,protocols.go}、packages/llmkernel；LongCat/Ark 连通测试只证明 API 可请求，不证明取消或终态。"
+      - "设计卡以路径/状态/故障矩阵和独立复审为验证，不用旧 HTTP 200 或 stub 绿测取代协议证明。"
+    escalation_conditions:
+      - "需新增 foundational service、改变 ADR-0030 公共协议/身份权威，或无法以现有服务边界实现可信的接收端终态证明。"
+    result:
+      owner: "codex-astra-k067-64339-64339"
+      attempts: 0
+      claimed_at: "2026-09-25T12:31:19.297Z"
+      completed_at: "2026-09-25T12:56:18.357Z"
+      worktree: "/Users/linxinhong/projects/Enterprise-Agent-Platform/.worktrees/astra-security"
+      branch: "task/task-067-remote-stop-protocol"
+      evidence:
+        - {type: "integration", check: "ADR-0032 and TASK-067 memory integrated", status: "passed", summary: "main merge cd7caf2 contains final task branch 149b32bd5942f1277b8f19b16c464a5f355f64d7; branch ancestry and diff check passed. Only ADR-0032 and .tasks/memory/TASK-067.md were integrated; preexisting opencode.jsonc deletion remained unstaged."}
+        - {type: "review", check: "Independent Sol protocol/security review", status: "passed", summary: "Independent /root/wiki_boundary_review rejected initial 50b462b for missing persistent complete recovery binding and canonical R fencing at receiver. Fixed 8726e8755b97d84b08d467a5257281785675ad1a was accepted for controlled demo protocol design; final evidence/provenance commit 149b32b changed no reviewed protocol semantics. Review covered two MCP entry paths, cancel-before-accept, worker/effect join, cross-incarnation receipt, result-reader stop, old-profile recovery, and noncooperative provider no-go."}
+        - {type: "architecture", check: "Controlled demo stop proof boundary", status: "passed", summary: "ADR-0032 Accepted for design only at main cd7caf2: immutable binding+audit before send, recovery from durable row, canonical PostgreSQL R/effect fencing, idempotent cancel/status, signed terminal proof only after worker/effect/release drain, and pending/unresolved when proof is unavailable. TASK-065 alone owns runtime implementation and two-Gateway tests. Existing HTTPExecutor, real MCP services, LongCat and Ark remain no-go for strong-stop production qualification."}
+        - {type: "command", check: "Integrated registry and document checks", status: "passed", summary: "At main cd7caf2, tasks.mjs validate reported 12 cards and legal dependency graph; git diff --check HEAD^..HEAD passed; preflight confirmed branch merged. This document-only card did not run service or remote cancellation tests."}
+      follow_up_candidates: []
+  - id: TASK-068
+    title: "冻结平台管理员授权与全局撤销控制面边界"
+    status: done
+    goal: >
+      为 ADR-0030 已冻结的 user 目标仅平台管理员可撤销提供可核验的 canonical
+      授权来源；区分全平台管理员与单 Workspace admin，避免后者禁用任意员工。
+    scope:
+      in:
+        - "新增独立 ADR-0033，核对 PRD 的 Agent Platform Admin、现有 user/workspace_members/IdP group 映射、requireAdmin/requireControlPlane 与四类撤销目标的当前真实授权路径"
+        - "冻结最小 platform-admin grant 的权威存储、授予/撤销/引导和迁移、在线校验、可靠审计及自我撤销/最后管理员/故障恢复语义；不得以 Workspace admin 或 JWT 旧 roles 冒充全局身份"
+        - "明确 Key/device 本人或平台管理员、membership 该 Workspace 管理员或平台管理员、user 仅平台管理员及 operation GET 授权的受控决策接口与并发权限收窄结果"
+        - "给 TASK-065 唯一运行 owner 的 schema/受控 writer/API 接缝、兼容/切流方式、双 Gateway 安全回归矩阵与独立安全架构审查结论"
+        - "若现有边界无法提供可信引导或必须改变既有管理模型，记录 no-go 和需用户决定的具体选项，不以开发种子隐含生产管理员"
+      out:
+        - "运行代码、DDL、迁移执行、默认生产管理员凭据、真实用户授权或对外撤销接口接线"
+        - "重写已完成 TASK-025 的 OIDC additive role/grant 语义或使 Workspace admin 自动升级为平台管理员"
+    constraints:
+      - "消费 ADR-0030 v2 R/C 与可靠审计契约；不重开公共撤销 wire，不新增第二身份权威。"
+      - "现有 users 无 global-admin 字段，workspace_members.roles 中的 admin 只在所选 Workspace 生效，requireAdmin 不足以授权 user 全局禁用；未建权威前对外 user target 保持 fail closed。"
+      - "管理员 grant 与禁用、成员权限收窄须在线核验并在同一可串行化边界更新；旧 JWT/缓存不延长授权。"
+      - "本卡可接受明确 no-go/分阶段部署设计，但不能用文档完成冒充已上线的管理员能力。"
+    forbidden:
+      - "用请求 body/header、email allow-list、开发种子或任一 Workspace admin 推断生产平台管理员。"
+      - "静默放宽 ADR-0030 的 user 目标权限或把可靠审计降为 best-effort。"
+    acceptance:
+      - type: command
+        run: "node ~/.agents/skills/task-integrator/bin/tasks.mjs validate --registry docs/knowledge-memory/tasks.yaml"
+      - type: assertion
+        expect: "独立 Sol 安全架构审查固定 ADR-0033 的 platform-admin 权威/引导、Workspace admin 隔离、四类目标授权、GET 与失败闭合；记录 Accepted 或具体阻断。"
+      - type: assertion
+        expect: "可执行矩阵覆盖 secops admin 试图禁用 finance 员工、本人/管理员 Key 与 device、该 Workspace member 撤销、权限在鉴权后 R 前变更、管理员 grant 吊销/最后管理员、审计失败及双 Gateway；每项写明 canonical 数据和预期拒绝/事务结果。"
+      - type: assertion
+        expect: "TASK-065 可定位唯一 owner、最小 schema/API 迁移和强模式切流条件；未实施前 user-target public endpoint 明确保持关闭，不把既有 requireAdmin 当已合格。"
+    dependencies:
+      - TASK-064
+    risk_level: L4
+    recommended_model: "gpt-6 astra"
+    investigation_hints:
+      - "上位：docs/01-PRD.md §4.2/§4.3、docs/03-System-Architecture.md 身份/权限边界、docs/adr/0030-platform-revocation-and-inflight-boundary.md §7.1。"
+      - "代码：apps/gateway/admin.go:requireAdmin、skills.go:requireControlPlane、auth.go、enterprise.go；表：migrations/000002_identity.sql 与 000012_group_role_mapping.sql。"
+      - "历史 TASK-025 在 .tasks/tasks.yaml 冻结 IdP 同 Workspace additive role union，不能因全局授权缺口静默改成 IdP-authoritative。"
+      - "审查只验证设计一致性和固定调用路径；真实用户/外部 IdP 管理员授权不在本卡执行。"
+    escalation_conditions:
+      - "必须新增身份源、跨组织授权模型或默认隐式生产管理员，或既有 Workspace 管理行为无法与全局授权隔离。"
+    result:
+      owner: "codex-astra-k068-64339-21650"
+      attempts: 0
+      claimed_at: "2026-09-25T13:21:07.441Z"
+      completed_at: "2026-09-25T13:33:46.811Z"
+      worktree: "/Users/linxinhong/projects/Enterprise-Agent-Platform/.worktrees/astra-security"
+      branch: "task/task-068-platform-admin-authority"
+      evidence:
+        - {type: "integration", check: "ADR-0033 and TASK-068 memory integrated", status: "passed", summary: "main merge 06a24ac contains final task branch 5ea6aea5416215f1000b1d2faf1f54a299add293; branch ancestry and diff check passed. Only ADR-0033 and .tasks/memory/TASK-068.md were integrated; preexisting opencode.jsonc deletion remained unstaged."}
+        - {type: "review", check: "Independent Sol architecture/security review", status: "passed", summary: "Independent /root/wiki_boundary_review rejected initial 6aa5fec for no Workspace-free authenticated control session. Fixed 1cb452d60f8d95ae8fe63b065611ab9df335e8fd was accepted for design; final 5ea6aea only recorded review/status. Scope covers canonical platform grant/bootstrap, workspace-free identity-only session, last admin/emergency, four-target and GET authorization, alias/disabled behavior, authority-first locking, reliable audit and no-go cutover."}
+        - {type: "architecture", check: "Platform-admin authority boundary", status: "passed", summary: "At main 06a24ac, ADR-0033 Accepted design only: a Workspace admin is not platform admin; user-target public revoke remains fail closed until TASK-065 implements controlled grant writers, control-session issuance/verification, DB roles and real concurrent tests. No default production admin, public endpoint, or new employee credential was deployed."}
+        - {type: "command", check: "Integrated registry/document checks", status: "passed", summary: "At main 06a24ac, tasks.mjs validate reported 13 cards and a legal graph; git diff --check HEAD^..HEAD passed; preflight confirmed branch merged. No runtime service or live authorization tests were run for this document-only card."}
+      follow_up_candidates: []
+  - id: TASK-069
+    title: "冻结平台管理员主体绑定与邮箱关联迁移边界"
+    status: done
+    goal: >
+      调和 ADR-0020/TASK-023 的已验证邮箱关联与 ADR-0033 的平台管理员精确
+      issuer+subject 绑定，防止普通登录把已有平台 grant 的 user_id 重绑到新主体。
+    scope:
+      in:
+        - "新增独立 ADR-0034，追踪 OIDC/Feishu callback、UpsertUser 邮箱关联、users.idp_subject、platform_admin_grants 与控制面 identity-only session 的实际写/读路径"
+        - "冻结普通 Workspace 登录保留邮箱关联的兼容范围，与有 live/历史平台 grant 或相关撤销 operation 的高权限 user 禁止无审批重绑的边界；确定同 issuer subject 变化、跨 issuer 迁移与邮箱复用时的判定"
+        - "定义 canonical subject 命名空间/issuer、现存用户迁移盘点、受控双身份或操作者核验、可靠审计、拒绝/恢复及旧 session/Key/票据失效规则，不让 email 本身建立管理员权威"
+        - "给 TASK-065 唯一 Store/Gateway owner 明确受控写入接口/约束、部署迁移顺序和真实 PostgreSQL/OIDC 双主体对抗矩阵；独立安全架构审查后记录 Accepted 或具体 no-go"
+      out:
+        - "运行代码、数据库迁移执行、真实 IdP 账户合并、默认身份变更或改写普通用户现有邮箱关联结果"
+        - "在未审查前为平台管理员启用 Workspace-free 对外控制会话或授予生产 grant"
+    constraints:
+      - "ADR-0020/TASK-023 的 verified-email linking 是已交付普通用户行为；ADR-0033 的平台 grant 属高权限新边界，不能静默以其中一方完全覆盖另一方。"
+      - "平台 grant、历史 operation 和审计归属均以 canonical user_id/固定可信 issuer+subject 链解释；普通 UpsertUser 路径也不得重绑已保护的高权限 user。"
+      - "当前仅有 users.idp_subject，没有 issuer 列；Feishu union_id/open_id 与标准 OIDC subject 命名空间须明确，跨 issuer 不许因 email 一致自动合并。"
+      - "未知旧映射、重复邮箱或迁移证据不足时 fail closed，并保留可观测拒绝；不得自动删除/转移 grant 掩盖身份冲突。"
+    forbidden:
+      - "仅在新控制会话 helper 严格查 subject，却允许旧 Workspace 登录经 UpsertUser 邮箱路径重绑同一管理员 user_id。"
+      - "让 email、浏览器 claims 或 Workspace admin 代替平台 grant/受控身份迁移审批。"
+    acceptance:
+      - type: command
+        run: "node ~/.agents/skills/task-integrator/bin/tasks.mjs validate --registry docs/knowledge-memory/tasks.yaml"
+      - type: assertion
+        expect: "独立 Sol 安全架构审查固定 ADR-0034 与 ADR-0020/0033 的兼容及有意优先级，覆盖普通用户关联、平台 grant 用户拒绝/迁移、控制会话与旧 JWT/Key，记录 Accepted 或明确阻断。"
+      - type: assertion
+        expect: "双主体同邮箱、不同 issuer、管理员 grant 生效/已撤历史、普通用户迁移、并发登录与 grant 授予、审计故障/恢复均有可执行的 Store/OIDC 故障矩阵；任何一条旧 writer 都不能绕过保护。"
+      - type: assertion
+        expect: "TASK-065 可据此实现唯一 canonical 写入口和前向迁移；迁移完成前平台管理员控制会话与 user-target 公共撤销继续 fail closed。"
+    dependencies:
+      - TASK-068
+    risk_level: L4
+    recommended_model: "gpt-6 astra"
+    investigation_hints:
+      - "既有决策：docs/adr/0020-subject-primary-identity.md、docs/adr/0033-platform-admin-authority.md §2.1；.tasks/tasks.yaml 的 TASK-023；docs/01-PRD.md §4。"
+      - "实际写路径：packages/store/store.go:UpsertUser，apps/gateway/oidc.go:oidcCallback、Feishu 回调，migrations/000002_identity.sql/000023_platform_admin_authority.sql。"
+      - "验证为设计矩阵和独立复审；不以当下固定 org_default/开发种子当作生产身份映射。"
+    escalation_conditions:
+      - "必须撤销既有普通用户邮箱关联合同、自动合并高权限主体或引入外部身份权威且现有 PRD/架构未授权。"
+    result:
+      owner: "codex-astra-k069-64339-9124"
+      attempts: 0
+      claimed_at: "2026-09-25T13:49:11.708Z"
+      completed_at: "2026-09-25T14:09:37.994Z"
+      worktree: "/Users/linxinhong/projects/Enterprise-Agent-Platform/.worktrees/astra-security"
+      branch: "task/task-069-privileged-subject-binding"
+      evidence:
+        - {type: "integration", check: "ADR-0034 and TASK-069 memory integrated", status: "passed", summary: "main merge 9222e30 contains final task branch 8566a26e88dc281fcd0c7cefd4e9fc55397d40d7; branch ancestry and diff check passed. Only ADR-0034 and .tasks/memory/TASK-069.md were integrated; preexisting opencode.jsonc deletion remained unstaged."}
+        - {type: "review", check: "Independent Sol identity/security review", status: "passed", summary: "Independent /root/wiki_boundary_review accepted 474c8bb core design and required explicit compatibility cost; fixed 46748095576576357d24a766521eeb4ddfc4d17e was accepted after documenting ordinary revoked-Key target protection and a dedicated PG/OIDC scenario. Final 8566a26 only recorded review/status. Review covered ADR-0020/TASK-023 coexistence, all identity writers, namespace/Feishu subject kind, high-privilege migration, grant binding, R/C and credential lineage."}
+        - {type: "product_decision", check: "User-confirmed conservative same-person migration boundary", status: "passed", summary: "User explicitly selected: even an ordinary employee who only revoked their own Key must not be automatically relinked by same email under a new IdP subject; confirmed same-person changes require evidence-backed manual migration. ADR-0034 records identity_binding_conflict, no new session and no grant/history transfer to a different person. This is a design choice, not implemented runtime behavior."}
+        - {type: "architecture", check: "Canonical privileged subject boundary", status: "passed", summary: "At main 9222e30, ADR-0034 Accepted design only: ordinary unprotected verified-email linking remains, protected historical users require controlled identity migration, old unbound credentials fail closed, and every old UpsertUser/IDC writer must consume one canonical guarded path. TASK-065 alone implements schema, roles, OIDC/Feishu and two-Gateway tests; platform control session/user-target public route remain off until runtime qualification."}
+        - {type: "command", check: "Integrated registry/document checks", status: "passed", summary: "At main 9222e30, tasks.mjs validate reported 14 cards/legal graph; git diff --check HEAD^..HEAD passed; preflight confirmed branch merged. No runtime or live IdP tests were run for this document-only card."}
+      follow_up_candidates: []

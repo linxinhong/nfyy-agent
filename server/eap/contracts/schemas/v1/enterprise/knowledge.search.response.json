@@ -1,0 +1,20 @@
+{
+  "results": [
+    {
+      "document_id": "11111111-1111-4111-8111-111111111111",
+      "title": "Knowledge update",
+      "version": 2,
+      "seq": 0,
+      "score": 0.03278688524590164,
+      "score_kind": "rrf",
+      "content": "A failed build retains the active version.",
+      "source": {
+        "type": "upload",
+        "id": "src-upload-1",
+        "version": 2,
+        "derived": false,
+        "parents": []
+      }
+    }
+  ]
+}

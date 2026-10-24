@@ -9,6 +9,7 @@ COPY api ./api
 COPY cmd ./cmd
 COPY internal ./internal
 COPY migrations ./migrations
+COPY industries ./industries
 RUN go build -trimpath -ldflags="-s -w" -o /out/yuanpu-server ./cmd/yuanpu-server
 
 FROM scratch

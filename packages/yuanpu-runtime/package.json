@@ -19,7 +19,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "1.0.4",
+    "@earendil-works/pi-coding-agent": "1.4.0",
     "@modelcontextprotocol/sdk": "1.25.2",
     "@mozilla/readability": "0.6.0",
     "@npmcli/arborist": "10.0.2",

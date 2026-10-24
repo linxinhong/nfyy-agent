@@ -1,0 +1,16 @@
+# 单包项目也显式声明根包，兼容 pnpm 9+ 的 workspace 校验。
+packages:
+  - "."
+
+# pnpm 11 默认拦截所有依赖的安装脚本（供应链防护）。
+# esbuild 需执行安装脚本下载对应平台的二进制，必须显式放行。
+allowBuilds:
+  esbuild: true
+
+# minimumReleaseAge 门禁的豁免名单 —— pnpm 会拦截「发布未满冷却期」的新版本。
+# 这几个是初始化时确认过的当前版本；升级依赖时 pnpm 会自动追加条目。
+minimumReleaseAgeExclude:
+  - "@tanstack/query-core@5.102.8"
+  - "@tanstack/query-devtools@5.102.8"
+  - "@tanstack/react-query-devtools@5.102.8"
+  - "@tanstack/react-query@5.102.8"

@@ -1,0 +1,13 @@
+rules:
+  - id: identity_number
+    label: 身份证号码
+    action: flag_for_human_review
+  - id: phone_number
+    label: 手机号码
+    action: flag_for_human_review
+  - id: party_name
+    label: 当事人名称
+    action: require_manual_check
+  - id: amount
+    label: 金额与交易条件
+    action: require_manual_check

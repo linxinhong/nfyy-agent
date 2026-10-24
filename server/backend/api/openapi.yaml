@@ -48,6 +48,70 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WikiPreviewResponse'
+  /v1/industry:
+    get:
+      operationId: getIndustry
+      summary: Read the configured industry knowledge types and validation fields
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Active industry pack
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IndustryPack'}
+  /v1/industry/templates/{type}:
+    get:
+      operationId: getIndustryTemplate
+      summary: Read a submission template from the configured industry pack
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Markdown template
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IndustryTemplate'}
+        '404':
+          description: Unknown knowledge type
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/industry/validate:
+    post:
+      operationId: validateIndustrySubmission
+      summary: Validate a structured submission using the configured industry pack
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/IndustrySubmission'}
+      responses:
+        '200':
+          description: Validation result; no knowledge is published
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IndustryValidation'}
+  /v1/integrations/bookstack/status:
+    get:
+      operationId: getBookStackStatus
+      summary: Check the configured private BookStack API connection
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: BookStack API is reachable
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IntegrationStatus'}
+        '503':
+          description: BookStack API is unavailable
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /v1/catalog/search:
     get:
       operationId: searchCatalog
@@ -126,29 +190,6 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/auth/login:
-    post:
-      operationId: login
-      summary: Exchange account credentials for a twelve-hour bearer session
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LoginRequest'
-      responses:
-        '200':
-          description: Authenticated session
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LoginResponse'
-        '401':
-          description: Invalid credentials
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
   /v1/auth/api-key:
     post:
       operationId: loginWithApiKey
@@ -166,6 +207,52 @@ paths:
               schema: {$ref: '#/components/schemas/LoginResponse'}
         '401':
           description: Invalid, expired, revoked, or deactivated API key
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/portal/context:
+    get:
+      operationId: getPortalContext
+      summary: Presentation context derived from the HTTP User-Agent; never authorizes access
+      responses:
+        '200':
+          description: Browser presentation context
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PortalContext'}
+  /v1/auth/password:
+    post:
+      operationId: loginWithPassword
+      summary: Sign in to the browser or desktop enrollment flow with account credentials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PasswordLoginRequest'}
+      responses:
+        '200':
+          description: Password-authenticated session
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LoginResponse'}
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/auth/device-key:
+    post:
+      operationId: issueOwnDeviceKey
+      summary: Issue a desktop API key from a password-authenticated session
+      security: [{bearerAuth: []}]
+      responses:
+        '201':
+          description: Newly issued key; secret shown once
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IssuedApiKey'}
+        '401':
+          description: Password session required
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
@@ -246,7 +333,7 @@ paths:
                 items: {$ref: '#/components/schemas/User'}
     post:
       operationId: createUser
-      summary: Create a member and return its initial password once; administrator only
+      summary: Create a member; administrator can set a password separately
       security: [{bearerAuth: []}]
       requestBody:
         required: true
@@ -296,6 +383,66 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /v1/admin/users/{id}/password:
+    put:
+      operationId: setUserPassword
+      summary: Set a member password and revoke existing password sessions; administrator only
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SetPasswordRequest'}
+      responses:
+        '204': {description: Password set}
+        '403':
+          description: Administrator required
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/admin/roles:
+    get:
+      operationId: listRolePermissions
+      summary: List role permissions; administrator only
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Role permission matrix
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/RolePermission'}
+  /v1/admin/roles/{role}/{action}:
+    put:
+      operationId: updateRolePermission
+      summary: Set the scope granted to a role for one action
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: role
+          in: path
+          required: true
+          schema: {type: string, enum: [admin, reviewer, team_lead, member]}
+        - name: action
+          in: path
+          required: true
+          schema: {type: string, enum: [create, read, edit, submit, review, withdraw]}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateRolePermissionRequest'}
+      responses:
+        '200':
+          description: Updated permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RolePermission'}
   /v1/admin/api-keys:
     get:
       operationId: listApiKeys
@@ -377,6 +524,19 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Resource'}
+  /v1/resources/mine:
+    get:
+      operationId: listMyResources
+      summary: List the current author's resources, including drafts and submissions
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Own resources
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Resource'}
   /v1/resources/{id}:
     parameters:
       - name: id
@@ -421,7 +581,7 @@ paths:
         schema: {type: string}
     post:
       operationId: submitResource
-      summary: Submit the latest draft for review
+      summary: Author confirms the latest draft and submits it for independent review
       security: [{bearerAuth: []}]
       responses:
         '200':
@@ -490,12 +650,148 @@ paths:
               schema:
                 type: array
                 items: {$ref: '#/components/schemas/Resource'}
+  /v1/logs:
+    post:
+      operationId: postOperationLog
+      summary: Upload a bounded structured operation log without conversation content
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OperationLogInput'}
+      responses:
+        '201':
+          description: Stored log receipt
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LogReceipt'}
+  /v1/data-uploads:
+    post:
+      operationId: uploadData
+      summary: Upload a bounded data file, optionally attached to an authored resource
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: resourceId
+          in: query
+          schema: {type: string}
+        - name: X-File-Name
+          in: header
+          required: true
+          schema: {type: string, maxLength: 180}
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: {type: string, format: binary}
+      responses:
+        '201':
+          description: Stored file metadata
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DataUpload'}
+  /v1/data-uploads/{id}:
+    get:
+      operationId: downloadData
+      summary: Download a stored file as its uploader
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: File bytes
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary}
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
   schemas:
+    IndustryPack:
+      type: object
+      additionalProperties: false
+      required: [id, name, knowledgeTypes, areas, requiredSections, confidences]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        knowledgeTypes:
+          type: array
+          items: {$ref: '#/components/schemas/IndustryKnowledgeType'}
+        areas:
+          type: array
+          items: {$ref: '#/components/schemas/IndustryArea'}
+        requiredSections:
+          type: array
+          items: {type: string}
+        confidences:
+          type: array
+          items: {type: string}
+    IndustryKnowledgeType:
+      type: object
+      additionalProperties: false
+      required: [id, name, requiredFields]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        requiredFields:
+          type: array
+          items: {type: string}
+    IndustryArea:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {type: string}
+        name: {type: string}
+    IndustryTemplate:
+      type: object
+      additionalProperties: false
+      required: [markdown]
+      properties:
+        markdown: {type: string}
+    IndustrySubmission:
+      type: object
+      additionalProperties: false
+      required: [title, type, author, submittedAt, area, source, confidence, redacted, fields, sections]
+      properties:
+        title: {type: string}
+        type: {type: string}
+        author: {type: string}
+        submittedAt: {type: string}
+        area: {type: string}
+        source: {type: string}
+        confidence: {type: string}
+        redacted: {type: boolean}
+        matterId: {type: string}
+        fields: {type: object, additionalProperties: {type: string}}
+        sections: {type: object, additionalProperties: {type: string}}
+    IndustryValidation:
+      type: object
+      additionalProperties: false
+      required: [valid, violations]
+      properties:
+        valid: {type: boolean}
+        violations:
+          type: array
+          items: {$ref: '#/components/schemas/IndustryViolation'}
+    IndustryViolation:
+      type: object
+      additionalProperties: false
+      required: [field, message]
+      properties:
+        field: {type: string}
+        message: {type: string}
+    IntegrationStatus:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: {type: string, enum: [ready]}
     User:
       type: object
       additionalProperties: false
@@ -507,6 +803,53 @@ components:
         role: {type: string, enum: [admin, reviewer, team_lead, member]}
         teamId: {type: string, nullable: true}
         active: {type: boolean}
+        permissions:
+          type: object
+          additionalProperties: {type: string, enum: [none, own, team, all]}
+    RolePermission:
+      type: object
+      additionalProperties: false
+      required: [role, action, scope]
+      properties:
+        role: {type: string, enum: [admin, reviewer, team_lead, member]}
+        action: {type: string, enum: [create, read, edit, submit, review, withdraw]}
+        scope: {type: string, enum: [none, own, team, all]}
+    UpdateRolePermissionRequest:
+      type: object
+      additionalProperties: false
+      required: [scope]
+      properties:
+        scope: {type: string, enum: [none, own, team, all]}
+    OperationLogInput:
+      type: object
+      additionalProperties: false
+      required: [idempotencyKey, kind, outcome, durationMs, occurredAt]
+      properties:
+        idempotencyKey: {type: string, minLength: 8, maxLength: 128}
+        resourceId: {type: string}
+        runId: {type: string, maxLength: 128}
+        kind: {type: string, enum: [agent_run, tool_step, resource_use]}
+        outcome: {type: string, enum: [succeeded, failed, cancelled]}
+        durationMs: {type: integer, minimum: 0, maximum: 86400000}
+        occurredAt: {type: string, format: date-time}
+    LogReceipt:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id: {type: string}
+    DataUpload:
+      type: object
+      additionalProperties: false
+      required: [id, filename, contentType, byteSize, sha256, createdAt]
+      properties:
+        id: {type: string}
+        resourceId: {type: string, nullable: true}
+        filename: {type: string}
+        contentType: {type: string}
+        byteSize: {type: integer, minimum: 1, maximum: 2097152}
+        sha256: {type: string}
+        createdAt: {type: string, format: date-time}
     Team:
       type: object
       additionalProperties: false
@@ -542,13 +885,6 @@ components:
         summary: {type: string}
         body: {type: string}
         details: {type: object, additionalProperties: true}
-    LoginRequest:
-      type: object
-      additionalProperties: false
-      required: [email, password]
-      properties:
-        email: {type: string, format: email}
-        password: {type: string, format: password}
     LoginResponse:
       type: object
       additionalProperties: false
@@ -556,6 +892,25 @@ components:
       properties:
         user: {$ref: '#/components/schemas/User'}
         token: {type: string}
+    PortalContext:
+      type: object
+      additionalProperties: false
+      required: [agentBrowser]
+      properties:
+        agentBrowser: {type: boolean}
+    PasswordLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: {type: string, maxLength: 254}
+        password: {type: string, minLength: 1, maxLength: 1024}
+    SetPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [password]
+      properties:
+        password: {type: string, minLength: 8, maxLength: 1024}
     ApiKeyLoginRequest:
       type: object
       additionalProperties: false
@@ -609,10 +964,9 @@ components:
     CreateUserResponse:
       type: object
       additionalProperties: false
-      required: [user, initialPassword]
+      required: [user]
       properties:
         user: {$ref: '#/components/schemas/User'}
-        initialPassword: {type: string}
     UpdateUserRequest:
       type: object
       additionalProperties: false

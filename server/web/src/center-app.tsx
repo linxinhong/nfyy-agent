@@ -8,8 +8,16 @@ import type {
 } from '@yuanpu-agent/server-client';
 import { CatalogDirectory } from './catalog-directory.js';
 import { ApiKeyAdmin } from './api-key-admin.js';
+import { ContentWorkbench } from './content-workbench.js';
 
 const publicClient = createServerClient({ baseUrl: window.location.origin });
+type DesktopPortalBridge = {
+  saveAPIKey(key: string): Promise<{ ok: boolean; token?: string; user?: ServerUser; code?: string }>;
+  clearAPIKey(): Promise<void>;
+};
+function desktopPortal(): DesktopPortalBridge | undefined {
+  return (window as Window & { yuanpuPortal?: DesktopPortalBridge }).yuanpuPortal;
+}
 type WikiEntry = WikiPreviewResponse['entries'][number];
 type ServiceState = 'checking' | 'ready' | 'degraded' | 'offline';
 type IconName = 'news' | 'book' | 'spark' | 'grid' | 'search' | 'arrow' | 'shield';
@@ -94,6 +102,13 @@ function resourceSummary(resource: ServerResource) {
 }
 
 export function CenterApp() {
+  const [agentBrowser, setAgentBrowser] = useState<boolean | null>(null);
+  const [accountEmail, setAccountEmail] = useState('');
+  const [accountPassword, setAccountPassword] = useState('');
+  const [accountError, setAccountError] = useState('');
+  const [accountLoading, setAccountLoading] = useState(false);
+  const [pendingDeviceKey, setPendingDeviceKey] = useState('');
+  const [browserCenterOpen, setBrowserCenterOpen] = useState(false);
   const [service, setService] = useState<ServiceState>('checking');
   const [serviceIssue, setServiceIssue] = useState('');
   const [version, setVersion] = useState('');
@@ -106,8 +121,7 @@ export function CenterApp() {
   const [user, setUser] = useState<ServerUser | null>(null);
   const [token, setToken] = useState('');
   const [loginOpen, setLoginOpen] = useState(false);
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
+  const [loginKey, setLoginKey] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [searchInput, setSearchInput] = useState('');
@@ -116,6 +130,30 @@ export function CenterApp() {
   const [selectedResource, setSelectedResource] = useState<ServerResource | null>(null);
   const [selectedWikiId, setSelectedWikiId] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void publicClient.portalContext({ signal: controller.signal })
+      .then((context) => {
+        if (controller.signal.aborted) return;
+        setAgentBrowser(context.agentBrowser);
+        if (context.agentBrowser) {
+          sessionStorage.removeItem('yuanpu-center-browser-token');
+        } else setToken(sessionStorage.getItem('yuanpu-center-browser-token') || '');
+      })
+      .catch(() => { if (!controller.signal.aborted) setAgentBrowser(false); });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const receiveDesktopSession = () => {
+      const session = (window as Window & { __YUANPU_DESKTOP_SESSION__?: { token?: unknown } }).__YUANPU_DESKTOP_SESSION__;
+      if (typeof session?.token === 'string' && session.token) setToken(session.token);
+    };
+    receiveDesktopSession();
+    window.addEventListener('yuanpu-desktop-session', receiveDesktopSession);
+    return () => window.removeEventListener('yuanpu-desktop-session', receiveDesktopSession);
+  }, []);
 
   const refreshPublic = useCallback(async (signal?: AbortSignal) => {
     setRefreshing(true);
@@ -214,7 +252,7 @@ export function CenterApp() {
   }, [token, query]);
 
   useEffect(() => {
-    if (loginOpen) document.getElementById('login-email')?.focus();
+    if (loginOpen) document.getElementById('login-key')?.focus();
   }, [loginOpen]);
 
   useEffect(() => {
@@ -238,15 +276,15 @@ export function CenterApp() {
     setLoginError('');
     setLoginLoading(true);
     try {
-      const result = await publicClient.login(loginEmail.trim(), loginPassword);
+      const result = await publicClient.loginWithAPIKey(loginKey.trim());
       setToken(result.token);
       setUser(result.user);
-      setLoginPassword('');
+      setLoginKey('');
       setLoginOpen(false);
     } catch (error) {
       setLoginError(
         error instanceof ServerApiError && error.status === 401
-          ? '邮箱或密码不正确。'
+          ? 'API key 无效、已过期或已撤销。'
           : '暂时无法登录，请检查中心服务后重试。',
       );
     } finally {
@@ -265,6 +303,9 @@ export function CenterApp() {
     setUser(null);
     setResources([]);
     setSelectedResource(null);
+    setBrowserCenterOpen(false);
+    sessionStorage.removeItem('yuanpu-center-browser-token');
+    if (agentBrowser) await desktopPortal()?.clearAPIKey().catch(() => undefined);
     if (currentToken) {
       try {
         await createServerClient({ baseUrl: window.location.origin, token: currentToken }).logout();
@@ -294,11 +335,92 @@ export function CenterApp() {
     }
   }
 
+  async function refreshResources() {
+    if (!token) return;
+    try { setResources(await createServerClient({ baseUrl: window.location.origin, token }).listResources({ q: query })); }
+    catch { setResourcesError('组织内容刷新失败，请稍后重试。'); }
+  }
+
   function search(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setQuery(searchInput.trim());
     document.getElementById('content')?.scrollIntoView({ behavior: 'smooth' });
   }
+
+  async function saveDeviceKey(secret: string) {
+    const bridge = desktopPortal();
+    if (!bridge) throw new Error('桌面连接不可用，请在 yuanpu-agent 内打开元朴中心。');
+    const saved = await bridge.saveAPIKey(secret);
+    if (!saved.ok || !saved.token || !saved.user) throw new Error('API key 已生成，但写入桌面安全存储失败。');
+    setPendingDeviceKey('');
+    setToken(saved.token);
+    setUser(saved.user);
+  }
+
+  async function signInWithPassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAccountError('');
+    setAccountLoading(true);
+    try {
+      if (agentBrowser && !desktopPortal()) throw new Error('桌面连接不可用，请重新打开元朴中心。');
+      const result = await publicClient.loginWithPassword(accountEmail.trim(), accountPassword);
+      setAccountPassword('');
+      if (agentBrowser) {
+        const passwordClient = createServerClient({ baseUrl: window.location.origin, token: result.token });
+        const issued = await passwordClient.issueOwnDeviceKey();
+        setPendingDeviceKey(issued.secret);
+        await saveDeviceKey(issued.secret);
+        void passwordClient.logout().catch(() => undefined);
+      } else {
+        sessionStorage.setItem('yuanpu-center-browser-token', result.token);
+        setToken(result.token);
+        setUser(result.user);
+      }
+    } catch (error) {
+      setAccountError(error instanceof ServerApiError && error.status === 401
+        ? '账号或密码错误。'
+        : error instanceof Error ? error.message : '登录失败，请稍后重试。');
+    } finally {
+      setAccountLoading(false);
+    }
+  }
+
+  if (agentBrowser === null) return <div className="portal-auth-shell"><p>正在连接元朴中心…</p></div>;
+  if (!user) {
+    if (token) return <div className="portal-auth-shell"><p>正在验证登录状态…</p></div>;
+    return <main className="portal-auth-shell">
+      <section className="portal-auth-card">
+        <span className="portal-brand-mark">元</span>
+        <p className="portal-eyebrow">YUANPU CENTER</p>
+        <h1>{agentBrowser ? '连接元朴中心' : '登录元朴中心'}</h1>
+        <p>{agentBrowser ? '登录后将为此设备生成 API key，并自动保存到 yuanpu-agent。' : '使用成员账号登录，进入个人中心。'}</p>
+        <form onSubmit={(event) => void signInWithPassword(event)}>
+          <label htmlFor="account-email">账号</label>
+          <input id="account-email" autoComplete="username" value={accountEmail} onChange={(event) => setAccountEmail(event.target.value)} required />
+          <label htmlFor="account-password">密码</label>
+          <input id="account-password" type="password" autoComplete="current-password" value={accountPassword} onChange={(event) => setAccountPassword(event.target.value)} required />
+          {accountError && <p className="portal-form-error" role="alert">{accountError}</p>}
+          <button type="submit" disabled={accountLoading}>{accountLoading ? '正在登录…' : agentBrowser ? '登录并生成 API key' : '登录'}</button>
+        </form>
+        {agentBrowser && pendingDeviceKey && <div className="portal-auth-recovery" role="status">
+          <p>Key 已生成，尚未保存到桌面。请重试保存；关闭页面前可复制保管。</p>
+          <code>{pendingDeviceKey}</code>
+          <button type="button" onClick={() => void saveDeviceKey(pendingDeviceKey).catch((error: unknown) => setAccountError(error instanceof Error ? error.message : '保存失败。'))}>重试保存</button>
+        </div>}
+      </section>
+    </main>;
+  }
+  if (!agentBrowser && !browserCenterOpen) return <main className="portal-auth-shell">
+    <section className="portal-auth-card portal-personal-card">
+      <span className="portal-brand-mark">元</span>
+      <p className="portal-eyebrow">PERSONAL CENTER</p>
+      <h1>个人中心</h1>
+      <p>欢迎回来，{user.name}。</p>
+      <dl><div><dt>成员账号</dt><dd>{user.email}</dd></div><div><dt>角色</dt><dd>{user.role}</dd></div><div><dt>可见内容</dt><dd>{resources.length} 项</dd></div></dl>
+      <div className="portal-personal-actions"><button type="button" onClick={() => setBrowserCenterOpen(true)}>进入共享中心</button>
+        <button type="button" onClick={() => void signOut()}>退出登录</button></div>
+    </section>
+  </main>;
 
   return (
     <div className="portal-site">
@@ -324,6 +446,7 @@ export function CenterApp() {
             <a href="#catalog" className={activeHash === '#catalog' ? 'active' : ''}>
               AI 能力
             </a>
+            {user && <a href="#workbench" className={activeHash === '#workbench' ? 'active' : ''}>内容工作台</a>}
             {user?.role === 'admin' && <a href="#admin" className={activeHash === '#admin' ? 'active' : ''}>后台管理</a>}
           </nav>
           <form className="portal-search" role="search" onSubmit={search}>
@@ -341,6 +464,7 @@ export function CenterApp() {
           {user ? (
             <div className="portal-account">
               <span title={user.email}>{user.name}</span>
+              {!agentBrowser && <button type="button" onClick={() => setBrowserCenterOpen(false)}>个人中心</button>}
               <button type="button" onClick={() => void signOut()}>
                 退出
               </button>
@@ -710,6 +834,7 @@ export function CenterApp() {
             )}
           </section>
           <CatalogDirectory />
+          {user && <ContentWorkbench token={token} user={user} onPublished={() => void refreshResources()} />}
           {user?.role === 'admin' && <ApiKeyAdmin token={token} active={activeHash === '#admin'} />}
         </div>
       </main>
@@ -748,25 +873,16 @@ export function CenterApp() {
             </button>
             <span className="portal-brand-mark">元</span>
             <h2 id="login-title">登录元朴中心</h2>
-            <p>使用管理员分配的组织账号，查看按权限共享的内容。</p>
+            <p>使用管理员发放的 API key，查看按权限共享的内容。</p>
             <form onSubmit={(event) => void signIn(event)}>
-              <label htmlFor="login-email">邮箱</label>
+              <label htmlFor="login-key">API key</label>
               <input
-                id="login-email"
-                type="email"
-                autoComplete="username"
-                required
-                value={loginEmail}
-                onChange={(event) => setLoginEmail(event.target.value)}
-              />
-              <label htmlFor="login-password">密码</label>
-              <input
-                id="login-password"
+                id="login-key"
                 type="password"
-                autoComplete="current-password"
+                autoComplete="off"
                 required
-                value={loginPassword}
-                onChange={(event) => setLoginPassword(event.target.value)}
+                value={loginKey}
+                onChange={(event) => setLoginKey(event.target.value)}
               />
               {loginError && (
                 <span className="portal-form-error" role="alert">

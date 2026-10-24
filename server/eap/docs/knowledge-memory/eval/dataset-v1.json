@@ -1,0 +1,30 @@
+{
+  "id": "eap-knowledge-eval-v1",
+  "top_k": 3,
+  "documents": [
+    {"id":"d01","workspace":"alpha","title":"Key revocation","content":"Revoke an employee API key immediately when a laptop is lost. Every request checks credential validity."},
+    {"id":"d02","workspace":"alpha","title":"知识版本","content":"知识文档更新成功后旧版本立即不可检索。构建失败时保留旧版本，首次失败不发布内容。"},
+    {"id":"d03","workspace":"alpha","title":"Outbound protection","content":"DLP scans document text before sending it to an external embedding provider. Redacted text replaces sensitive values."},
+    {"id":"d04","workspace":"alpha","title":"Index identity","content":"An embedding generation fixes model identity, model revision, dimensions and preprocessing. Vectors from different generations must never be mixed."},
+    {"id":"d05","workspace":"alpha","title":"差旅报销","content":"差旅报销应上传发票和出差审批记录，由财务审核后支付。"},
+    {"id":"d06","workspace":"alpha","title":"Audit reliability","content":"Security audit records must be durably committed before a successful response is released. Database failure blocks release."},
+    {"id":"d07","workspace":"alpha","title":"会议室预约","content":"会议室预订需要选择日期、时间和人数。使用完毕应关闭投影仪。"},
+    {"id":"d08","workspace":"alpha","title":"Credential handling","content":"Provider credentials remain on the server behind a secret reference. Employee configurations contain only the EAP endpoint and employee credential."},
+    {"id":"x01","workspace":"beta","title":"Private astronomy","content":"The violet comet observatory access code is ZEUS-8844. 紫色彗星天文台访问口令。"},
+    {"id":"x02","workspace":"beta","title":"Private duplicate","content":"Revoke an employee API key immediately when a laptop is lost. Every request checks credential validity."}
+  ],
+  "queries": [
+    {"id":"q01","group":"exact","workspace":"alpha","text":"embedding generation dimensions","relevant":{"d04":2}},
+    {"id":"q02","group":"exact","workspace":"alpha","text":"Provider credentials secret reference","relevant":{"d08":2}},
+    {"id":"q03","group":"chinese","workspace":"alpha","text":"知识文档构建失败旧版本","relevant":{"d02":2}},
+    {"id":"q04","group":"chinese","workspace":"alpha","text":"差旅报销需要什么材料","relevant":{"d05":2}},
+    {"id":"q05","group":"paraphrase","workspace":"alpha","text":"My notebook was stolen; how do I stop someone using my account token?","relevant":{"d01":2}},
+    {"id":"q06","group":"paraphrase","workspace":"alpha","text":"Can an answer be returned if the durable security event store is unavailable?","relevant":{"d06":2}},
+    {"id":"q07","group":"paraphrase","workspace":"alpha","text":"向外部模型传资料前如何保护敏感信息","relevant":{"d03":2}},
+    {"id":"q08","group":"no_result","workspace":"alpha","text":"Which ocean contains the Mariana Trench?","relevant":{}},
+    {"id":"q09","group":"no_result","workspace":"alpha","text":"酸奶蛋糕烘焙温度","relevant":{}},
+    {"id":"q10","group":"workspace_trap","workspace":"alpha","text":"ZEUS-8844 violet comet observatory","relevant":{}},
+    {"id":"q11","group":"workspace_trap","workspace":"alpha","text":"Revoke an employee API key immediately when a laptop is lost","relevant":{"d01":2}},
+    {"id":"q12","group":"workspace_trap","workspace":"beta","text":"ZEUS-8844 violet comet observatory","relevant":{"x01":2}}
+  ]
+}

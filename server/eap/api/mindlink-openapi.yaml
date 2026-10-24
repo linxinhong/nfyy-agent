@@ -1,0 +1,1225 @@
+openapi: 3.1.0
+info:
+  title: MindLink center client API
+  version: 1.0.0
+  description: >-
+    The subset of the EAP gateway surface consumed by the MindLink website,
+    desktop and agents. Source for the generated TypeScript SDK
+    (packages/yuanpu-server-client). apps/gateway/contract_test.go checks every
+    operation here against the routes registered in server.go, except
+    operations marked `x-mindlink-status: planned` (contract fixed, server not
+    yet live; the SDK exposes types but no methods for them).
+servers:
+  - url: http://127.0.0.1:8080
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer}
+  parameters:
+    Workspace:
+      name: X-Agent-Workspace
+      in: header
+      required: false
+      description: Workspace selection; optional for workspace-bound employee keys.
+      schema: {type: string}
+  schemas:
+    Problem:
+      type: object
+      required: [code, message, retriable]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        trace_id: {type: string}
+        retriable: {type: boolean}
+    OAuthError:
+      type: object
+      required: [error]
+      properties:
+        error: {type: string}
+    Health:
+      type: object
+      required: [status, version]
+      properties:
+        status: {type: string}
+        version: {type: string}
+        time: {type: string}
+    Ready:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string}
+        checks: {type: object, additionalProperties: {type: string}}
+    AuthMethods:
+      type: object
+      required: [local, dev]
+      properties:
+        local: {type: boolean}
+        dev: {type: boolean}
+    LocalLoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: {type: string, maxLength: 63}
+        password: {type: string, maxLength: 256}
+    LocalLoginResponse:
+      type: object
+      properties:
+        session_token: {type: string}
+        token_type: {type: string}
+        expires_in: {type: integer}
+        password_change_required: {type: boolean}
+    PasswordChangeRequest:
+      type: object
+      required: [username, current_password, new_password]
+      properties:
+        username: {type: string}
+        current_password: {type: string}
+        new_password: {type: string, minLength: 8}
+    DeviceCode:
+      type: object
+      required: [device_code, user_code, verification_uri, expires_in, interval]
+      properties:
+        device_code: {type: string}
+        user_code: {type: string}
+        verification_uri: {type: string}
+        expires_in: {type: integer}
+        interval: {type: integer}
+    DeviceDecision:
+      type: object
+      required: [user_code]
+      properties:
+        user_code: {type: string}
+    DeviceTokenRequest:
+      type: object
+      required: [grant_type]
+      properties:
+        grant_type:
+          type: string
+          enum: ['urn:ietf:params:oauth:grant-type:device_code', refresh_token]
+        device_code: {type: string}
+        refresh_token: {type: string}
+    DeviceToken:
+      type: object
+      required: [access_token, token_type, refresh_token, expires_in]
+      properties:
+        access_token: {type: string}
+        token_type: {type: string}
+        refresh_token: {type: string}
+        expires_in: {type: integer}
+        refresh_expires_in: {type: integer}
+    User:
+      type: object
+      required: [id, display_name, email]
+      properties:
+        id: {type: string}
+        display_name: {type: string}
+        email: {type: string}
+        organization_id: {type: string}
+        department_id: {type: string}
+    Workspace:
+      type: object
+      required: [id, name]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        default: {type: boolean}
+        roles: {type: array, items: {type: string}}
+    Me:
+      type: object
+      required: [user, workspaces, default_workspace]
+      properties:
+        user: {$ref: '#/components/schemas/User'}
+        workspaces: {type: array, items: {$ref: '#/components/schemas/Workspace'}}
+        default_workspace: {type: string}
+    APIKeyCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string}
+        environment: {type: string, enum: [live, test]}
+        workspace: {type: string}
+        expires_at: {type: string, format: date-time}
+    APIKeyCreated:
+      type: object
+      required: [key_id, key, prefix, name, created_at]
+      properties:
+        key_id: {type: string}
+        key: {type: string}
+        prefix: {type: string}
+        name: {type: string}
+        workspace: {type: string}
+        created_at: {type: string}
+        expires_at: {type: [string, 'null']}
+    APIKeyView:
+      type: object
+      required: [key_id, prefix, name, created_at]
+      properties:
+        key_id: {type: string}
+        prefix: {type: string}
+        name: {type: string}
+        workspace: {type: string}
+        created_at: {type: string}
+        expires_at: {type: [string, 'null']}
+        last_used_at: {type: [string, 'null']}
+        revoked_at: {type: [string, 'null']}
+    CatalogItem:
+      type: object
+      required: [id, name, display_name, version, description, publisher, source, components, permissions]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        display_name: {type: string}
+        version: {type: string}
+        description: {type: string}
+        publisher: {type: string}
+        source: {type: string}
+        components: {type: array, items: {type: string}}
+        permissions: {type: array, items: {type: string}}
+    CatalogSearch:
+      type: object
+      required: [schema_version, items]
+      properties:
+        schema_version: {type: integer, const: 1}
+        items: {type: array, items: {$ref: '#/components/schemas/CatalogItem'}}
+    ResourceInput:
+      type: object
+      required: [kind, visibility, title, summary, body]
+      properties:
+        kind: {type: string, enum: [news, wiki, capability]}
+        visibility: {type: string, enum: [team, organization]}
+        group_id: {type: string}
+        title: {type: string, maxLength: 160}
+        summary: {type: string, maxLength: 300}
+        body: {type: string, description: 'Markdown; [[shelf/book/chapter/page|label]] links to another page'}
+        details: {type: object, additionalProperties: true}
+        node_id: {type: string, description: Wiki pages only; the chapter the page sits under (with slug)}
+        slug: {type: string, maxLength: 80, description: 'Letters (incl. CJK), digits, - _ .; unique within the chapter'}
+        tags: {type: array, maxItems: 20, items: {type: string, maxLength: 40}}
+        base_revision: {type: integer, description: Optimistic lock on edit; must equal the latest revision or 409}
+        sources:
+          type: array
+          maxItems: 50
+          description: Source chain of this revision; contribution versions the caller may cite (own, or any for reviewers)
+          items: {$ref: '#/components/schemas/SourceRef'}
+    Resource:
+      type: object
+      required: [id, kind, owner_id, visibility, revision, status, title, summary, body, details]
+      properties:
+        id: {type: string}
+        kind: {type: string, enum: [news, wiki, capability]}
+        owner_id: {type: string}
+        visibility: {type: string, enum: [team, organization]}
+        group_id: {type: string}
+        revision: {type: integer}
+        published_revision: {type: integer}
+        status: {type: string, enum: [draft, submitted, approved, rejected]}
+        title: {type: string}
+        summary: {type: string}
+        body: {type: string}
+        details: {type: object, additionalProperties: true}
+        node_id: {type: string}
+        slug: {type: string}
+        path: {type: string, description: shelf/book/chapter/page for placed wiki pages}
+        tags: {type: array, items: {type: string}}
+        updated_at: {type: string}
+    ResourceList:
+      type: object
+      required: [resources]
+      properties:
+        resources: {type: array, items: {$ref: '#/components/schemas/Resource'}}
+    Member:
+      type: object
+      required: [user_id, email, display_name, username, roles, group_id, team_roles]
+      properties:
+        user_id: {type: string}
+        email: {type: string}
+        display_name: {type: string}
+        username: {type: string}
+        roles: {type: array, description: Workspace role keys, items: {type: string}}
+        group_id: {type: string}
+        team_roles: {type: array, description: Team role keys, granted inside group_id only, items: {type: string}}
+    MemberList:
+      type: object
+      required: [workspace, members]
+      properties:
+        workspace: {type: string}
+        members: {type: array, items: {$ref: '#/components/schemas/Member'}}
+    MemberCreateRequest:
+      type: object
+      required: [username, display_name]
+      properties:
+        username: {type: string}
+        email: {type: string}
+        display_name: {type: string}
+        roles: {type: array, description: Workspace role keys from the role catalog (default developer), items: {type: string}}
+        group_id: {type: string}
+        team_roles: {type: array, description: Team role keys; needs group_id, items: {type: string}}
+    MemberCreated:
+      type: object
+      required: [user_id, username, workspace, roles, one_time_password, password_change_required]
+      properties:
+        user_id: {type: string}
+        username: {type: string}
+        workspace: {type: string}
+        roles: {type: array, items: {type: string}}
+        group_id: {type: string}
+        team_roles: {type: array, items: {type: string}}
+        one_time_password: {type: string}
+        password_change_required: {type: boolean}
+    MemberUpdateRequest:
+      type: object
+      description: >-
+        Granting or removing a role needs every permission it grants. Changing
+        group_id without team_roles drops the old team roles.
+      properties:
+        roles: {type: array, items: {type: string}}
+        group_id: {type: string}
+        team_roles: {type: array, items: {type: string}}
+    Permission:
+      type: string
+      enum: [platform.admin, members.manage, roles.manage, knowledge.manage, knowledge.review, curation.sweep, skill.review, skill.require]
+    Role:
+      type: object
+      required: [key, name, scope, permissions, builtin, locked]
+      properties:
+        key: {type: string, pattern: '^[a-z][a-z0-9_-]{0,31}$'}
+        name: {type: string}
+        scope: {type: string, enum: [workspace, team]}
+        permissions: {type: array, items: {$ref: '#/components/schemas/Permission'}}
+        builtin: {type: boolean}
+        locked: {type: boolean, description: The admin role holds every permission and cannot change}
+    RoleCatalog:
+      type: object
+      required: [roles, permissions]
+      properties:
+        roles: {type: array, items: {$ref: '#/components/schemas/Role'}}
+        permissions:
+          type: array
+          items:
+            type: object
+            required: [key, team_grantable]
+            properties:
+              key: {$ref: '#/components/schemas/Permission'}
+              team_grantable: {type: boolean}
+    RoleInput:
+      type: object
+      required: [name, scope, permissions]
+      properties:
+        name: {type: string}
+        scope: {type: string, enum: [workspace, team]}
+        permissions: {type: array, items: {$ref: '#/components/schemas/Permission'}}
+    SkillFile:
+      type: object
+      required: [path, content]
+      properties:
+        path: {type: string}
+        content: {type: string}
+    SkillPublish:
+      type: object
+      required: [version, files]
+      properties:
+        version: {type: string, description: 'x.y.z, immutable per name'}
+        files: {type: array, items: {$ref: '#/components/schemas/SkillFile'}}
+        visibility: {type: string, enum: [personal, team, organization], description: Default organization}
+        group_id: {type: string, description: Team visibility; defaults to the author's team}
+        protected:
+          type: boolean
+          description: >-
+            Keep SKILL.md out of the downloadable archive. Only the gateway
+            hands it to the model; authors and reviewers read it in the Portal.
+    SkillVersion:
+      type: object
+      required: [id, name, version, status, visibility, group_id, protected, description, digest]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        version: {type: string}
+        status: {type: string, enum: [private, pending_review, approved, released, deprecated, revoked, rejected]}
+        visibility: {type: string, enum: [personal, team, organization]}
+        group_id: {type: string}
+        protected: {type: boolean}
+        description: {type: string}
+        digest: {type: string}
+    SharedSkill:
+      type: object
+      required: [name, version, status, visibility, group_id, description, author_id, author_name, protected, digest, has_resources, created_at, required, enabled, active]
+      properties:
+        name: {type: string}
+        version: {type: string}
+        status: {type: string}
+        visibility: {type: string, enum: [personal, team, organization]}
+        group_id: {type: string}
+        description: {type: string}
+        author_id: {type: string}
+        author_name: {type: string}
+        protected: {type: boolean}
+        digest: {type: string, description: sha256 of the resource archive}
+        has_resources: {type: boolean, description: The archive holds files besides SKILL.md}
+        reject_reason: {type: string}
+        created_at: {type: string, format: date-time}
+        required: {type: boolean}
+        required_scope: {type: string, enum: [workspace, team]}
+        enabled: {type: boolean}
+        active: {type: boolean, description: 'Required, enabled, or the member''s own personal skill: offered to the model'}
+    SharedSkillList:
+      type: object
+      required: [skills]
+      properties:
+        skills: {type: array, items: {$ref: '#/components/schemas/SharedSkill'}}
+    SkillContent:
+      type: object
+      required: [name, version, status, visibility, group_id, protected, description, skill_md, files]
+      properties:
+        name: {type: string}
+        version: {type: string}
+        status: {type: string}
+        visibility: {type: string}
+        group_id: {type: string}
+        protected: {type: boolean}
+        description: {type: string}
+        skill_md: {type: string}
+        files: {type: array, items: {type: string}}
+    MyPermissions:
+      type: object
+      required: [workspace, roles, permissions, group_id, team_permissions]
+      properties:
+        workspace: {type: string}
+        roles: {type: array, items: {type: string}}
+        permissions: {type: array, description: Workspace-wide permissions, items: {$ref: '#/components/schemas/Permission'}}
+        group_id: {type: string}
+        team_permissions: {type: array, description: Permissions inside group_id only, items: {$ref: '#/components/schemas/Permission'}}
+    Group:
+      type: object
+      required: [id, name]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        members: {type: integer}
+    GroupList:
+      type: object
+      required: [workspace, groups]
+      properties:
+        workspace: {type: string}
+        groups: {type: array, items: {$ref: '#/components/schemas/Group'}}
+    GroupName:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string, maxLength: 80}
+    Reason:
+      type: object
+      required: [field, code, message]
+      description: One actionable cause of a refused upload. Codes are stable contract values.
+      properties:
+        field: {type: string, description: 'Dotted path, e.g. details.meta.脱敏映射 or links[0].target_local_id'}
+        code:
+          type: string
+          enum: [required, too_long, too_many, invalid_format, not_redacted, forbidden_field, sensitive_content, unknown_group, scope_not_allowed, attachment_missing, schema_unsupported]
+        message: {type: string}
+        rules: {type: array, items: {type: string}, description: DLP rule ids for sensitive_content}
+    Rejection:
+      description: >-
+        Frozen problem body (code invalid_argument) plus reasons. Every problem is
+        reported at once; nothing from a rejected upload is stored.
+      allOf:
+        - {$ref: '#/components/schemas/Problem'}
+        - type: object
+          required: [reasons]
+          properties:
+            reasons: {type: array, items: {$ref: '#/components/schemas/Reason'}}
+    ContributionUpload:
+      type: object
+      description: >-
+        One snapshot of a local page. details must never contain these keys at
+        any depth (forbidden_field): redaction_map, redaction_mapping,
+        desensitization_map, 脱敏映射, 脱敏映射表, credential, credentials,
+        password, secret, api_key, access_token, refresh_token, private_key,
+        habits, personal_habits, 习惯, 个人习惯. Source files are referenced,
+        never uploaded. title, summary and markdown pass DLP; any hit is
+        returned as sensitive_content instead of being redacted on the server.
+      required: [local_id, title, markdown, requested_scope, redaction_declared, upload_mode, client]
+      properties:
+        local_id: {type: string, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$', description: Stable local page id; no empty or .. segments}
+        title: {type: string, maxLength: 160}
+        summary: {type: string, maxLength: 300, description: One-sentence conclusion}
+        markdown: {type: string, maxLength: 200000}
+        details: {type: object, additionalProperties: true, description: Industry-package fields (type, confidence, area, source…); at most 16 KiB}
+        links:
+          type: array
+          maxItems: 200
+          items: {type: object, required: [target_local_id], properties: {target_local_id: {type: string}, label: {type: string}}}
+        source_refs:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [kind, ref]
+            properties:
+              kind: {type: string, enum: [file, url, case, regulation, other]}
+              ref: {type: string, maxLength: 2048}
+              title: {type: string}
+        attachments:
+          type: array
+          maxItems: 20
+          description: Blobs uploaded beforehand via PUT /enterprise/v1/blobs/{sha256}; size and media_type must match the stored blob, else attachment_missing
+          items:
+            type: object
+            required: [sha256, name, media_type, size]
+            properties:
+              sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+              name: {type: string, maxLength: 255}
+              media_type: {type: string}
+              size: {type: integer, maximum: 52428800}
+        requested_scope: {type: string, enum: [personal, team, organization]}
+        group_id: {type: string, description: Required with team scope; must be the uploader's own team unless admin}
+        redaction_declared: {type: boolean, const: true}
+        upload_mode: {type: string, pattern: '^(manual|rule:[A-Za-z0-9._-]{1,64})$'}
+        client:
+          type: object
+          required: [name, version, schema_version]
+          properties:
+            name: {type: string, maxLength: 64}
+            version: {type: string, maxLength: 64}
+            schema_version: {type: integer, const: 1}
+    Contribution:
+      type: object
+      required: [id, local_id, version, content_hash, status, scope, created_at, updated_at, idempotent_replay]
+      properties:
+        id: {type: string}
+        local_id: {type: string}
+        version: {type: integer, description: Increments only when content_hash changes}
+        content_hash: {type: string, description: 'Server-computed sha256: over title, summary, markdown, details, links, source_refs, attachments'}
+        status: {type: string, enum: [received, withdrawn], description: Later statuses (curating, merged, published) arrive with the curation layer}
+        scope: {type: string, enum: [personal, team, organization]}
+        group_id: {type: string}
+        created_at: {type: string}
+        updated_at: {type: string}
+        idempotent_replay: {type: boolean}
+    ContributionList:
+      type: object
+      required: [contributions]
+      properties:
+        contributions: {type: array, items: {$ref: '#/components/schemas/Contribution'}}
+        next_since: {type: string, description: Present when the page is full; pass as since to continue}
+    Blob:
+      type: object
+      required: [sha256, size, media_type, scan_status]
+      properties:
+        sha256: {type: string}
+        size: {type: integer}
+        media_type: {type: string}
+        scan_status: {type: string, enum: [unscanned, clean, blocked], description: clean when the server scans uploads (infected uploads are refused); unscanned when no scanner is configured; blocked blobs cannot be cited}
+    WikiSearchResult:
+      type: object
+      required: [page_id, path, title, summary, snippet, score, score_kind]
+      properties:
+        page_id: {type: string}
+        path: {type: string, description: shelf/book/chapter/page}
+        title: {type: string}
+        summary: {type: string}
+        snippet: {type: string, description: Already authorized and DLP-released text}
+        score: {type: number}
+        score_kind: {type: string, enum: [rrf, keyword], description: keyword until vector retrieval lands}
+    WikiPage:
+      description: One readable page revision; html is rendered and sanitized by the server on every read.
+      allOf:
+        - {$ref: '#/components/schemas/Resource'}
+        - type: object
+          required: [markdown, html, links, sources, attachments]
+          properties:
+            markdown: {type: string}
+            html: {type: string}
+            links: {type: array, items: {$ref: '#/components/schemas/PageLink'}, description: Only targets the reader may open}
+            sources: {type: array, items: {$ref: '#/components/schemas/SourceRef'}}
+            attachments: {type: array, items: {$ref: '#/components/schemas/PageAttachment'}, description: Attachments of the cited contribution versions (withdrawn contributions and blocked blobs excluded)}
+    PageAttachment:
+      type: object
+      required: [sha256, name, media_type, size]
+      properties:
+        sha256: {type: string}
+        name: {type: string}
+        media_type: {type: string}
+        size: {type: integer, format: int64}
+    PageLink:
+      type: object
+      required: [page_id, path, title]
+      properties:
+        page_id: {type: string}
+        path: {type: string}
+        title: {type: string}
+    WikiNode:
+      type: object
+      required: [id, level, slug, title, sort, path]
+      properties:
+        id: {type: string}
+        parent_id: {type: string}
+        level: {type: string, enum: [shelf, book, chapter]}
+        slug: {type: string}
+        title: {type: string}
+        sort: {type: integer}
+        path: {type: string}
+    WikiNodeInput:
+      type: object
+      required: [slug, title]
+      properties:
+        parent_id: {type: string, description: 'Create only: shelf has none, book under a shelf, chapter under a book'}
+        level: {type: string, enum: [shelf, book, chapter], description: Create only}
+        slug: {type: string, maxLength: 80}
+        title: {type: string, maxLength: 120}
+        sort: {type: integer}
+    WikiTree:
+      type: object
+      required: [nodes, pages]
+      properties:
+        nodes: {type: array, items: {$ref: '#/components/schemas/WikiNode'}}
+        pages:
+          type: array
+          description: Published pages the reader may open, including unplaced pages with an empty node_id
+          items:
+            type: object
+            required: [id, node_id, slug, path, title]
+            properties:
+              id: {type: string}
+              node_id: {type: string}
+              slug: {type: string}
+              path: {type: string}
+              title: {type: string}
+    SourceRef:
+      type: object
+      required: [contribution_id, version]
+      properties:
+        contribution_id: {type: string}
+        version: {type: integer}
+        anchor: {type: string, maxLength: 120, description: Section or paragraph of the page that draws on this source}
+    CurationProposal:
+      type: object
+      description: >-
+        Structured change proposed by the curation worker. risk auto covers
+        tag, link, classify_draft, mark_duplicate, flag_sensitive,
+        flag_conflict, flag_source_withdrawn and restrict_visibility (applied
+        at once, audited, revertible); every other kind becomes a submitted
+        draft revision (applied_revision) published only through review.
+        Curated visibility is the intersection of the sources' scopes;
+        personal sources are never curated.
+      required: [id, kind, risk, status, target, payload, sources, rationale, created_at]
+      properties:
+        id: {type: string}
+        kind:
+          type: string
+          enum: [tag, link, classify_draft, mark_duplicate, flag_sensitive, flag_conflict, flag_source_withdrawn, restrict_visibility, create_page, merge_into_page, rewrite_section, split_page, merge_pages, widen_visibility, change_published_conclusion]
+          description: split_page and merge_pages are expanded by the server into the kinds they consist of (each its own proposal); widen_visibility is always rejected for agents
+        risk: {type: string, enum: [auto, review]}
+        status: {type: string, enum: [auto_applied, pending, accepted, rejected, reverted]}
+        target: {type: object, properties: {page_id: {type: string}, path: {type: string}}}
+        applied_revision: {type: integer, description: Draft revision a review proposal created}
+        payload: {type: object, additionalProperties: true, description: Kind-specific; validated server-side}
+        sources: {type: array, items: {$ref: '#/components/schemas/SourceRef'}}
+        rationale: {type: string}
+        created_at: {type: string}
+        decided_at: {type: string}
+        decided_by: {type: string}
+    CurationDecision:
+      type: object
+      required: [decision]
+      properties:
+        decision: {type: string, enum: [accept, reject, revert]}
+        comment: {type: string, maxLength: 2000}
+  responses:
+    Problem:
+      description: Error
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    Rejection:
+      description: Upload refused with actionable reasons
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Rejection'}
+paths:
+  /healthz:
+    get:
+      operationId: health
+      responses:
+        '200': {description: Alive, content: {application/json: {schema: {$ref: '#/components/schemas/Health'}}}}
+  /readyz:
+    get:
+      operationId: ready
+      responses:
+        '200': {description: Ready, content: {application/json: {schema: {$ref: '#/components/schemas/Ready'}}}}
+        '503': {description: Not ready, content: {application/json: {schema: {$ref: '#/components/schemas/Ready'}}}}
+  /enterprise/v1/auth/methods:
+    get:
+      operationId: authMethods
+      responses:
+        '200': {description: Enabled login methods, content: {application/json: {schema: {$ref: '#/components/schemas/AuthMethods'}}}}
+  /enterprise/v1/auth/local/login:
+    post:
+      operationId: localLogin
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/LocalLoginRequest'}}}}
+      responses:
+        '200': {description: Session, or password change required, content: {application/json: {schema: {$ref: '#/components/schemas/LocalLoginResponse'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/auth/local/password:
+    post:
+      operationId: changeLocalPassword
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/PasswordChangeRequest'}}}}
+      responses:
+        '204': {description: Password changed}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/auth/device/code:
+    post:
+      operationId: deviceCode
+      responses:
+        '200': {description: Device authorization, content: {application/json: {schema: {$ref: '#/components/schemas/DeviceCode'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/auth/device/approve:
+    post:
+      operationId: approveDevice
+      security: [{bearerAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/DeviceDecision'}}}}
+      responses:
+        '200': {description: Approved, content: {application/json: {schema: {type: object, required: [status], properties: {status: {type: string}}}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/auth/device/deny:
+    post:
+      operationId: denyDevice
+      security: [{bearerAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/DeviceDecision'}}}}
+      responses:
+        '200': {description: Denied, content: {application/json: {schema: {type: object, required: [status], properties: {status: {type: string}}}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/auth/device/token:
+    post:
+      operationId: deviceToken
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/DeviceTokenRequest'}}}}
+      responses:
+        '200': {description: Tokens, content: {application/json: {schema: {$ref: '#/components/schemas/DeviceToken'}}}}
+        default: {description: OAuth error, content: {application/json: {schema: {$ref: '#/components/schemas/OAuthError'}}}}
+  /enterprise/v1/auth/device/logout:
+    post:
+      operationId: deviceLogout
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [refresh_token], properties: {refresh_token: {type: string}}}}}}
+      responses:
+        '204': {description: Device credential revoked}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/me:
+    get:
+      operationId: me
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {description: Key owner, content: {application/json: {schema: {$ref: '#/components/schemas/Me'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/profile:
+    get:
+      operationId: profile
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {description: Session owner, content: {application/json: {schema: {$ref: '#/components/schemas/Me'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/keys:
+    get:
+      operationId: listKeys
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {description: Own keys, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/APIKeyView'}}}}}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createKey
+      security: [{bearerAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/APIKeyCreateRequest'}}}}
+      responses:
+        '201': {description: Key shown once, content: {application/json: {schema: {$ref: '#/components/schemas/APIKeyCreated'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/keys/{keyID}:
+    delete:
+      operationId: revokeKey
+      security: [{bearerAuth: []}]
+      parameters: [{name: keyID, in: path, required: true, schema: {type: string}}]
+      responses:
+        '204': {description: Revoked}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/catalog/search:
+    get:
+      operationId: searchCatalog
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Workspace'}
+        - {name: q, in: query, schema: {type: string, maxLength: 200}}
+      responses:
+        '200': {description: Directory, content: {application/json: {schema: {$ref: '#/components/schemas/CatalogSearch'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/catalog/items/{id}:
+    get:
+      operationId: getCatalogItem
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Workspace'}
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Entry, content: {application/json: {schema: {$ref: '#/components/schemas/CatalogItem'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/resources:
+    get:
+      operationId: listResources
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Workspace'}
+        - {name: kind, in: query, schema: {type: string, enum: [news, wiki, capability]}}
+        - {name: q, in: query, schema: {type: string, maxLength: 120}}
+      responses:
+        '200': {description: Readable published resources, content: {application/json: {schema: {$ref: '#/components/schemas/ResourceList'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createResource
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ResourceInput'}}}}
+      responses:
+        '201': {description: Draft, content: {application/json: {schema: {$ref: '#/components/schemas/Resource'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/resources/{id}:
+    get:
+      operationId: getResource
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Workspace'}
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Resource, content: {application/json: {schema: {$ref: '#/components/schemas/Resource'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+    put:
+      operationId: editResource
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Workspace'}
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ResourceInput'}}}}
+      responses:
+        '200': {description: New draft revision, content: {application/json: {schema: {$ref: '#/components/schemas/Resource'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/resources/{id}/submit:
+    post:
+      operationId: submitResource
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: id, in: path, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: Submitted, content: {application/json: {schema: {$ref: '#/components/schemas/Resource'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/resources/{id}/approve:
+    post:
+      operationId: approveResource
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: id, in: path, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: Published, content: {application/json: {schema: {$ref: '#/components/schemas/Resource'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/resources/{id}/reject:
+    post:
+      operationId: rejectResource
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: id, in: path, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: Returned to author, content: {application/json: {schema: {$ref: '#/components/schemas/Resource'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/resources/{id}/withdraw:
+    post:
+      operationId: withdrawResource
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: id, in: path, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: Unpublished, content: {application/json: {schema: {$ref: '#/components/schemas/Resource'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/review/queue:
+    get:
+      operationId: reviewQueue
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}]
+      responses:
+        '200': {description: Reviewable submissions, content: {application/json: {schema: {$ref: '#/components/schemas/ResourceList'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/contributions:
+    post:
+      operationId: uploadContribution
+      description: >-
+        Upload one page snapshot. Same Idempotency-Key and body replays the
+        recorded result (200); same key with another body is 409; unchanged
+        content under a new key is a content replay (200, no new version);
+        changed content is the next version (201).
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Workspace'}
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string, maxLength: 128}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ContributionUpload'}}}}
+      responses:
+        '201': {description: New version, content: {application/json: {schema: {$ref: '#/components/schemas/Contribution'}}}}
+        '200': {description: Replay, content: {application/json: {schema: {$ref: '#/components/schemas/Contribution'}}}}
+        '400': {$ref: '#/components/responses/Rejection'}
+        default: {$ref: '#/components/responses/Problem'}
+    get:
+      operationId: listContributions
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Workspace'}
+        - {name: since, in: query, schema: {type: string, format: date-time}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100}}
+      responses:
+        '200': {description: The caller's contributions changed after since, oldest first, content: {application/json: {schema: {$ref: '#/components/schemas/ContributionList'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/contributions/{id}:
+    get:
+      operationId: getContribution
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: id, in: path, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: Current version (author only), content: {application/json: {schema: {$ref: '#/components/schemas/Contribution'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/contributions/{id}/withdraw:
+    post:
+      operationId: withdrawContribution
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: id, in: path, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: Withdrawn; a later upload of the same local page revives it, content: {application/json: {schema: {$ref: '#/components/schemas/Contribution'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/blobs/{sha256}:
+    put:
+      operationId: putBlob
+      description: >-
+        Upload attachment bytes before the contribution that cites them. The
+        server verifies sha256 while streaming. Content-Type must be one of
+        application/pdf, image/png|jpeg|gif|webp, text/plain|markdown|csv,
+        application/json, or Office docx/xlsx/pptx, and must agree with the
+        sniffed bytes. At most 50 MiB; text at most 5 MiB and DLP-scanned
+        (any hit is dlp_blocked). Available only when the server has
+        EAP_BLOB_ROOT configured.
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: sha256, in: path, required: true, schema: {type: string, pattern: '^[0-9a-f]{64}$'}}]
+      requestBody: {required: true, content: {'*/*': {schema: {type: string, format: binary}}}}
+      responses:
+        '201': {description: Stored, content: {application/json: {schema: {$ref: '#/components/schemas/Blob'}}}}
+        '200': {description: Already present, content: {application/json: {schema: {$ref: '#/components/schemas/Blob'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/wiki/tree:
+    get:
+      operationId: getWikiTree
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}]
+      responses:
+        '200': {description: Nodes and readable published pages, content: {application/json: {schema: {$ref: '#/components/schemas/WikiTree'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/wiki/by-path/{path}:
+    get:
+      operationId: getWikiPageByPath
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Workspace'}
+        - {name: path, in: path, required: true, description: shelf/book/chapter/page (slashes kept), schema: {type: string}}
+      responses:
+        '200': {description: Page, content: {application/json: {schema: {$ref: '#/components/schemas/WikiPage'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/wiki/pages/{id}/attachments/{sha256}:
+    get:
+      operationId: getWikiAttachment
+      description: Bytes of an attachment the readable page revision offers; images inline, other types as a download. Requires attachment storage (EAP_BLOB_ROOT).
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Workspace'}
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - {name: sha256, in: path, required: true, schema: {type: string, pattern: '^[0-9a-f]{64}$'}}
+      responses:
+        '200': {description: Attachment bytes, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/wiki/nodes:
+    post:
+      operationId: createWikiNode
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/WikiNodeInput'}}}}
+      responses:
+        '201': {description: Created (admin), content: {application/json: {schema: {$ref: '#/components/schemas/WikiNode'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/wiki/nodes/{id}:
+    patch:
+      operationId: updateWikiNode
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: id, in: path, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/WikiNodeInput'}}}}
+      responses:
+        '200': {description: Updated (admin; pages below change path), content: {application/json: {schema: {type: object, additionalProperties: true}}}}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deleteWikiNode
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: id, in: path, required: true, schema: {type: string}}]
+      responses:
+        '204': {description: Deleted (admin; only empty nodes)}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/wiki/search:
+    get:
+      operationId: searchWiki
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Workspace'}
+        - {name: q, in: query, required: true, schema: {type: string, maxLength: 200}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 20}}
+      responses:
+        '200': {description: Authorized results only, content: {application/json: {schema: {type: object, required: [results], properties: {results: {type: array, items: {$ref: '#/components/schemas/WikiSearchResult'}}}}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/wiki/pages/{id}:
+    get:
+      operationId: getWikiPage
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: id, in: path, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: Published revision the reader may open, content: {application/json: {schema: {$ref: '#/components/schemas/WikiPage'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/curation/proposals:
+    get:
+      operationId: listCurationProposals
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/Workspace'}
+        - {name: status, in: query, schema: {type: string, enum: [auto_applied, pending, accepted, rejected, reverted]}}
+      responses:
+        '200': {description: Proposals the reviewer may decide, content: {application/json: {schema: {type: object, required: [proposals], properties: {proposals: {type: array, items: {$ref: '#/components/schemas/CurationProposal'}}}}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/curation/proposals/{id}/decision:
+    post:
+      operationId: decideCurationProposal
+      description: >-
+        accept/reject on a pending review proposal approves/rejects its
+        submitted revision (same as the review queue); revert (or reject)
+        undoes an auto-applied proposal; accept keeps it.
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: id, in: path, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CurationDecision'}}}}
+      responses:
+        '200': {description: Decided, content: {application/json: {schema: {$ref: '#/components/schemas/CurationProposal'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/curation/sweeps:
+    post:
+      operationId: requestCurationSweep
+      description: >-
+        curation.sweep: queue a low-frequency global re-curation of the Workspace now
+        (the curator also schedules one per EAP_CURATOR_SWEEP_EVERY). queued
+        is false when a sweep is already open.
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}]
+      responses:
+        '202':
+          description: Accepted
+          content: {application/json: {schema: {type: object, required: [queued], properties: {queued: {type: boolean}}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/skills/{name}/versions:
+    post:
+      operationId: publishSkill
+      description: >-
+        Publish a new version. Personal versions are private to the author
+        and never reviewed; team and organization versions wait for
+        skill.review at their scope.
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: name, in: path, required: true, schema: {type: string, pattern: '^[a-z0-9-]{1,64}$'}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SkillPublish'}}}}
+      responses:
+        '201': {description: Stored, content: {application/json: {schema: {$ref: '#/components/schemas/SkillVersion'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/skills/{name}/versions/{version}/review:
+    post:
+      operationId: approveSkill
+      description: skill.review at the skill's scope, never the author — pending_review to approved.
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: name, in: path, required: true, schema: {type: string}}, {name: version, in: path, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: Approved, content: {application/json: {schema: {type: object, required: [status], properties: {status: {type: string}}}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/skills/{name}/versions/{version}/release:
+    post:
+      operationId: releaseSkill
+      description: skill.review at the skill's scope — approved to released with a platform signature.
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: name, in: path, required: true, schema: {type: string}}, {name: version, in: path, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: Released, content: {application/json: {schema: {type: object, required: [status, digest], properties: {status: {type: string}, digest: {type: string}}}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/skills/{name}/versions/{version}/reject:
+    post:
+      operationId: rejectSkill
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: name, in: path, required: true, schema: {type: string}}, {name: version, in: path, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [reason], properties: {reason: {type: string, maxLength: 500}}}}}}
+      responses:
+        '200': {description: Rejected, content: {application/json: {schema: {type: object, required: [status], properties: {status: {type: string}}}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/skills/{name}/versions/{version}/content:
+    get:
+      operationId: getSkillContent
+      description: SKILL.md and resource file names, for the author and reviewers at the skill's scope (audited).
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: name, in: path, required: true, schema: {type: string}}, {name: version, in: path, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: Content, content: {application/json: {schema: {$ref: '#/components/schemas/SkillContent'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/skills/{name}/versions/{version}/download:
+    get:
+      operationId: downloadSkillResources
+      description: >-
+        The signed resource archive (tar.gz). A protected skill's archive never
+        contains SKILL.md. Headers X-Skill-Digest and X-Skill-Signature.
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: name, in: path, required: true, schema: {type: string}}, {name: version, in: path, required: true, schema: {type: string}}]
+      responses:
+        '200': {description: Archive, content: {application/gzip: {schema: {type: string, format: binary}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/skills/{name}/requirement:
+    put:
+      operationId: requireSkill
+      description: skill.require for the audience — the whole Workspace (no group_id) or one team.
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: name, in: path, required: true, schema: {type: string}}, {name: group_id, in: query, schema: {type: string}}]
+      responses:
+        '204': {description: Required}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: unrequireSkill
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: name, in: path, required: true, schema: {type: string}}, {name: group_id, in: query, schema: {type: string}}]
+      responses:
+        '204': {description: No longer required}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/skill-reviews:
+    get:
+      operationId: listSkillReviews
+      description: Versions awaiting a decision the caller may make.
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}]
+      responses:
+        '200': {description: Pending, content: {application/json: {schema: {$ref: '#/components/schemas/SharedSkillList'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/me/skills:
+    get:
+      operationId: listMySkills
+      description: >-
+        The member's skill shelf: per name the newest usable version with its
+        required/enabled/active state, plus the member's own versions under
+        review or rejected.
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}]
+      responses:
+        '200': {description: Shelf, content: {application/json: {schema: {$ref: '#/components/schemas/SharedSkillList'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/me/skills/{name}:
+    put:
+      operationId: enableSkill
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: name, in: path, required: true, schema: {type: string}}]
+      responses:
+        '204': {description: Enabled}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: disableSkill
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: name, in: path, required: true, schema: {type: string}}]
+      responses:
+        '204': {description: Disabled}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/admin/members:
+    get:
+      operationId: listMembers
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}]
+      responses:
+        '200': {description: Members, content: {application/json: {schema: {$ref: '#/components/schemas/MemberList'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createMember
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/MemberCreateRequest'}}}}
+      responses:
+        '201': {description: Member with one-time password, content: {application/json: {schema: {$ref: '#/components/schemas/MemberCreated'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/admin/members/{userID}:
+    patch:
+      operationId: updateMember
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: userID, in: path, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/MemberUpdateRequest'}}}}
+      responses:
+        '200': {description: Member, content: {application/json: {schema: {$ref: '#/components/schemas/Member'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: removeMember
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: userID, in: path, required: true, schema: {type: string}}]
+      responses:
+        '204': {description: Removed}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/admin/roles:
+    get:
+      operationId: listRoles
+      description: members.manage — built-in roles merged with this Workspace's edits, plus the permission catalog.
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}]
+      responses:
+        '200': {description: Roles, content: {application/json: {schema: {$ref: '#/components/schemas/RoleCatalog'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/admin/roles/{key}:
+    put:
+      operationId: putRole
+      description: >-
+        roles.manage — create a custom role or edit one. A role may only grant
+        permissions the caller holds; team roles take only team-grantable
+        permissions; a scope never changes; the admin role is locked.
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: key, in: path, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/RoleInput'}}}}
+      responses:
+        '200': {description: Saved, content: {application/json: {schema: {$ref: '#/components/schemas/Role'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deleteRole
+      description: roles.manage — delete a custom role (and every assignment of it) or reset a built-in role to its defaults.
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: key, in: path, required: true, schema: {type: string}}]
+      responses:
+        '204': {description: Deleted or reset}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/me/permissions:
+    get:
+      operationId: getMyPermissions
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}]
+      responses:
+        '200': {description: The caller's permissions, content: {application/json: {schema: {$ref: '#/components/schemas/MyPermissions'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/admin/groups:
+    get:
+      operationId: listGroups
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}]
+      responses:
+        '200': {description: Groups, content: {application/json: {schema: {$ref: '#/components/schemas/GroupList'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: createGroup
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/GroupName'}}}}
+      responses:
+        '201': {description: Group, content: {application/json: {schema: {$ref: '#/components/schemas/Group'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+  /enterprise/v1/admin/groups/{groupID}:
+    patch:
+      operationId: renameGroup
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: groupID, in: path, required: true, schema: {type: string}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/GroupName'}}}}
+      responses:
+        '200': {description: Renamed, content: {application/json: {schema: {$ref: '#/components/schemas/Group'}}}}
+        default: {$ref: '#/components/responses/Problem'}
+    delete:
+      operationId: deleteGroup
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: groupID, in: path, required: true, schema: {type: string}}]
+      responses:
+        '204': {description: Deleted}
+        default: {$ref: '#/components/responses/Problem'}

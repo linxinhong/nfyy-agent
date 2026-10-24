@@ -56,7 +56,7 @@ export { YuanpuSubagentManager } from './subagents/manager.js';
 export { BUILTIN_SUBAGENTS } from './subagents/profiles.js';
 export { projectSessionTrajectory } from './session-trajectory.js';
 
-export const PI_UPSTREAM_VERSION = '1.0.4';
+export const PI_UPSTREAM_VERSION = '1.4.0';
 
 const maximumSavedSessionBytes = 32 * 1024 * 1024;
 const maximumBranchCacheBytes = 64 * 1024 * 1024;

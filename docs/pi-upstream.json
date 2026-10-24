@@ -1,8 +1,8 @@
 {
   "repository": "https://github.com/earendil-works/pi.git",
   "distribution": "npm",
-  "version": "1.0.4",
-  "tag": "v1.0.4",
+  "version": "1.4.0",
+  "tag": "v1.4.0",
   "directPackages": [
     "@earendil-works/pi-coding-agent",
     "@earendil-works/pi-ai",

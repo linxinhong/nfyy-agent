@@ -1,0 +1,4 @@
+{
+  "audience": "mcp-gateway",
+  "ttl_seconds": 600
+}

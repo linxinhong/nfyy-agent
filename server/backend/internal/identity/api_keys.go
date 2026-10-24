@@ -24,10 +24,86 @@ type APIKey struct {
 	RevokedAt  *time.Time `json:"revokedAt"`
 }
 
+// BootstrapAdminWithAPIKey creates the first administrator and their first key atomically.
+func (s *Store) BootstrapAdminWithAPIKey(ctx context.Context, email, name string) (User, string, error) {
+	user := User{Email: normalizedEmail(email), Name: strings.TrimSpace(name), Role: "admin", Active: true}
+	if !validateUser(user) {
+		return User{}, "", ErrInvalid
+	}
+	if s.pool == nil {
+		return User{}, "", ErrUnavailable
+	}
+	var err error
+	user.ID, err = newID()
+	if err != nil {
+		return User{}, "", ErrUnavailable
+	}
+	keyID, err := newID()
+	if err != nil {
+		return User{}, "", ErrUnavailable
+	}
+	random := make([]byte, 32)
+	if _, err := rand.Read(random); err != nil {
+		return User{}, "", ErrUnavailable
+	}
+	secret := "ypk_" + base64.RawURLEncoding.EncodeToString(random)
+	keyHash := sha256.Sum256([]byte(secret))
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return User{}, "", ErrUnavailable
+	}
+	defer tx.Rollback(context.Background())
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(796873211)"); err != nil {
+		return User{}, "", ErrUnavailable
+	}
+	var count int
+	if err := tx.QueryRow(ctx, "SELECT count(*) FROM yuanpu_users").Scan(&count); err != nil {
+		return User{}, "", ErrUnavailable
+	}
+	if count != 0 {
+		return User{}, "", ErrBootstrapClosed
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO yuanpu_users (id,email,name,role) VALUES ($1,$2,$3,'admin')`, user.ID, user.Email, user.Name); err != nil {
+		return User{}, "", databaseError(err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO yuanpu_api_keys (id,user_id,issued_by,name,key_prefix,key_hash,expires_at)
+		VALUES ($1,$2,$2,'initial administrator key',$3,$4,now()+interval '365 days')`, keyID, user.ID, secret[:12], keyHash[:]); err != nil {
+		return User{}, "", databaseError(err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO yuanpu_identity_audit (subject_id,action,details) VALUES ($1,'bootstrap_admin',jsonb_build_object('keyId',$2::text))`, user.ID, keyID); err != nil {
+		return User{}, "", ErrUnavailable
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return User{}, "", ErrUnavailable
+	}
+	return user, secret, nil
+}
+
 func (s *Store) IssueAPIKey(ctx context.Context, actor User, userID, name string, expiresInDays int) (APIKey, string, error) {
 	if actor.Role != "admin" || !actor.Active {
 		return APIKey{}, "", ErrUnauthorized
 	}
+	return s.issueAPIKey(ctx, actor, userID, name, expiresInDays)
+}
+
+// IssueOwnAPIKey accepts only a password-authenticated session. A stolen API
+// key cannot mint more keys, and the new secret is returned exactly once.
+func (s *Store) IssueOwnAPIKey(ctx context.Context, actor User, passwordSessionToken string) (APIKey, string, error) {
+	secret, err := base64.RawURLEncoding.DecodeString(passwordSessionToken)
+	if err != nil || len(secret) != 32 || s.pool == nil || !actor.Active {
+		return APIKey{}, "", ErrUnauthorized
+	}
+	hash := sha256.Sum256(secret)
+	var id string
+	err = s.pool.QueryRow(ctx, `SELECT user_id FROM yuanpu_sessions WHERE token_hash=$1
+		AND api_key_id IS NULL AND revoked_at IS NULL AND expires_at>now()`, hash[:]).Scan(&id)
+	if err != nil || id != actor.ID {
+		return APIKey{}, "", ErrUnauthorized
+	}
+	return s.issueAPIKey(ctx, actor, actor.ID, "Yuanpu Agent desktop", 90)
+}
+
+func (s *Store) issueAPIKey(ctx context.Context, actor User, userID, name string, expiresInDays int) (APIKey, string, error) {
 	name = strings.TrimSpace(name)
 	if userID == "" || name == "" || len(name) > 120 || expiresInDays < 1 || expiresInDays > 365 {
 		return APIKey{}, "", ErrInvalid
@@ -195,6 +271,9 @@ func (s *Store) LoginWithAPIKey(ctx context.Context, plain string) (User, string
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return User{}, "", ErrUnavailable
+	}
+	if user.Permissions, err = s.rolePermissions(ctx, user.Role); err != nil {
+		return User{}, "", err
 	}
 	return user, token, nil
 }

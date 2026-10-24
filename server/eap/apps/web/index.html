@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="zh-CN" suppressHydrationWarning>
+	<head>
+		<meta charset="UTF-8" />
+		<link rel="icon" type="image/x-icon" href="/favicon.ico" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>知识服务中心</title>
+
+		<!--
+			Boot 失败守卫 —— 版本偏移防护的第 1 层（共 3 层）。
+
+			场景：用户开着页面，服务端部署了新版本，旧的 /assets/*.js chunk 变成 404。
+			此时 bundle 根本起不来，React 里的 UpdatingScreen 永远跑不到，所以必须
+			有一份纯 DOM 的兜底。另两层在 lib/utils/versionSkew.ts（soft 横幅 / hard 整屏）。
+
+			两个触发源，单一机制会漏：
+			  ① 捕获阶段的 error 事件 —— 抓 <script>/<link> 加载失败（资源 error 不冒泡，必须用捕获）
+			  ② 20s 启动超时 —— 网络挂起而非 404 时不会有 error 事件
+
+			重载预算：sessionStorage 60s 窗口内最多 2 次，防无限重载循环。
+			关键顺序是**先写成功再授权重载** —— 若先重载再记账，计数永远清零，预算花不掉。
+		-->
+		<script>
+			(function () {
+				var GUARD_KEY = "app:skew-reloads";
+				var MAX_RELOADS = 2;
+				var WINDOW_MS = 60000;
+				var shown = 0;
+
+				// 消费一次重载预算。返回 true 表示获得授权。
+				function consumeReloadBudget() {
+					try {
+						var now = Date.now();
+						var state = JSON.parse(sessionStorage.getItem(GUARD_KEY) || "null");
+						if (!state || now - state.firstAt > WINDOW_MS) {
+							state = { count: 1, firstAt: now };
+						} else {
+							if (state.count >= MAX_RELOADS) return false;
+							state.count++;
+						}
+						// 先落盘再返回授权：写成功才算真的花掉了这次预算
+						sessionStorage.setItem(GUARD_KEY, JSON.stringify(state));
+						return true;
+					} catch (e) {
+						return false;
+					}
+				}
+
+				function showUpgradingScreen() {
+					if (shown || window.__appBooted) return;
+					shown = 1;
+					var canAutoReload = consumeReloadBudget();
+					var root = document.getElementById("root");
+					if (!root) return;
+
+					root.innerHTML =
+						"<style>" +
+						"*{box-sizing:border-box}body{margin:0}" +
+						"#bu{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:24px;background:#f4f4f5;color:#18181b;font-family:system-ui,sans-serif}" +
+						".shell-dark #bu{background:#1a1a1e;color:#fafafa}" +
+						"#bc{width:min(512px,100%);overflow:hidden;border:1px solid #e4e4e7;border-radius:12px;background:#fff}" +
+						".shell-dark #bc{border-color:#3f3f46;background:#27272a}" +
+						"#bx{padding:36px 32px 32px}" +
+						"h1{margin:0;font-size:24px;line-height:32px;font-weight:650;letter-spacing:-.02em}" +
+						"p{margin:8px 0 0;color:#71717a;font-size:14px;line-height:22px}" +
+						".shell-dark p,.shell-dark #bf span{color:#a1a1aa}" +
+						"#bp{height:6px;margin-top:28px;overflow:hidden;border-radius:9px;background:#f4f4f5}" +
+						".shell-dark #bp{background:#3f3f46}" +
+						"#bp i{display:block;width:34%;height:100%;border-radius:9px;background:#3f9277;animation:p 1.8s ease-in-out infinite}" +
+						"#bp.x i{width:100%;opacity:.35;animation:none}" +
+						"#bf{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:16px}" +
+						"#bf span{color:#71717a;font-size:12px}" +
+						"#br{cursor:pointer;border:1px solid #e4e4e7;border-radius:6px;padding:7px 13px;background:#fff;color:#18181b;font-size:13px;font-weight:550}" +
+						".shell-dark #br{border-color:#52525b;background:#27272a;color:#fafafa}" +
+						"@keyframes p{0%{transform:translateX(-110%)}50%{transform:translateX(110%)}to{transform:translateX(310%)}}" +
+						"@media(max-width:520px){#bu{padding:16px}#bx{padding:28px 20px 24px}#bf{align-items:stretch;flex-direction:column}#br{width:100%}}" +
+						"@media(prefers-reduced-motion:reduce){#bp i{width:100%;animation:none}}" +
+						"</style>" +
+						"<main id=bu><section id=bc role=status aria-live=polite><div id=bx>" +
+						"<h1>正在更新</h1>" +
+						"<p>" +
+						(canAutoReload ? "新版本正在发布，页面将自动重试。" : "更新仍在进行。如果等待时间过长，请联系管理员。") +
+						"</p>" +
+						"<div id=bp" +
+						(canAutoReload ? "" : " class=x") +
+						"><i></i></div>" +
+						"<div id=bf><span>" +
+						(canAutoReload ? "等待更新完成…" : "已暂停自动重载") +
+						"</span><button id=br>立即重载</button></div>" +
+						"</div></section></main>";
+
+					document.getElementById("br").onclick = function () {
+						location.reload();
+					};
+					if (canAutoReload) {
+						setTimeout(function () {
+							location.reload();
+						}, 4000);
+					}
+				}
+
+				// ① 资源加载失败（捕获阶段 —— 资源 error 事件不冒泡）
+				addEventListener(
+					"error",
+					function (e) {
+						var target = e.target;
+						var url = target && (target.src || target.href);
+						if (url && url.indexOf("/assets/") > -1) showUpgradingScreen();
+					},
+					true,
+				);
+
+				// ② 启动超时兜底
+				setTimeout(function () {
+					if (!window.__appBooted) showUpgradingScreen();
+				}, 20000);
+			})();
+		</script>
+	</head>
+
+	<body class="font-sans antialiased">
+		<div id="root">
+			<!--
+				主题预探测 —— 必须同步执行，且必须在骨架 DOM 之前。
+				在浏览器绘制第一帧之前就把 shell-dark 打上，所以没有任何一帧是错误主题。
+
+				读的 key 是 "theme"，正是 next-themes 的默认 storageKey —— 内联脚本与
+				React 侧共享同一来源，hydration 后不会跳变。
+				三级降级：localStorage → 系统偏好 → catch 里再试一次 → 最坏走明色。
+			-->
+			<script>
+				(function () {
+					try {
+						var stored = localStorage.getItem("theme");
+						var isDark = stored === "dark" || (stored !== "light" && matchMedia("(prefers-color-scheme:dark)").matches);
+						document.getElementById("root").classList.toggle("shell-dark", isDark);
+					} catch (e) {
+						try {
+							document.getElementById("root").classList.toggle("shell-dark", matchMedia("(prefers-color-scheme:dark)").matches);
+						} catch (e2) {
+							/* 无 matchMedia 的环境 —— 走明色 */
+						}
+					}
+				})();
+			</script>
+
+			<!--
+				配色包预探测 —— 与明暗同理，首帧前设 data-palette，避免切了配色的用户
+				看到一帧默认色。设在 <html> 上（data-palette 选择器锚这里），无值不设走默认。
+				key "palette" 与 lib/constants/palettes.ts 的 PALETTE_STORAGE_KEY 共用。
+			-->
+			<script>
+				(function () {
+					try {
+						var p = localStorage.getItem("palette");
+						if (p) document.documentElement.dataset.palette = p;
+					} catch (e) {
+						/* localStorage 不可用 —— 走默认配色 */
+					}
+				})();
+			</script>
+
+			<!--
+				内联骨架屏 —— 画**结构轮廓**而非通用 spinner，所以 React 接管时零布局跳动。
+
+				两个关键性质：
+				  · 位于 #root 内部 → React createRoot().render() 挂载时自动被替换，零清理代码
+				  · 色块用 currentColor + opacity 而非写死颜色 → 跟随 .shell-dark 自适应
+
+				改布局时这里要跟着改，否则骨架与真实结构会错位。
+			-->
+			<style>
+				* {
+					box-sizing: border-box;
+					margin: 0;
+					padding: 0;
+					border: 0 solid;
+				}
+				#app-shell {
+					display: flex;
+					height: 100vh;
+					background: #f4f4f5;
+					color: #71717a;
+					font-family:
+						ui-sans-serif,
+						system-ui,
+						-apple-system,
+						sans-serif;
+					animation: shell-fade 0.2s ease-out;
+				}
+				.shell-dark #app-shell {
+					background: #1a1a1e;
+					color: #a1a1aa;
+				}
+				#app-shell .sidebar {
+					width: 240px;
+					padding: 16px;
+					display: flex;
+					flex-direction: column;
+					gap: 24px;
+				}
+				#app-shell .brand {
+					height: 22px;
+					width: 120px;
+					border-radius: 4px;
+					background: currentColor;
+					opacity: 0.12;
+				}
+				#app-shell .nav-item {
+					height: 12px;
+					border-radius: 6px;
+					background: currentColor;
+					opacity: 0.08;
+				}
+				#app-shell .main {
+					flex: 1;
+					padding: 32px;
+					display: flex;
+					flex-direction: column;
+					gap: 20px;
+				}
+				#app-shell .bar {
+					border-radius: 6px;
+					background: currentColor;
+					opacity: 0.06;
+				}
+				@media (max-width: 767px) {
+					#app-shell .sidebar {
+						display: none;
+					}
+					#app-shell .main {
+						padding: 16px;
+					}
+				}
+				@keyframes shell-fade {
+					from {
+						opacity: 0;
+					}
+					to {
+						opacity: 1;
+					}
+				}
+				@media (prefers-reduced-motion: reduce) {
+					#app-shell {
+						animation: none;
+					}
+				}
+			</style>
+			<div id="app-shell" aria-hidden="true">
+				<div class="sidebar">
+					<div class="brand"></div>
+					<div style="display: flex; flex-direction: column; gap: 10px">
+						<div class="nav-item" style="width: 70%"></div>
+						<div class="nav-item" style="width: 55%"></div>
+						<div class="nav-item" style="width: 80%"></div>
+						<div class="nav-item" style="width: 45%"></div>
+						<div class="nav-item" style="width: 65%"></div>
+					</div>
+				</div>
+				<div class="main">
+					<div class="bar" style="height: 32px; width: 240px"></div>
+					<div class="bar" style="height: 1px; width: 100%"></div>
+					<div style="display: flex; gap: 16px">
+						<div class="bar" style="height: 80px; flex: 1"></div>
+						<div class="bar" style="height: 80px; flex: 1"></div>
+						<div class="bar" style="height: 80px; flex: 1"></div>
+					</div>
+					<div class="bar" style="height: 200px; width: 100%"></div>
+				</div>
+			</div>
+		</div>
+		<script type="module" src="/app/main.tsx"></script>
+	</body>
+</html>

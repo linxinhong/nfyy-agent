@@ -5,7 +5,7 @@ import { createMcpExtension, createToolSearchExtension,
   type McpServerEntry, type SettingsManager } from '@earendil-works/pi-coding-agent';
 
 export const BUILTIN_MCP_NAME = 'pi-mcp';
-export const BUILTIN_MCP_VERSION = '1.0.4';
+export const BUILTIN_MCP_VERSION = '1.4.0';
 
 /** MCP uses Pi's deferred tool search; no extra JS VM/worker is needed in the SEA. */
 export function builtinMcpExtensions(agentDir: string, cwd: string,

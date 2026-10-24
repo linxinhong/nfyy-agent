@@ -1,0 +1,13 @@
+{
+  "id": "chatcmpl_eap_0001",
+  "object": "chat.completion.chunk",
+  "created": 1780000000,
+  "model": "coding-high",
+  "choices": [
+    {
+      "index": 0,
+      "delta": { "role": "assistant", "content": "The" },
+      "finish_reason": null
+    }
+  ]
+}

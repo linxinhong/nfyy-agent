@@ -17,6 +17,7 @@ import (
 	"yuanpu.dev/server/internal/config"
 	"yuanpu.dev/server/internal/database"
 	"yuanpu.dev/server/internal/identity"
+	"yuanpu.dev/server/internal/store/bookstack"
 )
 
 var version = "0.1.0"
@@ -80,20 +81,19 @@ func run(logger *slog.Logger) error {
 			return errors.New("migrate the database before bootstrapping an administrator")
 		}
 		var input struct {
-			Email    string `json:"email"`
-			Name     string `json:"name"`
-			Password string `json:"password"`
+			Email string `json:"email"`
+			Name  string `json:"name"`
 		}
 		decoder := json.NewDecoder(os.Stdin)
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&input); err != nil {
 			return errors.New("bootstrap-admin expects JSON on standard input")
 		}
-		user, err := identity.New(db.Pool()).BootstrapAdmin(ctx, input.Email, input.Name, input.Password)
+		user, secret, err := identity.New(db.Pool()).BootstrapAdminWithAPIKey(ctx, input.Email, input.Name)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("administrator created: %s (%s)\n", user.Name, user.Email)
+		fmt.Printf("administrator created: %s (%s)\ninitial API key (shown once): %s\n", user.Name, user.Email, secret)
 		return nil
 	}
 	listener, err := net.Listen("tcp", cfg.Listen)
@@ -101,7 +101,15 @@ func run(logger *slog.Logger) error {
 		return fmt.Errorf("listen failed: %w", err)
 	}
 	defer listener.Close()
-	handler, err := app.NewHandler(version, db, cfg.ArtifactRoot)
+	handler, err := app.NewHandler(version, db, app.Options{
+		ArtifactRoot: cfg.ArtifactRoot,
+		IndustryRoot: cfg.IndustryRoot,
+		IndustryID:   cfg.IndustryID,
+		BookStack: bookstack.Config{
+			URL: cfg.BookStackURL, TokenID: cfg.BookStackTokenID,
+			TokenSecret: cfg.BookStackTokenSecret, AllowHTTP: cfg.BookStackAllowHTTP,
+		},
+	})
 	if err != nil {
 		return err
 	}

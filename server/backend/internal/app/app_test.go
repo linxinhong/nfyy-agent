@@ -28,12 +28,13 @@ func TestCompositionKeepsPublicAndProtectedRoutesSeparate(t *testing.T) {
 	}{
 		{"GET", "/v1/health", 200},
 		{"GET", "/v1/resources", 401},
-		{"POST", "/v1/auth/login", 503},
+		{"POST", "/v1/auth/api-key", 503},
+		{"POST", "/v1/logs", 401},
 	} {
 		response := httptest.NewRecorder()
 		request := httptest.NewRequest(tc.method, tc.path, nil)
-		if tc.path == "/v1/auth/login" {
-			request = httptest.NewRequest(tc.method, tc.path, strings.NewReader(`{"email":"member@example.com","password":"a valid password"}`))
+		if tc.path == "/v1/auth/api-key" {
+			request = httptest.NewRequest(tc.method, tc.path, strings.NewReader(`{"apiKey":"yp_test"}`))
 			request.Header.Set("Content-Type", "application/json")
 		}
 		handler.ServeHTTP(response, request)

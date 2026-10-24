@@ -1,0 +1,65 @@
+version: 1
+
+feature:
+  title: "EAP Capability Plane (V1.5)"
+  status: done
+
+tasks:
+  - id: TASK-034
+    title: "Capability Registry and /mcp/agent meta-tool surface"
+    status: done
+    goal: >
+      One governed discovery+execution surface over every enterprise
+      capability: search_capabilities returns only what the caller's
+      workspace, policy and risk posture actually allow (permission-aware
+      discovery), and execute_capability runs the full governance chain
+      (identity, workspace, policy, risk, approval, DLP egress, audit).
+    scope:
+      in:
+        - "packages/capability: composite Source registry (Search/Parse/Execute) with token-scored search"
+        - "mcp source adapter over mcpgateway.Registry (risk level + credential refs preserved); skill source adapter over released skill_packages"
+        - "GET/POST /mcp/agent: search_capabilities + execute_capability meta-tools, colon names mcp:<server>:<tool> / skill:<name>[@version]"
+        - "permission-aware search: workspace membership + policy decision + risk gating shape the status field (available | needs_approval | denied_by_policy | disabled)"
+        - "execute revalidates everything; MCP tool results pass the subject-aware DLP egress scan; every call audited on the reliable path"
+        - "structured error taxonomy with retry guidance (unknown_capability / forbidden / needs_approval / policy_blocked)"
+        - "dual-surface coexistence: /mcp/{server} unchanged, both surfaces share the same governance"
+      out:
+        - "HTTP/OpenAPI/model-alias capability sources (next card)"
+        - "OAuth for the MCP surface (enterprise agk_* credentials stay the frozen contract)"
+        - "schemaDigest drift detection (follow-up)"
+    constraints:
+      - "Discovery is UX, never authorization: execute revalidates identity, workspace, policy, risk and approval regardless of what search returned."
+      - "Skill execution returns governed install/sync guidance — skill bodies still run only via eap sync locally (ADR-0017)."
+      - "The meta-tool list stays constant at two tools regardless of how many capabilities exist."
+    forbidden:
+      - "Returning capabilities outside the caller's workspace authority."
+      - "Skipping the DLP egress scan or audit on execute_capability."
+      - "Growing the tool list per capability (that is the direct-mount surface's job)."
+    acceptance:
+      - type: command
+        run: "make verify-capability-gateway"
+      - type: assertion
+        expect: "A finance member's search never returns secops capabilities; an R2+ capability surfaces needs_approval until the approval continuation is supplied; a policy-denied capability reports denied_by_policy; execute writes audit and passes DLP egress."
+      - type: assertion
+        expect: "The same MCP tool called via /mcp/{server} directly and via /mcp/agent execute_capability enforces identical policy, approval, DLP and audit outcomes."
+    dependencies: []
+    risk_level: L4
+    investigation_hints:
+      - "Den reference: ee/apps/den-api/src/mcp/{agent,search,capability-registry}.ts in ~/git/openwork (token scoring, error taxonomy)"
+      - "existing mcpgateway.Service governance chain; skill catalog SQL; dlpScanEmployeeText"
+    escalation_conditions:
+      - "A capability source cannot express its governance metadata through the Source interface."
+    result:
+      owner: "zcode-31288"
+      attempts: 0
+      claimed_at: "2026-09-03T02:50:44.013Z"
+      completed_at: "2026-09-03T03:35:57.184Z"
+      worktree: ".tasks/worktrees/TASK-034"
+      branch: "task/task-034-capability-gateway"
+      evidence:
+        - {type: "command", check: "make verify-capability-gateway", status: "pass", summary: "PASS on merged main 0767ee4: agent-distribution chain + TestCapabilityGateway (permission-aware discovery, execute chain, skill guidance, error taxonomy, audit assertions). verify-foundation and verify-m2-m5 re-ran PASS."}
+        - {type: "assertion", check: "A finance member's search never returns secops capabilities; an R2+ capability surfaces needs_approval until the approval continuation is supplied; a policy-denied capability reports denied_by_policy; execute writes audit and passes DLP egress.", status: "pass", summary: "TestCapabilityGateway: finance/secops workspace isolation asserted both directions; R3 git_push surfaced needs_approval and its execution failed closed; the policy-denied tool reported denied_by_policy in discovery; capability.execute audit rows asserted for both allowed and denied outcomes; DLP egress applies via dlpScanEmployeeText on released results."}
+        - {type: "assertion", check: "The same MCP tool called via /mcp/{server} directly and via /mcp/agent execute_capability enforces identical policy, approval, DLP and audit outcomes.", status: "pass", summary: "Parity by construction: the MCP source delegates to the SAME mcpgateway.Service.CallTool chain (policy, R2+ approvals, SSRF, credential broker) the direct mount uses; a debug probe confirmed identical 200 output on both surfaces. LIVE on the running gateway: /mcp/agent tools/list is exactly [search_capabilities, execute_capability]; search returned mcp:gitlab:git_read_file (R1 available); execute_capability completed a real governed Git read through the demo upstream with capability.execute audit rows in the database."}
+      follow_up_candidates:
+        - "HTTP connector + model-alias sources; schemaDigest drift detection; capability usage telemetry"
+        - "HTTP connector + model-alias sources; schemaDigest drift detection; capability usage telemetry; Agent Registry (TASK-035)"

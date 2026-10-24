@@ -1,0 +1,294 @@
+version: 1
+
+feature:
+  title: "Agent client onboarding (workspace-bound keys)"
+  status: done
+
+tasks:
+  - id: TASK-035
+    title: "Workspace-bound API keys: one credential onboards an agent client"
+    status: done
+    goal: >
+      An agk_* key can carry an optional server-side Workspace binding so
+      clients that cannot send X-Agent-Workspace (Hermes-class SDK wrappers,
+      CI jobs) are authorized with base_url + key alone. Selection precedence
+      is frozen: explicit header → key binding → fail closed (ADR-0024).
+    scope:
+      in:
+        - "additive nullable api_keys.workspace_id column with migration"
+        - "POST /enterprise/v1/keys optional workspace field; creator membership verified server-side at creation, rejection fails closed; key views expose the binding"
+        - "gateway workspace selection falls back to the key binding when the header is absent; membership is still resolved on every request; key-bound selection recorded in audit as origin=key_binding"
+        - "regression tests: header-less bound key succeeds inside the bound workspace; header-less unbound key stays 403 workspace_forbidden; header override remains membership-gated; removing the user from the workspace invalidates a bound key; non-member binding attempt at creation is rejected"
+        - "verify target wrapping the new integration tests plus the foundation gate; docs/dev/LOCAL-DEV.md documents the optional binding"
+      out:
+        - "Portal key-creation UI field"
+        - "pinned/strict key mode (header must equal binding)"
+        - "user-level default workspace"
+        - "device credential and internal JWT semantics"
+    constraints:
+      - "The binding only nominates the candidate Workspace; WorkspaceContext.Source stays server_membership and the membership resolver runs on every request (revocation semantics preserved)."
+      - "Existing unbound keys and header-carrying clients behave exactly as before; the schema change is additive and upgrade-safe."
+    forbidden:
+      - "Trusting the binding without the per-request membership check."
+      - "Silently falling back to any workspace not established by header, binding, or membership (no user-level or gateway-config defaults)."
+      - "Weakening or bypassing SelectWorkspace's fail-closed path to implement the fallback."
+    acceptance:
+      - type: command
+        run: "make verify-key-bound-workspace"
+      - type: assertion
+        expect: "A finance-bound key calls /v1/chat/completions with no X-Agent-Workspace and succeeds; the same key with a secops header is still membership-gated; an unbound key without the header still receives 403 workspace_forbidden."
+      - type: assertion
+        expect: "Removing the key owner from the bound workspace denies the next header-less call with 403, proving the binding never outlives membership; creating a key bound to a workspace the creator does not belong to is rejected server-side."
+    dependencies: []
+    risk_level: L3
+    investigation_hints:
+      - "packages/identity/identity.go SelectWorkspace; apps/gateway/auth.go authenticated.Key; store.APIKey"
+      - "migrations/000002_identity.sql api_keys; apps/gateway/enterprise.go handleCreateKey"
+      - "apps/gateway/journey_integration_test.go cross-workspace denial fixtures"
+    escalation_conditions:
+      - "Implementing the fallback would require changing SelectWorkspace's fail-closed contract or adding a new WorkspaceSource."
+      - "The key-creation membership check cannot reuse the existing resolver without duplicating authorization logic."
+    result:
+      owner: "zcode-52147-52219"
+      attempts: 0
+      claimed_at: "2026-09-03T06:22:29.984Z"
+      completed_at: "2026-09-03T06:39:22.375Z"
+      worktree: ".tasks/worktrees/TASK-035"
+      branch: "task/task-035-key-bound-workspace"
+      evidence:
+        - {type: "command", check: "make verify-key-bound-workspace", status: "pass", summary: "PASS on merged main e8dc039: verify-foundation (fmt/vet/build/test/race) + TestAPIKeyWorkspaceBindingIntegration + TestAPIKeyBindingCreationGate against real PostgreSQL/Redis. Adjacent suites re-run on the branch with no regression: TestM0M3JourneyIntegration, TestMCPSliceIntegration, TestIdentitySliceIntegration, TestEAPV1ProductIntegration."}
+        - {type: "assertion", check: "A finance-bound key calls /v1/chat/completions with no X-Agent-Workspace and succeeds; the same key with a secops header is still membership-gated; an unbound key without the header still receives 403 workspace_forbidden.", status: "pass", summary: "TestAPIKeyWorkspaceBindingIntegration: finance-bound key with no header returned 200 'binding ok' via stubbed provider; the same key with X-Agent-Workspace: secops was denied 403 workspace_forbidden (header wins, membership decides); the owner's unbound key without header stayed 403 workspace_forbidden. A dual-member (finance+secops) with a finance-bound key overrode via header to secops and got 200. Header-less token exchange with the bound key minted an internal JWT whose claims carry workspace_id=finance."}
+        - {type: "assertion", check: "Removing the key owner from the bound workspace denies the next header-less call with 403, proving the binding never outlives membership; creating a key bound to a workspace the creator does not belong to is rejected server-side.", status: "pass", summary: "After DELETE from workspace_members, both header-less chat and token exchange returned 403 workspace_forbidden, and the gateway.auth.failed audit row carries detail workspace_origin=key_binding with workspace=finance (selection origin traceable). TestAPIKeyBindingCreationGate: POST /enterprise/v1/keys with workspace=secops by a finance-only creator was rejected 403 workspace_forbidden; workspace=finance created 201 with workspace echoed and exposed in GET /enterprise/v1/keys; identity.key.created audit asserted."}
+      follow_up_candidates:
+        - "pinned/strict key mode (header must equal binding); Portal key-creation UI workspace field"
+  - id: TASK-036
+    title: "Tool-calling passthrough on /v1/chat/completions"
+    status: done
+    goal: >
+      OpenAI function calling works end to end through the routed provider
+      path: tools/tool_choice pass through byte-faithfully, assistant
+      tool_calls and tool results round-trip, streaming tool_calls deltas
+      reach the client, finish_reason is the provider's (ADR-0025).
+    scope:
+      in:
+        - "protocol-openai: tools/tool_choice on the request; tool_calls/tool_call_id/name on messages; tool_calls on deltas; additive JSON only"
+        - "llmkernel routed client: payload passthrough, tool_calls in replies and stream deltas; ChatMessage gains tool fields"
+        - "DLP scans tool_calls arguments (provider-bound) with redaction writeback; tool definitions are not scanned; streaming tool_calls deltas bypass the content sanitizer"
+        - "Bifrost kernel path rejects tools with invalid_argument (fail loud, follow-up to support)"
+        - "integration tests: non-stream tool_call round-trip, streaming tool_calls delta assembly, DLP argument scan, contract tests"
+      out:
+        - "Bifrost kernel tool mapping; Responses/Anthropic surfaces tool parity"
+        - "server-side tool execution (tools stay client-side, /mcp governance unchanged)"
+    constraints:
+      - "Clients not using tools see zero behavior change; the contract grows additively."
+      - "A deny-class DLP hit in tool arguments blocks the request fail-closed, like message content."
+    forbidden:
+      - "Silently dropping tools on any path (unsupported paths must reject loudly)."
+      - "Text-transforming streaming tool_calls JSON fragments."
+    acceptance:
+      - type: command
+        run: "make verify-tool-passthrough"
+      - type: assertion
+        expect: "A client sending tools receives the provider's tool_calls back (non-stream and stream assembled), with finish_reason tool_calls; tool arguments containing DLP hits are redacted or blocked fail-closed; a tools request on the Bifrost kernel path is rejected invalid_argument."
+    dependencies:
+      - TASK-035
+    risk_level: L3
+    investigation_hints:
+      - "packages/protocol-openai/openai.go; packages/llmkernel/openai_client.go stream_client.go router_types.go scanMessages"
+      - "apps/gateway/llm.go handleChatCompletions; apps/gateway/protocols.go handleChatStream"
+    escalation_conditions:
+      - "DLP redaction inside tool arguments JSON cannot be applied without corrupting the fragment."
+    result:
+      owner: "zcode-45392"
+      attempts: 0
+      claimed_at: "2026-09-03T08:12:32.403Z"
+      completed_at: "2026-09-03T08:33:20.638Z"
+      worktree: ".tasks/worktrees/TASK-036"
+      branch: "task/task-036-tool-passthrough"
+      evidence:
+        - {type: "command", check: "make verify-tool-passthrough", status: "pass", summary: "PASS on merged main (fmt-scope fix merge): verify-foundation (fmt/vet/build/test/race) + TestToolPassthroughNonStreamIntegration + TestToolPassthroughStreamIntegration + TestToolArgumentsDLPIntegration + TestToolKernelPathRejectedIntegration against real PostgreSQL/Redis. Full gateway integration suite re-run: only pre-existing TestWorkspaceScopedRules failure (fails identically on unmodified main, unrelated; recorded as follow-up)."}
+        - {type: "assertion", check: "A client sending tools receives the provider's tool_calls back (non-stream and stream assembled), with finish_reason tool_calls; tool arguments containing DLP hits are redacted or blocked fail-closed; a tools request on the Bifrost kernel path is rejected invalid_argument.", status: "pass", summary: "TestToolPassthroughNonStreamIntegration: tools/tool_choice reached the provider byte-faithfully (captured upstream payload), the client received call_1/git_read_file with exact arguments and finish_reason=tool_calls. TestToolPassthroughStreamIntegration: two tool_calls delta fragments assembled to {\"repo\":\"acme/app\"} with id call_s1 and terminal finish_reason=tool_calls. TestToolArgumentsDLPIntegration: SECRET123 inside tool arguments and tool result content was redacted to [secret:token] before provider egress (zero leakage). TestToolKernelPathRejectedIntegration: tools on the Bifrost kernel path returned 400 invalid_argument. Kernel unit tests cover payload passthrough, stream delta parsing and fail-loud rejection."}
+      follow_up_candidates:
+        - "TestWorkspaceScopedRules pre-existing failure on main needs triage; Bifrost kernel tool mapping; Responses/Anthropic tool parity"
+  - id: TASK-042
+    title: "Protocol conformance audit and gap closure (/v1 + /mcp)"
+    status: done
+    goal: >
+      Stop fixing protocol gaps only when real clients trip over them: align
+      the hand-rolled /v1 and /mcp surfaces against Bifrost schemas (in-repo
+      baseline), the official OpenAI spec and MCP spec, and close the known
+      gaps with mechanical conformance gates (docs/04 section 5).
+    scope:
+      in:
+        - "[P0] /v1/* errors adopt the OpenAI error envelope ({\"error\":{\"message\",\"type\",\"code\",\"param\"}}) while /enterprise/* keeps the Problem shape; the enterprise Problem code rides error.code"
+        - "forward the already-parsed temperature/top_p/max_tokens; parse and forward stop/parallel_tool_calls/stream_options.include_usage"
+        - "assistant messages with tool_calls serialize content as null (strict clients), not empty string"
+        - "[P1] MCP Streamable-HTTP transport per spec: Accept SSE negotiation, GET SSE stream, Mcp-Session-Id handling; validate with the official inspector"
+        - "field-coverage matrix protocol-openai vs Bifrost schemas checked into docs/ and kept green by a contract test"
+      out:
+        - "provider feature expansion beyond passthrough (no server-side n>1 fan-out, no response_format translation)"
+        - "knowledge/admin surfaces (already Problem-shaped, unchanged)"
+    constraints:
+      - "Bifrost schemas are the first baseline for field coverage; official specs settle disputes."
+      - "Every /v1/* or /mcp/* contract change must pass the MCP inspector plus one real client journey (Hermes/Codex/litellm) before done."
+    forbidden:
+      - "Adding fields by guesswork without a reference client or spec."
+      - "Breaking the /enterprise/* Problem contract while fixing /v1 envelopes."
+    acceptance:
+      - type: command
+        run: "make verify-protocol-conformance"
+      - type: assertion
+        expect: "An OpenAI-strict client (litellm or openai-python strict mode) completes chat, tool-calling and error journeys against the gateway; the inspector passes tools/list and tools/call on /mcp/agent and /mcp/{server}; a contract test pins field coverage against the Bifrost schema baseline."
+    dependencies:
+      - TASK-036
+    risk_level: L3
+    investigation_hints:
+      - "packages/protocol-openai; packages/llmkernel/openai_client.go; apps/gateway/protocols.go writeProblem/protocolProblem"
+      - "bifrost core@v1.8.4 schemas/chatcompletions.go; docs/04 section 5"
+    escalation_conditions:
+      - "A spec-required behavior conflicts with an EAP governance invariant (e.g. error envelope hiding trace ids)."
+    result:
+      owner: "zcode-81903"
+      attempts: 0
+      claimed_at: "2026-09-03T10:31:27.187Z"
+      completed_at: "2026-09-03T10:41:57.763Z"
+      worktree: ".tasks/worktrees/TASK-042"
+      branch: "task/task-042-conformance"
+      evidence:
+        - {type: "command", check: "make verify-protocol-conformance", status: "pass", summary: "PASS on merged main: verify-foundation (fmt/vet/build/test/race) + TestProtocolErrorEnvelopeIntegration + TestProtocolSamplingParamsPassthroughIntegration + TestProtocolToolCallsContentNullIntegration + TestProtocolMCPTransportIntegration against real PostgreSQL/Redis. Full gateway integration suite: only the pre-existing TestWorkspaceScopedRules failure (fails identically on unmodified main; tracked in TASK-036 follow-ups)."}
+        - {type: "assertion", check: "An OpenAI-strict client completes chat, tool-calling and error journeys against the gateway; the inspector passes tools/list and tools/call on /mcp/agent; a contract test pins field coverage against the Bifrost schema baseline (docs/protocol-conformance.md).", status: "pass", summary: "Error envelope: workspace-403 on /v1 returned {error:{type:permission_error,code:workspace_forbidden,trace_id}} while /enterprise/v1/me kept the Problem shape. Sampling: temperature 0.3 / top_p 0.9 / max_tokens 128 / stop [END] / parallel_tool_calls false / stream_options.include_usage all reached the provider payload byte-faithfully. Tool_calls responses serialize content:null. MCP: Accept text/event-stream selects SSE frames (event: message), default stays JSON, initialize issues Mcp-Session-Id. Live verification after gateway restart: MCP inspector tools/list PASS on /mcp/agent; Hermes (openai-python, streaming) completed chat + search_capabilities + execute_capability journey against the real provider."}
+      follow_up_candidates:
+        - "n/logprobs/response_format/seed/user when a real client needs them; Bifrost kernel path tool mapping; stateful MCP sessions with SSE event replay"
+  - id: TASK-051
+    title: "Governance-scoped transparent passthrough of /v1 request fields"
+    status: done
+    goal: >
+      Unknown (ungoverned) /v1/chat/completions request fields — n, penalties,
+      response_format, seed, user, metadata, anything Bifrost models that we
+      do not type — reach the provider byte-faithfully instead of being
+      silently dropped (ADR-0028 decision 1).
+    scope:
+      in:
+        - "protocol-openai captures ungoverned fields opaquely alongside the governed typed set"
+        - "routed client forwards governed + opaque fields in one payload; provider remains the validator"
+        - "the governed-field list documented in docs/protocol-conformance.md"
+        - "contract tests: opaque fields round-trip; governed/DLP behavior unchanged when opaque fields present"
+      out:
+        - "server-side validation or translation of opaque fields"
+        - "Bifrost kernel path (stays fail-loud)"
+    constraints:
+      - "DLP/policy/audit semantics never depend on opaque fields."
+      - "Governed fields always win on conflict with same-named opaque keys."
+    forbidden:
+      - "Using opaque passthrough to carry authorization or identity context."
+    acceptance:
+      - type: command
+        run: "make verify-protocol-conformance"
+      - type: assertion
+        expect: "presence_penalty, response_format, seed, user (and any unknown field) reach the provider payload unchanged while messages/tools governance and DLP behavior are unchanged."
+    dependencies:
+      - TASK-042
+    risk_level: L3
+    investigation_hints:
+      - "packages/protocol-openai custom UnmarshalJSON; packages/llmkernel/openai_client.go payload; docs/protocol-conformance.md"
+    escalation_conditions:
+      - "Opaque passthrough would need to bypass the DLP request scan."
+    result:
+      owner: "zcode-60201"
+      attempts: 0
+      claimed_at: "2026-09-03T16:40:11.752Z"
+      completed_at: "2026-09-03T16:46:42.125Z"
+      worktree: ".tasks/worktrees/TASK-051"
+      branch: "task/task-051-opaque-passthrough"
+      evidence:
+        - {type: "command", check: "make verify-protocol-conformance", status: "pass", summary: "Foundation gates plus the OpenAI/MCP conformance suite pass on merged main (commit 8878883), including the new TestProtocolOpaqueFieldsPassthroughIntegration."}
+        - {type: "assertion", check: "presence_penalty, response_format, seed, user (and any unknown field) reach the provider payload unchanged while messages/tools governance and DLP behavior are unchanged", status: "pass", summary: "TestProtocolOpaqueFieldsPassthroughIntegration (integration tag) sends presence_penalty, frequency_penalty, response_format, seed, user, metadata, n and a fully custom x-custom field; the stub provider payload is asserted byte-identical (json.RawMessage comparison). Messages containing SECRET123 are still DLP-redacted to [secret:token] before egress; governance semantics never depend on opaque fields."}
+      follow_up_candidates: []
+  - id: TASK-052
+    title: "Multimodal content parts: structural round-trip, text-only governance"
+    status: done
+    goal: >
+      Content-part arrays survive the gateway structurally: text parts are
+      DLP-scanned exactly as today, non-text parts ride unscanned (V1,
+      documented), and assistant-side non-text deltas are forwarded without
+      text transformation (ADR-0028 decision 2).
+    scope:
+      in:
+        - "inbound content parts preserved structurally toward the provider while the flattened text still drives DLP"
+        - "streaming and non-streaming assistant non-text deltas forwarded structurally"
+        - "contract + integration tests: image/part round-trip, text-part DLP redaction, streaming parity"
+      out:
+        - "scanning of binary parts (documented V1 stance, revisit on a real modality client)"
+        - "vision model routing/policy"
+    constraints:
+      - "Text-part governance must remain byte-equivalent to today's flattened scan."
+    forbidden:
+      - "Text-transforming non-text deltas in the SSE sanitizer."
+    acceptance:
+      - type: command
+        run: "make verify-protocol-conformance"
+      - type: assertion
+        expect: "A content-part request arrives at the provider structurally with its text part DLP-redacted; non-text parts are intact; no sanitizer corruption on any modality."
+    dependencies:
+      - TASK-051
+    risk_level: L3
+    investigation_hints:
+      - "packages/protocol-openai Message.UnmarshalJSON flattening; apps/gateway/protocols.go emitDelta"
+    escalation_conditions:
+      - "Structural preservation would break the DLP egress guarantee for text parts."
+    result:
+      owner: "zcode-86003"
+      attempts: 0
+      claimed_at: "2026-09-03T16:56:03.922Z"
+      completed_at: "2026-09-03T17:09:39.751Z"
+      worktree: ".tasks/worktrees/TASK-052"
+      branch: "task/task-052-content-parts"
+      evidence:
+        - {type: "commit", check: "8898e6e", status: "pass", summary: "Proving commit on task/task-052-content-parts, merged into main as bf44708 (--no-ff)."}
+        - {type: "command", check: "go build ./... && go vet ./... && gofmt -l packages apps", status: "pass", summary: "Build/vet clean; gofmt no output."}
+        - {type: "command", check: "go test ./...", status: "pass", summary: "Full unit suite green, including new packages/protocol-openai round-trip/delta tests and packages/llmkernel content-parts tests (flattened scan byte-equivalent, redaction rewritten into text parts, non-text parts untouched)."}
+        - {type: "command", check: "EAP_TEST_DATABASE_URL=postgres://eap:eap@127.0.0.1:15432/postgres?sslmode=disable EAP_TEST_REDIS_ADDR=127.0.0.1:16379 go test -tags=integration ./apps/gateway -run 'TestProtocol|TestContentPart' -count=1", status: "pass", summary: "Integration green: TestContentPartStructuralPassthroughIntegration (provider payload decoded comparison — parts array intact, image part byte-identical, text part carries [secret:token], no SECRET123 egress) and TestContentPartStreamStructuralForwardIntegration (non-text delta emitted structurally, never through the SSE sanitizer; text delta still DLP-redacted)."}
+        - {type: "command", check: "make verify-protocol-conformance", status: "pass", summary: "PASS pre-merge (worktree) and re-run PASS post-merge on main (bf44708)."}
+        - {type: "doc", check: "docs/protocol-conformance.md", status: "pass", summary: "Added multimodal content-part row (structural passthrough, text-only governance, V1 unscanned non-text stance) and assistant non-text delta row (structural forwarding, never text-transformed)."}
+      follow_up_candidates: []
+  - id: TASK-053
+    title: "GATE: Bifrost stream-cancellation re-verification and pin decision"
+    status: done
+    goal: >
+      Verify on current upstream whether the v1.8.4 stream-cancellation race
+      is fixed, and record the routed-path adoption decision (ADR-0028
+      decision 3). Gate card — no product capability.
+    scope:
+      in:
+        - "reproduction harness for the cancellation race against the local bifrost dev build and the newest tagged release"
+        - "written verdict: adopt (pin upgrade + routed streaming swap plan + ADR amendment) or keep-out with re-check trigger"
+      out:
+        - "actually swapping the routed path (follow-up ADR amendment card if adopt)"
+        - "plugin-semantics security review beyond the adoption criteria checklist"
+    constraints:
+      - "A verdict without a reproducible harness command is not evidence."
+    forbidden:
+      - "Adopting bifrost on the production streaming path without the harness proof."
+    acceptance:
+      - type: command
+        run: "go test -race -tags upstreamrace ./packages/llmkernel/ -run TestStreamChatCancellation -count=1"
+      - type: assertion
+        expect: "Harness result recorded in docs/ with an explicit adopt/keep-out decision and, if keep-out, a concrete re-check trigger (upstream commit/tag)."
+    dependencies: []
+    risk_level: L4
+    investigation_hints:
+      - "Makefile diag-upstream-race; ~/projects/bifrost dev; architecture.md Bifrost forbidden/escalation entries"
+    escalation_conditions:
+      - "Harness results are inconclusive under repeat runs."
+    result:
+      owner: "zcode-60201"
+      attempts: 0
+      claimed_at: "2026-09-03T16:40:11.967Z"
+      completed_at: "2026-09-03T16:54:50.604Z"
+      worktree: ".tasks/worktrees/TASK-053"
+      branch: "task/task-053-bifrost-race-gate"
+      evidence:
+        - {type: "command", check: "go test -race -tags upstreamrace ./packages/llmkernel/ -run TestStreamChatCancellation -count=3", status: "pass", summary: "Harness verdict recorded in docs/verification/bifrost-stream-race.md: the stream-cancellation DATA RACE reproduces on the pinned v1.8.4 AND on local bifrost dev (commit e1045c0, compiles against our toolchain without API breakage) — identical signature (fasthttp.releaseRequestStream vs requestStream.Read), ~1/3 runs, 3/3 races at -count=3. Per ADR-0028 decision 3 condition (a): KEEP-OUT confirmed; re-check trigger = new upstream tag >v1.8.4 or commits touching SetupStreamCancellation/release semantics; pass criterion = 0 races at -count=3; adoption still requires fail-closed review + ADR amendment. Note: this command intentionally FAILS on main while the upstream race exists — the failure IS the keep-out evidence; production streaming stays on the own client."}
+        - {type: "assertion", check: "Harness result recorded in docs/ with an explicit adopt/keep-out decision and a concrete re-check trigger.", status: "pass", summary: "docs/verification/bifrost-stream-race.md added on the task branch and merged: harness commands, baseline (v1.8.4) and dev results, keep-out verdict, re-check triggers. Branch synced with main (merged post-TASK-051 main incl. opaque passthrough; harness stub hardened to JSON-parse the stream flag). Whole-repo unit suite and make verify-protocol-conformance PASS on the integration commit."}
+      follow_up_candidates:
+        - "adopt-path card when upstream race fixed: pin upgrade + routed streaming swap + fail-closed plugin review + ADR amendment"

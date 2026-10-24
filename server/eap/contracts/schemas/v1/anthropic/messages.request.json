@@ -1,0 +1,9 @@
+{
+  "model": "reasoning-high",
+  "max_tokens": 1024,
+  "system": "You are a helpful engineering assistant.",
+  "messages": [
+    { "role": "user", "content": "Explain the isolation failure." }
+  ],
+  "stream": false
+}

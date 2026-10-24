@@ -98,7 +98,7 @@ export function SettingsPage({ active, configRoot }: { active: boolean; configRo
       <button type="button" className={section === 'general' ? 'selected' : ''} onClick={() => setSection('general')}>通用</button>
       <button type="button" className={section === 'models' ? 'selected' : ''} onClick={() => setSection('models')}>模型</button>
       <button type="button" className={section === 'hotkeys' ? 'selected' : ''} onClick={() => setSection('hotkeys')}>快捷键</button>
-      <button type="button" className={section === 'server-center' ? 'selected' : ''} onClick={() => setSection('server-center')}>元朴中心</button>
+      <button type="button" className={section === 'server-center' ? 'selected' : ''} onClick={() => setSection('server-center')}>知识服务中心</button>
       <button type="button" className={section === 'connections' ? 'selected' : ''} onClick={() => setSection('connections')}>企业微信连接</button>
       <button type="button" className={section === 'tailscale' ? 'selected' : ''} onClick={() => setSection('tailscale')}>Tailscale</button>
     </aside>

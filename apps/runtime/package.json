@@ -30,8 +30,8 @@
     "typecheck": "node scripts/generate-assistant-skills.mjs && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "1.0.4",
-    "@earendil-works/pi-coding-agent": "1.0.4",
+    "@earendil-works/pi-ai": "1.4.0",
+    "@earendil-works/pi-coding-agent": "1.4.0",
     "@yuanpu-agent/assistant": "workspace:*",
     "@yuanpu-agent/runtime-kit": "workspace:*",
     "@yuanpu-agent/protocol": "workspace:*",
@@ -41,6 +41,6 @@
     "postject": "1.0.0-alpha.6"
   },
   "engines": {
-    "node": ">=24.15.0 <25"
+    "node": ">=24.22.1 <25"
   }
 }

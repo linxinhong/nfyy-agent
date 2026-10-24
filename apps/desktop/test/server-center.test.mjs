@@ -132,6 +132,7 @@ test('configured API key restores a session and renews an expired bearer token o
   context.after(() => new Promise((resolve) => server.close(resolve)));
   const session = new ServerCenterSession(`http://127.0.0.1:${server.address().port}`, async () => key);
   assert.equal((await session.restore()).ok, true);
+  assert.equal(await session.portalToken(), 'token-1');
   assert.equal((await session.listResources('')).ok, true);
   assert.equal((await session.getResource('news-1')).value.title, '资讯');
   assert.equal(loginCount, 2);
