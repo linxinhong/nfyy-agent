@@ -25,6 +25,19 @@ test('opaque browser capability IDs become readable actions in live and saved tr
   assert.equal(toolSummary('execute_capability', { name: 'ypcap:invalid' }), '调用外部能力');
 });
 
+test('independent ticket calls activate the task ticket category', () => {
+  assert.equal(toolCategory('subagent', { action: 'list' }), '工具调用');
+  assert.equal(toolCategory('subagent', { action: 'run', agent: 'scout' }), '子 Agent');
+  assert.equal(toolCategory('ai_ticket', { action: 'create' }), '任务工单');
+  const trajectory = projectSessionTrajectory('work:one', [
+    message('u1', 'user', 0, 'Create a work order'),
+    message('a1', 'assistant', 1, [{ type: 'toolCall', id: 'ticket-1', name: 'ai_ticket',
+      arguments: { action: 'create', task: 'Research the topic' } }], { stopReason: 'toolUse' }),
+  ]);
+  assert.equal(trajectory.rows.at(-1)?.kind, 'subagent');
+  assert.equal(trajectory.rows.at(-1)?.title, '任务工单');
+});
+
 
 test('trajectory follows the active Pi branch across turns and reconciles tool results', () => {
   const trajectory = projectSessionTrajectory('work:one', [

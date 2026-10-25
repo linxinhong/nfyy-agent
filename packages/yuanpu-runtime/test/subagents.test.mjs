@@ -144,6 +144,7 @@ for (const approval of [false, true]) test(`real SDK delegation preserves model,
     assert.equal(requests.length, approval ? 2 : 3);
     assert.ok(requests[0].tools.some((tool) => tool.function.name === 'subagent'));
     assert.equal(requests[1].tools.some((tool) => tool.function.name === 'subagent'), false);
+    assert.match(JSON.stringify(requests[1].messages), /主会话用户.*Delegate this test to an agent/);
     if (!approval) assert.deepEqual(requests[1].tools.map((tool) => tool.function.name).sort(), ['find', 'grep', 'ls', 'read']);
     if (approval) {
       assert.equal(result.pendingApprovalRequestId, 'approval-test');

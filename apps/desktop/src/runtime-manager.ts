@@ -768,6 +768,32 @@ export class RuntimeManager {
   getWorkTrajectory(conversationId: string): Promise<import('@yuanpu-agent/protocol').SessionTrajectory> {
     return this.request(`${RUNTIME_ROUTES.workTrajectory}?conversationId=${encodeURIComponent(conversationId)}`);
   }
+  cancelWorkSubagent(conversationId: string, runId: string): Promise<void> {
+    return this.request(RUNTIME_ROUTES.workSubagentCancel, { method: 'POST',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify({ conversationId, runId }) });
+  }
+  listAiTickets(conversationId: string): Promise<import('@yuanpu-agent/protocol').AiTicketList> {
+    return this.request(`${RUNTIME_ROUTES.workAiTickets}?conversationId=${encodeURIComponent(conversationId)}`);
+  }
+  getAiTicket(conversationId: string, ticketId: string): Promise<import('@yuanpu-agent/protocol').AiTicket> {
+    return this.request(`${RUNTIME_ROUTES.workAiTickets}?conversationId=${encodeURIComponent(conversationId)}&ticketId=${encodeURIComponent(ticketId)}`);
+  }
+  createAiTicket(conversationId: string, task: string, details?: {
+    title?: string; deliverables?: string[]; acceptanceCriteria?: string[];
+  }): Promise<import('@yuanpu-agent/protocol').AiTicket> {
+    return this.request(RUNTIME_ROUTES.workAiTickets, { method: 'POST',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify({ conversationId, task, ...details }) });
+  }
+  sendAiTicketMessage(conversationId: string, ticketId: string, message: string,
+    options?: { modelSelection?: import('@yuanpu-agent/protocol').AgentRunRequest['modelSelection'];
+      approvalMode?: import('@yuanpu-agent/protocol').AgentRunRequest['approvalMode'] }): Promise<import('@yuanpu-agent/protocol').AiTicket> {
+    return this.request(RUNTIME_ROUTES.workAiTicketMessages, { method: 'POST',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify({ conversationId, ticketId, message, ...options }) });
+  }
+  cancelAiTicket(conversationId: string, ticketId: string): Promise<void> {
+    return this.request(RUNTIME_ROUTES.workAiTicketCancel, { method: 'POST',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify({ conversationId, ticketId }) });
+  }
   listWorkFolders(): Promise<import('@yuanpu-agent/protocol').WorkFolder[]> { return this.request(RUNTIME_ROUTES.workFolders); }
   createWorkFolder(parentId: string | null, name: string, iconId?: string, requestId?: string): Promise<import('@yuanpu-agent/protocol').WorkFolder> {
     return this.request(RUNTIME_ROUTES.workFolders, { method: 'POST', headers: { 'content-type': 'application/json' },

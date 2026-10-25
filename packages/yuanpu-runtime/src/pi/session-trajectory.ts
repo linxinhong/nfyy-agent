@@ -47,7 +47,8 @@ export function toolCategory(name: string, args: Record<string, unknown>): strin
     ? parseCapabilityId(args.name) : undefined;
   if (capability?.originalName.startsWith('browser_')) return '浏览器';
   if (capability && /web_search|fetch_content/i.test(capability.originalName)) return 'Web 搜索';
-  if (name === 'subagent' && args.action === 'run') return '子智能体';
+  if (name === 'ai_ticket') return '任务工单';
+  if (name === 'subagent' && args.action === 'run') return '子 Agent';
   if (name === 'skill' || name === 'use_skill') return 'Skill';
   if ((name === 'read' || name === 'write' || name === 'edit')
     && typeof args.path === 'string' && /(?:^|\/)SKILL\.md$/i.test(args.path)) return 'Skill';
@@ -80,7 +81,7 @@ export function projectSessionTrajectory(conversationId: string, entries: readon
           callCount += 1;
           const category = toolCategory(block.name, block.arguments);
           const row: SessionTrajectoryRow = { id: `${entry.id}:${block.id}`, round,
-            kind: category === '子智能体' ? 'subagent' : 'tool',
+            kind: block.name === 'ai_ticket' ? 'subagent' : 'tool',
             title: category,
             text: toolSummary(block.name, block.arguments), at: entry.timestamp,
             status: 'running', toolCallId: block.id };

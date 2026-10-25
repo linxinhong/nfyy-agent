@@ -1,0 +1,105 @@
+.ai-ticket-toolbar-entry { display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 7px; padding: 6px 8px; color: var(--yp-text-muted); background: transparent; cursor: pointer; font-size: 0.75rem; white-space: nowrap; }
+.ai-ticket-toolbar-entry svg { width: 15px; height: 15px; }
+.ai-ticket-toolbar-entry:hover { color: var(--yp-text); background: var(--yp-surface-tinted); }
+.ai-ticket-toolbar-entry[aria-pressed='true'] { color: var(--yp-accent-ink); }
+.ai-tickets-panel { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; background: var(--yp-surface); container-type: inline-size; }
+.ai-ticket-create button, .ai-ticket-cancel { border: 1px solid var(--yp-border-control); border-radius: 7px; padding: 6px 10px; color: var(--yp-text); background: var(--yp-surface); cursor: pointer; font-size: 0.75rem; }
+.ai-ticket-create button:hover, .ai-ticket-cancel:hover { background: var(--yp-surface-tinted); }
+.ai-tickets-nav { display: flex; flex: 0 0 42px; align-items: stretch; gap: 4px; min-width: 0; border-bottom: 1px solid var(--yp-border-subtle); padding: 0 12px; }
+.ai-tickets-nav button { display: inline-flex; align-items: center; gap: 7px; border: 0; border-bottom: 2px solid transparent; padding: 0 9px; color: var(--yp-text-muted); background: transparent; cursor: pointer; font-size: 0.75rem; white-space: nowrap; }
+.ai-tickets-nav button.active { border-bottom-color: var(--yp-accent); color: var(--yp-text); font-weight: 600; }
+.ai-tickets-nav button span { color: var(--yp-text-subtle); }
+.ai-tickets-nav button > svg { width: 14px; height: 14px; transform: rotate(90deg); transition: transform .18s ease; }
+.ai-tickets-nav button[aria-expanded='true'] > svg { transform: rotate(-90deg); }
+.ai-tickets-nav .ai-ticket-create-trigger { align-self: center; height: 28px; margin-left: auto; border: 1px solid var(--yp-border-control); border-radius: 6px; padding: 0 9px; color: var(--yp-text); background: var(--yp-surface); }
+.ai-tickets-nav .ai-ticket-create-trigger:hover { background: var(--yp-surface-tinted); }
+.ai-ticket-list { z-index: 2; max-height: 190px; overflow-y: auto; border-bottom: 1px solid var(--yp-border-subtle); padding: 6px 12px; background: var(--yp-surface); box-shadow: 0 8px 20px #0001; }
+.ai-ticket-list button { display: flex; width: 100%; align-items: center; gap: 10px; border: 0; border-radius: 7px; padding: 8px 10px; color: var(--yp-text); background: transparent; text-align: left; cursor: pointer; }
+.ai-ticket-list button.active, .ai-ticket-list button:hover { background: var(--yp-surface-tinted); }
+.ai-ticket-list button span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; }
+.ai-ticket-list small { color: var(--yp-text-muted); font-size: 0.6875rem; white-space: nowrap; }
+.ai-ticket-list p { padding: 6px 10px; color: var(--yp-text-muted); font-size: 0.75rem; }
+.ai-ticket-dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: var(--yp-text-subtle); }
+.ai-ticket-dot.running, .ai-ticket-dot.queued { background: var(--yp-accent); }
+.ai-ticket-dot.failed, .ai-ticket-dot.interrupted { background: #c46b6b; }
+.ai-ticket-overview { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 12px; overflow-y: auto; padding: 18px; }
+.ai-ticket-card { display: grid; width: 100%; min-height: 68px; grid-template-columns: minmax(0,1fr) auto auto auto 26px; align-items: center; gap: 10px; position: relative; overflow: hidden; border: 1px solid #e4e0d6; border-radius: 7px; padding: 9px 15px; color: #1f2937; background: #fffefa; box-shadow: 0 2px 12px #18202f14; text-align: left; cursor: pointer; }
+.ai-ticket-card:hover { border-color: #cfc8bb; box-shadow: 0 5px 16px #18202f1c; }
+.ai-ticket-card:focus-visible { outline: 2px solid var(--yp-accent); outline-offset: 2px; }
+.ai-ticket-card::before { position: absolute; top: 0; right: 0; left: 0; height: 5px; background: repeating-linear-gradient(135deg,var(--ticket-status-color) 0 10px,#fffefa 10px 20px); content: ''; }
+.ai-ticket-card .ai-ticket-brief-heading strong { font-size: .875rem; }
+.ai-ticket-card .ai-ticket-stamp { font-size: .6875rem; }
+.ai-ticket-card .ai-ticket-number b, .ai-ticket-card .ai-ticket-elapsed b { font-size: .6875rem; }
+.ai-ticket-meta, .ai-ticket-muted { color: var(--yp-text-muted); font-size: 0.75rem; }
+.ai-ticket-error { margin: 8px 18px; color: #b95555; font-size: 0.75rem; overflow-wrap: anywhere; }
+.ai-ticket-create { display: grid; gap: 9px; border: 1px solid var(--yp-border-subtle); border-radius: 10px; padding: 12px; }
+.ai-ticket-create textarea { width: 100%; box-sizing: border-box; resize: vertical; border: 1px solid var(--yp-border-control); border-radius: 7px; padding: 10px; color: var(--yp-text); background: var(--yp-surface); font: inherit; font-size: 0.8125rem; }
+.ai-ticket-create > div { display: flex; justify-content: flex-end; gap: 8px; }
+.ai-ticket-create button:disabled { opacity: .45; cursor: not-allowed; }
+.ai-ticket-workspace { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; row-gap: 10px; min-height: 0; flex: 1; }
+.ai-ticket-brief { border: 1px solid var(--yp-border-subtle); border-radius: 10px; margin: 12px 18px 0; background: var(--yp-surface-tinted); }
+.ai-ticket-brief-toggle { display: flex; width: 100%; align-items: center; gap: 10px; border: 0; padding: 11px 13px; color: var(--yp-text); background: transparent; text-align: left; cursor: pointer; }
+.ai-ticket-brief-toggle > span:first-child { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.ai-ticket-brief-toggle small { color: var(--yp-text-muted); font-size: 0.6875rem; }
+.ai-ticket-brief-toggle strong { overflow: hidden; font-size: 0.8125rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.ai-ticket-brief-body { border-top: 1px solid var(--yp-border-subtle); padding: 12px 13px; }
+.ai-ticket-brief-body > p:first-child { margin: 0 0 12px; color: var(--yp-text); font-size: 0.8125rem; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-ticket-meta { display: flex; flex-wrap: wrap; gap: 10px; }
+.ai-ticket-cancel { margin-top: 12px; }
+.ai-ticket-chat { min-height: 0; overflow-y: auto; }
+.ai-ticket-messages { display: flex; max-width: 860px; min-height: 100%; flex-direction: column; gap: 24px; margin: 0 auto; padding: 22px 20px 0; }
+.ai-ticket-messages > :first-child { margin-top: auto; }
+.ai-ticket-messages .message { width: auto; min-width: 0; }
+.ai-ticket-messages .message.assistant { align-self: stretch; }
+.ai-ticket-messages .message.user { align-self: flex-end; }
+.ai-ticket-messages .message-body { min-width: 0; }
+.ai-ticket-composer-wrap { padding: 0 18px 16px; background: var(--yp-surface); }
+.ai-ticket-composer-wrap .composer { border-color: var(--yp-border-control); background: transparent; box-shadow: 0 2px 12px rgb(22 33 43 / 6%); }
+.ai-ticket-composer-wrap .composer-toolbar > button svg { width: 18px; height: 18px; }
+
+/* Work-order paper above the independent conversation. */
+.ai-ticket-brief, .ai-ticket-card { --ticket-status-color: #1e3a8a; }
+.ai-ticket-brief { position: relative; overflow: hidden; border-color: #e4e0d6; border-radius: 7px; background: #fffefa; box-shadow: 0 2px 12px #18202f14; }
+.ai-ticket-brief.completed, .ai-ticket-card.completed { --ticket-status-color: #067647; }
+.ai-ticket-brief.failed, .ai-ticket-brief.interrupted, .ai-ticket-card.failed, .ai-ticket-card.interrupted { --ticket-status-color: #b42318; }
+.ai-ticket-brief.cancelled, .ai-ticket-card.cancelled { --ticket-status-color: #667085; }
+.ai-ticket-brief.needs_approval, .ai-ticket-card.needs_approval { --ticket-status-color: #a05c09; }
+.ai-ticket-brief::before { display: block; height: 5px; background: repeating-linear-gradient(135deg,var(--ticket-status-color) 0 10px,#fffefa 10px 20px); content: ''; }
+.ai-ticket-brief-toggle { display: grid; grid-template-columns: minmax(0,1fr) auto auto auto 26px; gap: 12px; min-height: 68px; align-items: center; padding: 9px 15px; color: #1f2937; }
+.ai-ticket-brief-toggle[aria-expanded='true'] { border-bottom: 2px solid #293341; }
+.ai-ticket-brief-heading { display: grid; min-width: 0; gap: 3px; }
+.ai-ticket-brief-heading small { color: #8993a2; font-size: 0.625rem; font-weight: 700; letter-spacing: .16em; }
+.ai-ticket-brief-heading strong { overflow: hidden; color: #111827; font-size: 1rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.ai-ticket-stamp { transform: rotate(-8deg); border: 2px solid var(--ticket-status-color); border-radius: 4px; padding: 1px 7px; color: var(--ticket-status-color); font-size: .75rem; font-weight: 850; letter-spacing: .08em; white-space: nowrap; }
+.ai-ticket-number, .ai-ticket-elapsed { display: grid; gap: 3px; min-width: 0; color: #475467; text-align: right; white-space: nowrap; }
+.ai-ticket-number small, .ai-ticket-elapsed small { color: #98a2b3; font-size: .625rem; font-weight: 600; letter-spacing: .1em; }
+.ai-ticket-number b, .ai-ticket-elapsed b { font-family: ui-monospace, Menlo, monospace; font-size: .75rem; font-weight: 750; }
+.ai-ticket-elapsed b { color: var(--ticket-status-color); }
+.ai-ticket-fold { display: grid; grid-column: 5; width: 26px; height: 26px; place-items: center; border-radius: 6px; color: #475467; background: #f3f1ea; }
+.ai-ticket-fold svg { width: 16px; height: 16px; }
+.ai-ticket-brief-toggle .ai-ticket-fold svg { transform: rotate(90deg); transition: transform .18s ease; }
+.ai-ticket-brief-toggle[aria-expanded='true'] .ai-ticket-fold svg { transform: rotate(-90deg); }
+.ai-ticket-brief-body { max-height: min(42vh, 580px); overflow-y: auto; border-top: 0; padding: 0 0 14px; color: #1f2937; }
+.ai-ticket-facts { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border-bottom: 1px solid #e7e3d8; }
+.ai-ticket-facts > div { display: grid; min-width: 0; gap: 3px; border-right: 1px solid #efebe1; padding: 9px 12px; }
+.ai-ticket-facts > div:last-child { border-right: 0; }
+.ai-ticket-facts small { color: #98a2b3; font-size: .6875rem; }
+.ai-ticket-facts strong { overflow: hidden; color: #1f2937; font-size: .75rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.ai-ticket-fields { display: grid; grid-template-columns: 72px minmax(0,1fr); gap: 11px 14px; padding: 15px 18px 5px; font-size: .8125rem; }
+.ai-ticket-fields > span { padding-top: 2px; color: #667085; font-size: .75rem; font-weight: 650; }
+.ai-ticket-fields > p { margin: 0; color: #1f2937; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-ticket-deliverables { display: flex; flex-wrap: wrap; gap: 7px; }
+.ai-ticket-deliverables > span { border: 1px solid #e7e3d8; border-radius: 5px; padding: 3px 8px; color: #293341; background: #f3f1ea; font-size: .75rem; overflow-wrap: anywhere; }
+.ai-ticket-criteria { min-width: 0; margin: 0; padding: 0; list-style: none; }
+.ai-ticket-criteria li { display: grid; grid-template-columns: 20px minmax(0,1fr); gap: 8px; border-bottom: 1px dashed #e7e3d8; padding: 5px 0; line-height: 1.5; }
+.ai-ticket-criteria li small { color: #98a2b3; font-family: ui-monospace, Menlo, monospace; }
+.ai-ticket-dispatch { margin: 11px 18px 0; border: 1px solid #e7e3d8; border-radius: 6px; background: #f7f5ef; }
+.ai-ticket-dispatch summary { display: flex; gap: 10px; align-items: center; padding: 9px 11px; color: #475467; cursor: pointer; font-size: .75rem; font-weight: 650; }
+.ai-ticket-dispatch summary small { color: #98a2b3; font-weight: 400; }
+.ai-ticket-dispatch > div { display: grid; grid-template-columns: 64px minmax(0,1fr); gap: 5px 12px; border-top: 1px dashed #e0dace; padding: 10px 11px; color: #475467; font-size: .75rem; }
+.ai-ticket-dispatch > div span:nth-child(odd) { color: #98a2b3; }
+.ai-ticket-brief-body > .ai-ticket-error { margin: 12px 18px 0; }
+.ai-ticket-brief-body > .ai-ticket-cancel { margin: 12px 18px 0; }
+.ai-ticket-create input { width: 100%; box-sizing: border-box; border: 1px solid var(--yp-border-control); border-radius: 7px; padding: 10px; color: var(--yp-text); background: var(--yp-surface); font: inherit; font-size: .8125rem; }
+.ai-ticket-loading { margin: 22px; }
+@container (max-width: 540px) { .ai-ticket-brief-toggle, .ai-ticket-card { grid-template-columns: minmax(0,1fr) auto 26px; gap: 8px; } .ai-ticket-fold { grid-column: 3; } .ai-ticket-number, .ai-ticket-elapsed { display: none; } .ai-ticket-facts { grid-template-columns: repeat(2,minmax(0,1fr)); } .ai-ticket-facts > div:nth-child(2) { border-right: 0; } .ai-ticket-composer-wrap .composer-model-button { max-width: 95px; } }

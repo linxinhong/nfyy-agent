@@ -37,6 +37,7 @@ export interface SubagentChildInput {
 }
 export interface SubagentChildSummary extends SubagentChildResult {
   agent: string;
+  task?: string;
   status: SubagentStatus;
   progress?: string;
   error?: string;
@@ -120,7 +121,7 @@ export class YuanpuSubagentManager {
     this.totalChildren += tasks.length;
     const id = randomUUID();
     const directory = join(this.options.directory, id);
-    const run: SubagentRun = { id, mode: request.tasks ? 'parallel' : request.chain ? 'chain' : 'single', status: 'queued', directory, createdAt: new Date().toISOString(), children: tasks.map((task) => ({ agent: task.agent, text: '', status: 'queued' })) };
+    const run: SubagentRun = { id, mode: request.tasks ? 'parallel' : request.chain ? 'chain' : 'single', status: 'queued', directory, createdAt: new Date().toISOString(), children: tasks.map((task) => ({ agent: task.agent, task: task.task.slice(0, 240), text: '', status: 'queued' })) };
     const controller = new AbortController();
     let timedOut = false;
     const stop = () => controller.abort(signal?.reason);

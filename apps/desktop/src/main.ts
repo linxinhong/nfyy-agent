@@ -319,6 +319,18 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   ipcMain.handle('work:message-window', trustedHandler((conversationId: string, entryId: string, radius?: number) =>
     runtime.getWorkMessageWindow(conversationId, entryId, radius)));
   ipcMain.handle('work:trajectory', trustedHandler((conversationId: string) => runtime.getWorkTrajectory(conversationId)));
+  ipcMain.handle('work:subagents:cancel', trustedHandler((conversationId: string, runId: string) =>
+    runtime.cancelWorkSubagent(conversationId, runId)));
+  ipcMain.handle('work:ai-tickets:list', trustedHandler((conversationId: string) => runtime.listAiTickets(conversationId)));
+  ipcMain.handle('work:ai-tickets:get', trustedHandler((conversationId: string, ticketId: string) => runtime.getAiTicket(conversationId, ticketId)));
+  ipcMain.handle('work:ai-tickets:create', trustedHandler((conversationId: string, task: string, details?: {
+    title?: string; deliverables?: string[]; acceptanceCriteria?: string[];
+  }) => runtime.createAiTicket(conversationId, task, details)));
+  ipcMain.handle('work:ai-tickets:message', trustedHandler((conversationId: string, ticketId: string, message: string,
+    options?: { modelSelection?: import('@yuanpu-agent/protocol').AgentRunRequest['modelSelection'];
+      approvalMode?: import('@yuanpu-agent/protocol').AgentRunRequest['approvalMode'] }) =>
+    runtime.sendAiTicketMessage(conversationId, ticketId, message, options)));
+  ipcMain.handle('work:ai-tickets:cancel', trustedHandler((conversationId: string, ticketId: string) => runtime.cancelAiTicket(conversationId, ticketId)));
   ipcMain.handle('work:folders:list', trustedHandler(() => runtime.listWorkFolders()));
   ipcMain.handle('work:folders:create', trustedHandler((parentId: string | null, name: string, iconId?: string, requestId?: string) => runtime.createWorkFolder(parentId, name, iconId, requestId)));
   ipcMain.handle('work:folders:update', trustedHandler((folderId: string, patch: { name?: string; iconId?: string }) => runtime.updateWorkFolder(folderId, patch)));

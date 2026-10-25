@@ -359,6 +359,15 @@ test('runtime server exposes its protocol and greeting', async (context) => {
   assert.equal((await fetch(`http://${ready.host}:${ready.port}/v1/work/trajectory?conversationId=work%3Aforeign`,
     { headers })).status, 404);
   assert.equal((await fetch(trajectoryEndpoint)).status, 401);
+  const cancelTicketEndpoint = `http://${ready.host}:${ready.port}/v1/work/subagents/cancel`;
+  assert.equal((await fetch(cancelTicketEndpoint, { method: 'POST',
+    headers: workHeaders, body: JSON.stringify({ conversationId: nested.id, runId: '../other' }) })).status, 400);
+  assert.equal((await fetch(cancelTicketEndpoint, { method: 'POST', headers: workHeaders,
+    body: JSON.stringify({ conversationId: 'work:foreign', runId: randomUUID() }) })).status, 404);
+  assert.equal((await fetch(cancelTicketEndpoint, { method: 'POST', headers: workHeaders,
+    body: JSON.stringify({ conversationId: nested.id, runId: randomUUID() }) })).status, 409);
+  assert.equal((await fetch(cancelTicketEndpoint, { method: 'POST',
+    body: JSON.stringify({ conversationId: nested.id, runId: randomUUID() }) })).status, 401);
   const searchEndpoint = `http://${ready.host}:${ready.port}/v1/work/search?query=needle`;
   const searchBeforeMove = await fetch(searchEndpoint, { headers }).then((response) => response.json());
   assert.equal(searchBeforeMove.items[0].messageEntryId, searchEntryId);

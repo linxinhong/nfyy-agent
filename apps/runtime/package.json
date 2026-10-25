@@ -26,7 +26,7 @@
     "release:manifest": "node scripts/native/produce-manifest.mjs",
     "smoke:native": "node scripts/native/smoke.mjs",
     "start": "node dist/index.cjs",
-    "test": "node --test test/*.test.mjs test/task-050-memory-refresh-probe.mjs",
+    "test": "node --import tsx --test test/*.test.mjs test/task-050-memory-refresh-probe.mjs",
     "typecheck": "node scripts/generate-assistant-skills.mjs && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

@@ -155,7 +155,7 @@ button { color: inherit; }
   flex-direction: column;
   justify-content: flex-end;
   gap: 30px;
-  padding: 48px 0 36px;
+  padding: 48px 0 0;
 }
 .message { display: grid; gap: 8px; }
 .message-label { color: #77857c; font-size: 0.6875rem; font-weight: 650; letter-spacing: .04em; }
@@ -163,7 +163,7 @@ button { color: inherit; }
 .message.user .message-label { text-align: right; }
 .message.assistant, .message.error { align-self: flex-start; max-width: 84%; }
 .message-body { border: 1px solid #2c3b31; border-radius: 14px; padding: 15px 17px; background: #121a16; }
-.message.user .message-body { border-color: #31503a; background: #193023; }
+.message.user .message-body { justify-self: end; box-sizing: border-box; width: fit-content; max-width: 100%; border-color: #31503a; background: #193023; }
 .message.error .message-body { border-color: #623b3b; background: #211516; }
 .message-body p { margin: 0; color: #e6ece7; font-size: 0.875rem; line-height: 1.68; white-space: pre-wrap; }
 .message.error .message-body p { color: #efb6b6; }

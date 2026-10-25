@@ -26,6 +26,8 @@ import mindlinkSeal from '../../themes/assets/mindlink-seal.png';
 import { emo } from '../emo.js';
 
 import { AppIcon } from '../shared/app-icon.js';
+import { acceptComposerPlaceholder } from '../shared/composer-placeholder.js';
+import { ComposerRuntimeControls, threeStepThinking } from '../shared/composer-runtime-controls.js';
 import { bindingFromKeyEvent } from '../shared/hotkeys.js';
 import { AssistantReply } from '../shared/assistant-reply.js';
 import type { ImagePreview } from '../shared/message-image.js';
@@ -41,7 +43,9 @@ import { cacheReplyRun, findReplyRun, type ReplyRunInfo } from '../shared/reply-
 import { normalizeWorkspacePath } from '../shared/work-file-links.js';
 import { FileWorkspace, ImagePreviewPanel, type ImagePreviewRequest } from '../viewer/files/file-tabs.js';
 import { ReviewPanel } from '../viewer/review/review-panel.js';
-import { SessionTrajectoryViewer, SubagentViewer } from '../viewer/session-trajectory.js';import type { ViewerBrowserHost } from '../viewer/host/browser-host.js';
+import { SessionTrajectoryViewer } from '../viewer/session-trajectory.js';
+import { AiTicketsPanel } from '../viewer/ai-tickets-panel.js';
+import type { ViewerBrowserHost } from '../viewer/host/browser-host.js';
 import type { ViewerFileHost } from '../viewer/host/file-host.js';
 
 type ToolState = { name: string; status: 'started' | 'completed' | 'failed' };
@@ -66,18 +70,6 @@ type ActivityEvent = {
   tone: 'active' | 'done' | 'warning' | 'error';
 };
 
-const thinkingLevels = [
-  { value: 'low', label: '低' },
-  { value: 'medium', label: '中' },
-  { value: 'high', label: '高' },
-] as const;
-
-function threeStepThinking(level?: string): 'low' | 'medium' | 'high' {
-  if (level === 'minimal' || level === 'low') return 'low';
-  if (level === 'high' || level === 'xhigh' || level === 'max') return 'high';
-  return 'medium';
-}
-
 function runStatusLabel(status: AgentRunRecord['status']): string {
   return {
     queued: '等待执行',
@@ -92,7 +84,8 @@ function runStatusLabel(status: AgentRunRecord['status']): string {
 }
 
 function toolLabel(name: string): string {
-  if (/subagent/i.test(name)) return '子智能体';
+  if (name === 'ai_ticket') return '任务工单';
+  if (/subagent/i.test(name)) return '子 Agent';
   if (/search|fetch|web/i.test(name)) return 'Web 搜索';
   if (/read|write|edit|patch/i.test(name)) return '文件';
   if (/bash|shell|terminal/i.test(name)) return 'Bash';
@@ -122,11 +115,6 @@ function capabilitySource(source: string): string {
   if (source.startsWith('builtin.web')) return '网页';
   if (source.startsWith('builtin.')) return '内置能力';
   return source;
-}
-
-function tokenLabel(value: number | undefined): string {
-  if (value === undefined) return '—';
-  return value >= 1_000 ? `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}K` : String(value);
 }
 
 function stoppedNotice(run: AgentRunRecord): string {
@@ -247,17 +235,6 @@ export function ChatPanel({
   const [trajectory, setTrajectory] = useState<SessionTrajectory>();
   const [contextOpen, setContextOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
-  const modelControlsRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!modelOpen) return;
-    const dismiss = (event: PointerEvent) => {
-      if (!modelControlsRef.current?.contains(event.target as Node)) setModelOpen(false);
-    };
-    const escape = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') setModelOpen(false); };
-    document.addEventListener('pointerdown', dismiss);
-    document.addEventListener('keydown', escape);
-    return () => { document.removeEventListener('pointerdown', dismiss); document.removeEventListener('keydown', escape); };
-  }, [modelOpen]);
   const [modelSelection, setModelSelection] = useState<AgentRunRequest['modelSelection']>();  const [filePreviewPath, setFilePreviewPath] = useState<string>();
   const [imagePreviewRequest, setImagePreviewRequest] = useState<ImagePreviewRequest>();
   const activityEventsRef = useRef<ActivityEvent[]>([]);
@@ -315,8 +292,19 @@ export function ChatPanel({
   const sending = useRef(false);
   const settledRuns = useRef(new Map<string, AgentRunRecord>());
   const latestProcess = useRef(new Map<string, LiveTool[]>());
+  const observedTicketCalls = useRef<{ conversationId: string; ids: Set<string> } | undefined>(undefined);
   const activityDialog = useRef<HTMLDialogElement>(null);
   const chatPanel = useRef<HTMLElement>(null);
+  function openAiTickets() {
+    setActivityOpen(true);
+    setActivityTab('subagents');
+    if (rightPanelWidth === 320 && window.innerWidth > 900) {
+      const panelWidth = chatPanel.current?.getBoundingClientRect().width ?? window.innerWidth - 50;
+      const available = rightPanelSpace(panelWidth, listOpen, true);
+      setRightPanelWidth(Math.min(maxRightPanelWidth(panelWidth, listOpen, true),
+        Math.max(320, Math.round(available * 0.46))));
+    }
+  }
   const rightPanelDragCleanup = useRef<(() => void) | null>(null);
   const rightPanelGesture = useRef({ startedAtLimit: false, stopped: false });
   const assistantPanelRatio = useRef(0.5);
@@ -359,6 +347,17 @@ export function ChatPanel({
       try {
         const next = await desktop.getWorkTrajectory(workConversationId);
         if (!stopped) {
+          if (next.conversationId === workConversationId) {
+            const liveCalls = next.live?.tools
+              .filter((tool) => tool.name === 'ai_ticket')
+              .map((tool) => tool.id) ?? [];
+            const ids = new Set([...next.rows.filter((row) => row.kind === 'subagent' && row.toolCallId)
+              .map((row) => row.toolCallId!), ...liveCalls]);
+            const previous = observedTicketCalls.current;
+            const current = previous?.conversationId === workConversationId ? previous : undefined;
+            if (current ? [...ids].some((id) => !current.ids.has(id)) : liveCalls.length > 0) openAiTickets();
+            observedTicketCalls.current = { conversationId: workConversationId, ids };
+          }
           if (next.live) latestProcess.current.set(next.live.runId, next.live.tools);
           setTrajectory(next);
         }
@@ -698,6 +697,18 @@ export function ChatPanel({
       pane.scrollTop = pane.scrollHeight;
     }
   }, [messages, busy, trajectory?.live?.text]);
+
+  useLayoutEffect(() => {
+    const pane = conversation.current;
+    const content = conversationInner.current;
+    if (!pane || !content || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (followConversationBottom.current && !prependScrollAnchor.current) pane.scrollTop = pane.scrollHeight;
+    });
+    observer.observe(pane);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [surface, workConversationId]);
 
   useEffect(() => {
     if (navigationTarget?.runId && locatedRun && typeof locatedRun !== 'string') {
@@ -1078,6 +1089,7 @@ export function ChatPanel({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (acceptComposerPlaceholder(event, setInput)) return;
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
       event.preventDefault();
       void sendMessage();
@@ -1144,10 +1156,6 @@ export function ChatPanel({
   const configuredModel = modelSettingsQuery.data;
   const currentModel = modelSelection ?? (configuredModel?.provider && configuredModel.model
     ? { provider: configuredModel.provider, model: configuredModel.model } : undefined);
-  const thinkingLevelIndex = thinkingLevels.findIndex((level) => level.value === threeStepThinking(modelSelection?.thinkingLevel));
-  const contextPercent = trajectory?.context?.percent;
-  const contextRingPercent = typeof contextPercent === 'number' && Number.isFinite(contextPercent)
-    ? Math.min(100, Math.max(0, contextPercent)) : undefined;
   const modelChoices = configuredModel ? [
     { provider: configuredModel.provider, model: configuredModel.model, name: configuredModel.model },
     ...configuredModel.customModels.map((item) => ({ provider: item.provider, model: item.model, name: item.name })),
@@ -1257,6 +1265,9 @@ export function ChatPanel({
             {locatedRun && typeof locatedRun !== 'string' && ['queued', 'running', 'waiting_approval'].includes(locatedRun.status) && locatedRun.owner.entryPoint !== 'im' && (
               <button type="button" className="runtime-link" disabled={cancelBusy} onClick={() => void cancelRun(locatedRun.runId)}>取消运行</button>
             )}
+            {surface === 'work' && workConversationId && <button type="button" className="ai-ticket-toolbar-entry"
+              aria-pressed={activityOpen && activityTab === 'subagents'} onClick={openAiTickets}>
+              <AppIcon name="schedules" />任务工单</button>}
             {activityOpen && <button type="button" className="panel-maximize-toggle" title={rightPanelMaximized ? '还原右侧面板' : '铺满右侧面板'}
               aria-label={rightPanelMaximized ? '还原右侧面板' : '铺满右侧面板'} aria-pressed={rightPanelMaximized}
               onClick={() => {
@@ -1520,64 +1531,13 @@ export function ChatPanel({
               </div>
               {(archiveOpen || workArchived) && <span className="composer-hint">{workArchived ? workConversationId === 'default' ? '旧工作归档只读' : '会话已归档 · 只读' : '原桌面会话归档只读'}</span>}
               {surface === 'assistant' && !archiveOpen && <span className="composer-hint">此处发送到桌面助理</span>}
-              {surface === 'work' && <div ref={modelControlsRef} className="composer-runtime-controls">
-                <button type="button" className="composer-model-button" aria-label="选择模型" aria-expanded={modelOpen}
-                  onClick={() => { setContextOpen(false); setModelOpen((value) => !value); }}>
-                  <span className="composer-model-label">{currentModel?.model ?? '选择模型'}</span>
-                  <svg aria-hidden="true" viewBox="0 0 16 16" fill="none"><path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                </button>
-                {modelOpen && <div className="composer-model-popover" role="dialog" aria-label="选择模型">
-                  <strong>模型</strong>
-                  {modelChoices.length ? <div className="composer-model-list">{modelChoices.map((item) =>
-                    <button type="button" key={`${item.provider}/${item.model}`}
-                      className={currentModel?.provider === item.provider && currentModel.model === item.model ? 'selected' : ''}
-                      onClick={() => { chooseModel({ ...item, thinkingLevel: threeStepThinking(modelSelection?.thinkingLevel) }); setModelOpen(false); }}>
-                      <span>{item.name}</span><small>{item.provider}</small>
-                    </button>)}</div> : <p>请先在模型设置中配置模型。</p>}
-                  {surface === 'work' && currentModel && <div className="composer-thinking">
-                      <div className="composer-thinking-heading"><span>思考强度</span><output>{thinkingLevels[thinkingLevelIndex]?.label}</output></div>
-                      <div className="composer-thinking-slider">
-                        <div className="composer-thinking-track" aria-hidden="true">
-                          <i style={{ width: `${thinkingLevelIndex / (thinkingLevels.length - 1) * 100}%` }} />
-                          {thinkingLevels.map((level, index) => <span key={level.value} data-active={index <= thinkingLevelIndex} />)}
-                        </div>
-                        <input type="range" min={0} max={thinkingLevels.length - 1} step={1} value={thinkingLevelIndex}
-                          aria-label="思考强度" aria-valuetext={thinkingLevels[thinkingLevelIndex]?.label}
-                          onChange={(event) => {
-                            const level = thinkingLevels[Number(event.target.value)];
-                            if (!level) return;
-                            chooseModel({ ...currentModel, ...(level.value ? { thinkingLevel: level.value } : {}) });
-                          }} />
-                      </div>
-                      <div className="composer-thinking-ends"><span>低</span><span>高</span></div>
-                    </div>}
-                </div>}
-                <button type="button" className="composer-context-ring"
-                  data-tooltip={contextRingPercent === undefined ? '上下文用量暂不可用' : `上下文已用 ${Math.round(contextRingPercent)}%`}
-                  aria-label={contextRingPercent === undefined ? '查看上下文用量，当前用量暂不可用' : `查看上下文用量，已用 ${Math.round(contextRingPercent)}%`}
-                  aria-expanded={contextOpen}
-                  onClick={() => { setModelOpen(false); setContextOpen((value) => !value); }}>
-                  <svg aria-hidden="true" viewBox="0 0 36 36" fill="none">
-                    <circle className="composer-context-track" cx="18" cy="18" r="13" pathLength="100" />
-                    {contextRingPercent !== undefined && contextRingPercent > 0 &&
-                      <circle className="composer-context-value" cx="18" cy="18" r="13" pathLength="100"
-                        strokeDasharray={`${contextRingPercent} ${100 - contextRingPercent}`} />}
-                  </svg>
-                </button>
-                {contextOpen && <div className="composer-context-popover" role="dialog" aria-label="上下文用量">
-                  <strong>上下文已用 {trajectory?.context?.percent == null ? '—' : `${Math.round(trajectory.context.percent)}%`}</strong>
-                  <span>{trajectory?.context?.tokens == null ? '—' : trajectory.context.tokens.toLocaleString('en-US')}
-                    {' / '}{trajectory?.context?.contextWindow?.toLocaleString('en-US') ?? '—'}</span>
-                  <div className="composer-context-progress"><i style={{ width: `${Math.min(100, Math.max(0, trajectory?.context?.percent ?? 0))}%` }} /></div>
-                  <dl><div><dt>系统提示词</dt><dd>{tokenLabel(trajectory?.context?.breakdown?.systemPrompt)}</dd></div>
-                    <div><dt>工具定义</dt><dd>{tokenLabel(trajectory?.context?.breakdown?.tools)}</dd></div>
-                    <div><dt>对话消息</dt><dd>{tokenLabel(trajectory?.context?.breakdown?.messages)}</dd></div>
-                    <div><dt>其他</dt><dd>{tokenLabel(trajectory?.context?.breakdown?.other)}</dd></div></dl>
-                  <button type="button" className="composer-open-trajectory" onClick={() => {
-                    setContextOpen(false); setActivityOpen(true); setActivityTab('trajectory');
-                  }}>打开运行轨迹 →</button>
-                </div>}
-              </div>}
+              {surface === 'work' && <ComposerRuntimeControls currentModel={currentModel}
+                choices={modelChoices} selectedThinkingLevel={modelSelection?.thinkingLevel}
+                context={trajectory?.context} modelOpen={modelOpen} setModelOpen={setModelOpen}
+                contextOpen={contextOpen} setContextOpen={setContextOpen} onChooseModel={chooseModel}
+                contextActionLabel="打开运行轨迹 →" onContextAction={() => {
+                  setActivityOpen(true); setActivityTab('trajectory');
+                }} />}
               {busy && activeRunId ? <button type="button" className="composer-stop" onClick={() => void cancelRun(activeRunId, false)}
                 disabled={cancelBusy} aria-label="停止任务" title="停止当前任务"><AppIcon name="pause" /></button>
                 : <button type="button" onClick={() => void sendMessage()} disabled={archiveOpen || workArchived || (surface === 'work' && Boolean(desktop) && !workConversationId) || (!input.trim() && attachments.length === 0) || busy || Boolean(runRecovery)} aria-label="发送消息"><AppIcon name="send" /></button>}
@@ -1658,15 +1618,15 @@ export function ChatPanel({
                 requestPath={isCurrent ? filePreviewPath : undefined} requestImage={isCurrent ? imagePreviewRequest : undefined}
                 onActiveFileChange={isCurrent ? setFilePreviewPath : undefined} tabHost={isCurrent ? workspaceTabHost : null}
                 view={isCurrent ? activityTab : sidebarSessions.current.get(sessionId)?.tab ?? 'files'}
-                onViewChange={isCurrent ? setActivityTab : () => undefined}
+                onViewChange={isCurrent ? (next) => next === 'subagents' ? openAiTickets() : setActivityTab(next) : () => undefined}
                 onClose={isCurrent ? () => { setActivityOpen(false); setRightPanelMaximized(false); setActivityTab('files'); setFilePreviewPath(undefined); setImagePreviewRequest(undefined); } : () => undefined}
                 reviewContent={isCurrent ? <ReviewPanel conversationId={sessionId}
                   lastRunId={reviewRunId ?? lastRun?.runId ?? [...messages].reverse().find((message) => message.run?.runId)?.run?.runId}
                   refreshKey={reviewRefreshKey} active={active && activityOpen && activityTab === 'review'} /> : null}
-                runContent={isCurrent ? activityTab === 'trajectory'
+                runContent={isCurrent ? (activityTab === 'trajectory'
                   ? <SessionTrajectoryViewer trajectory={trajectory} title={selectedWork?.title ?? '工作会话'}
                       onRefresh={() => { if (desktop) void desktop.getWorkTrajectory(sessionId).then(setTrajectory); }} />
-                  : <SubagentViewer trajectory={trajectory} onOpenTrajectory={() => setActivityTab('trajectory')} /> : null} />
+                  : desktop ? <AiTicketsPanel conversationId={sessionId} desktop={desktop} /> : null) : null} />
             </div>;
           })}</>}
         </dialog>

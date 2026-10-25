@@ -61,6 +61,10 @@ export const RUNTIME_ROUTES = {
   workSearch: '/v1/work/search',
   workMessageWindow: '/v1/work/messages/window',
   workTrajectory: '/v1/work/trajectory',
+  workSubagentCancel: '/v1/work/subagents/cancel',
+  workAiTickets: '/v1/work/ai-tickets',
+  workAiTicketMessages: '/v1/work/ai-tickets/messages',
+  workAiTicketCancel: '/v1/work/ai-tickets/cancel',
   workTags: '/v1/work/tags',
   workOrder: '/v1/work/order',
   workFiles: '/v1/work/files',
@@ -351,12 +355,38 @@ export interface SessionTrajectory {
   rows: SessionTrajectoryRow[];
   rounds: number;
   calls: number;
-  children: Array<{ id: string; agent: string; status: string; at: string; progress?: string;
+  children: Array<{ id: string; runId?: string; agent: string; task?: string; status: string; at: string; progress?: string;
+    result?: string; error?: string;
     rows: SessionTrajectoryRow[]; rounds: number; calls: number }>;
   context?: { tokens: number | null; contextWindow: number; percent: number | null;
     breakdown?: { systemPrompt: number; tools: number; messages: number; other: number } };
   live?: { runId: string; text: string; finishedAt?: string; steps?: RunToolStep[]; tools: Array<{ id: string; name: string; summary: string;
     category: string; status: 'running' | 'completed' | 'failed'; at: string }> };
+}
+
+export interface AiTicket {
+  id: string;
+  parentConversationId: string;
+  task: string;
+  title?: string;
+  deliverables?: string[];
+  acceptanceCriteria?: string[];
+  model?: string;
+  modelSelection?: AgentRunRequest['modelSelection'];
+  context?: SessionTrajectory['context'];
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted' | 'needs_approval';
+  createdAt: string;
+  updatedAt: string;
+  progress?: string;
+  liveRun?: DesktopReplyRunInfo;
+  error?: string;
+  messages?: DesktopTranscriptMessage[];
+  activity?: SessionTrajectoryRow[];
+}
+
+export interface AiTicketList {
+  tickets: AiTicket[];
+  navigation: { ticketId?: string; revision: number };
 }
 
 export interface AssistantLinkStatus {
@@ -693,6 +723,15 @@ export interface DesktopBridge {
   searchWorkConversations(input: WorkSearchQuery): Promise<WorkSearchResult>;
   getWorkMessageWindow(conversationId: string, entryId: string, radius?: number): Promise<WorkMessageWindowResult>;
   getWorkTrajectory(conversationId: string): Promise<SessionTrajectory>;
+  cancelWorkSubagent(conversationId: string, runId: string): Promise<void>;
+  listAiTickets(conversationId: string): Promise<AiTicketList>;
+  getAiTicket(conversationId: string, ticketId: string): Promise<AiTicket>;
+  createAiTicket(conversationId: string, task: string, details?: {
+    title?: string; deliverables?: string[]; acceptanceCriteria?: string[];
+  }): Promise<AiTicket>;
+  sendAiTicketMessage(conversationId: string, ticketId: string, message: string,
+    options?: { modelSelection?: AgentRunRequest['modelSelection']; approvalMode?: AgentRunRequest['approvalMode'] }): Promise<AiTicket>;
+  cancelAiTicket(conversationId: string, ticketId: string): Promise<void>;
   listWorkFolders(): Promise<WorkFolder[]>;
   createWorkFolder(parentId: string | null, name: string, iconId?: string, requestId?: string): Promise<WorkFolder>;
   updateWorkFolder(folderId: string, patch: { name?: string; iconId?: string }): Promise<WorkFolder>;

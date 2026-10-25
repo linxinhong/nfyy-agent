@@ -171,7 +171,7 @@ export function FileWorkspace({ host, browserHost, scopeKey, requestPath, browse
   const tabStrip = <div className="workspace-tabs">
     <div className="file-tabs" role="tablist" aria-label="右侧面板标签">
       {tabs.map((tab) => {
-        const label = tab.kind === 'file' ? fileTabLabel(tab.path) : tab.kind === 'image' ? tab.image.alt || '图片' : tab.kind === 'browser' ? browserTitle : tab.kind === 'tree' ? '文件' : tab.kind === 'trajectory' ? '运行轨迹' : tab.kind === 'subagents' ? '子智能体' : '审查';
+        const label = tab.kind === 'file' ? fileTabLabel(tab.path) : tab.kind === 'image' ? tab.image.alt || '图片' : tab.kind === 'browser' ? browserTitle : tab.kind === 'tree' ? '文件' : tab.kind === 'trajectory' ? '运行轨迹' : tab.kind === 'subagents' ? '任务工单' : '审查';
         return <div key={tab.id} className={`file-tab ${tab.id === activeTabId ? 'active' : ''}`}>
           <button type="button" role="tab" aria-selected={tab.id === activeTabId} className="file-tab-title"
             title={tab.kind === 'file' ? tab.path : label} onClick={() => activate(tab)}>
@@ -189,6 +189,8 @@ export function FileWorkspace({ host, browserHost, scopeKey, requestPath, browse
         <div className="workspace-tab-menu" onKeyDown={(event) => { if (event.key === 'Escape') setMenuOpen(false); }}>
           <button type="button" onClick={() => activate(TREE_TAB)}><AppIcon name="folder" />文件列表</button>
           {browserHost && <button type="button" onClick={() => activate(BROWSER_TAB)}><AppIcon name="globe" />浏览器</button>}
+          <button type="button" onClick={() => activate({ id: 'subagents', kind: 'subagents' })}><AppIcon name="schedules" />任务工单</button>
+          <button type="button" onClick={() => activate({ id: 'trajectory', kind: 'trajectory' })}><AppIcon name="schedules" />运行轨迹</button>
         </div>
       </>}
     </div>

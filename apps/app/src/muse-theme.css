@@ -106,7 +106,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 }
 .chat-panel.view-hidden { display: none; }
 .chat-panel.activity-closed { grid-template-columns: minmax(0, 1fr); }
-.chat-main { display: grid; min-width: 0; min-height: 0; grid-column: 1; grid-row: var(--yp-chat-content-row, 2); grid-template-rows: minmax(0, 1fr) auto; background: var(--yp-surface-subtle); }
+.chat-main { display: grid; min-width: 0; min-height: 0; grid-column: 1; grid-row: var(--yp-chat-content-row, 2); grid-template-rows: minmax(0, 1fr) auto; row-gap: 10px; background: var(--yp-surface-subtle); }
 .chat-header {
   position: relative;
   z-index: 5;
@@ -201,7 +201,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
   width: min(800px, calc(100% - 48px));
   justify-content: safe flex-end;
   gap: 22px;
-  padding: 20px 0 24px;
+  padding: 20px 0 0;
 }
 .chat-load-older { align-self: center; border: 0; border-radius: 7px; padding: 6px 12px; color: var(--yp-text-muted); background: var(--yp-surface-tinted); cursor: pointer; font-size: 0.75rem; }
 .chat-load-older:hover { color: var(--yp-text); background: var(--yp-action-hover); }
@@ -352,7 +352,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
   border: 1px solid #e2e3e5;
   border-radius: 19px;
   padding: 11px 13px 9px;
-  background: var(--yp-surface);
+  background: transparent;
   box-shadow: 0 6px 24px rgb(22 33 43 / 5%);
 }
 .composer:focus-within {
@@ -629,6 +629,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .chat-panel.list-open .chat-main { grid-column: 2; grid-row: var(--yp-chat-content-row, 2); }
 .chat-panel.list-open.activity-open .activity-panel { grid-column: 3; grid-row: var(--yp-chat-content-row, 2); }
 .work-mode .chat-main { background: var(--yp-surface); }
+.work-mode .composer-wrap { background: var(--yp-surface); }
 .work-mode .chat-title-pill { border: 0; box-shadow: none; background: #f4f7f5; }
 
 /* The empty conversation keeps its real greeting and input together. */
@@ -1005,6 +1006,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .chat-panel.right-panel-maximized .conversation { display: none; }
 .chat-panel.right-panel-maximized .chat-header { pointer-events: auto; }
 .chat-panel.right-panel-maximized .composer-wrap { position: absolute; z-index: 2; right: 24px; bottom: 20px; left: 24px; padding: 0; background: transparent; pointer-events: auto; }
+.chat-panel.right-panel-maximized .composer { background: var(--yp-surface); }
 .chat-panel.right-panel-maximized.activity-open .activity-panel { position: relative; z-index: 1; grid-column: 1; grid-row: var(--yp-chat-content-row, 2); width: 100%; box-shadow: none; }
 .chat-panel.right-panel-maximized .activity-content { padding-bottom: 190px; }
 @media (max-width: 780px) {

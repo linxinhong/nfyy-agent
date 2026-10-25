@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { SessionTrajectory, SessionTrajectoryRow } from '@yuanpu-agent/protocol';
 
 const kindLabels: Record<SessionTrajectoryRow['kind'], string> = {
-  user: '用户', assistant: '助手', tool: '工具', model: '模型', context: '上下文', subagent: '子智能体',
+  user: '用户', assistant: '助手', tool: '工具', model: '模型', context: '上下文', subagent: '任务工单',
 };
 const lanes = ['user', 'model', 'tool', 'context'] as const;
 
@@ -43,7 +43,6 @@ function SessionTimeline({ trajectory, mode, onRound }: {
     </div>)}
   </div>;
 }
-
 function Row({ row }: { row: SessionTrajectoryRow }) {
   return <li className={`session-row ${row.kind} ${row.status ?? ''}`} id={`trajectory-${row.id}`}>
     <span className="session-row-kind">{row.title}</span>
@@ -125,31 +124,5 @@ export function SessionTrajectoryViewer({ trajectory, title, onRefresh }: {
       {!query && rows.length > visibleCount && <button className="session-show-earlier" type="button"
         onClick={() => setVisibleCount((count) => count + 300)}>显示更早记录 · {rows.length - visibleCount} 条</button>}
     </div>
-  </div>;
-}
-
-export function SubagentViewer({ trajectory, onOpenTrajectory }: {
-  trajectory?: SessionTrajectory;
-  onOpenTrajectory(): void;
-}) {
-  const [selectedId, setSelectedId] = useState<string>();
-  const selected = trajectory?.children.find((child) => child.id === selectedId);
-  if (selected) return <div className="session-child-detail">
-    <button type="button" className="session-child-back" onClick={() => setSelectedId(undefined)}>← 子智能体</button>
-    <SessionTrajectoryViewer title={selected.agent}
-      trajectory={{ conversationId: selected.id, rows: selected.rows, rounds: selected.rounds,
-        calls: selected.calls, children: [], ...(selected.status === 'running' ? { live: {
-          runId: selected.id, text: selected.progress ?? '', tools: [],
-        } } : {}) }} />
-  </div>;
-  const children = trajectory?.children ?? [];
-  return <div className="session-trajectory-viewer session-subagent-viewer">
-    <header className="session-trajectory-header"><strong>子智能体</strong></header>
-    {children.length ? <ol className="session-subagent-list">{children.slice().reverse().map((child) => <li key={child.id}>
-      <strong>{child.agent}</strong><span>{child.status} · {child.rounds} 轮 · {child.calls} 次调用</span>
-      {child.status === 'running' && child.progress && <span>{child.progress}</span>}
-      <button type="button" onClick={() => setSelectedId(child.id)}>查看过程</button>
-    </li>)}</ol> : <p className="session-trajectory-empty">当前工作会话还没有子智能体记录。</p>}
-    {children.length > 0 && <button type="button" className="session-child-link" onClick={onOpenTrajectory}>查看父会话轨迹 →</button>}
   </div>;
 }

@@ -67,6 +67,9 @@
 :root[data-yuanpu-theme='mindlink'] .chat-panel.is-empty .composer-wrap {
   background: transparent;
 }
+:root[data-yuanpu-theme='mindlink'] .ai-tickets-panel .ai-ticket-composer-wrap {
+  background: var(--yp-surface);
+}
 :root[data-yuanpu-theme='mindlink'] .chat-panel { --yp-chat-content-row: 1; position: relative; grid-template-rows: minmax(0, 1fr); overflow: visible; }
 :root[data-yuanpu-theme='mindlink'] .chat-main,
 :root[data-yuanpu-theme='mindlink'] .conversation-list-preview,

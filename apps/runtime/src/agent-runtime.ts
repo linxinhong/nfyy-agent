@@ -86,6 +86,12 @@ export class RuntimeAgentExecutor implements AgentRunExecutor {
     return pooled ? await pooled.promise.then((value) => value.listSubagentRuns()).catch(() => []) : [];
   }
 
+  async cancelSubagentRun(sessionId: string, runId: string): Promise<void> {
+    const pooled = this.#sessions.get(sessionId);
+    if (!pooled) throw new Error('Subagent run is not active in this work session.');
+    (await pooled.promise).cancelSubagentRun(runId);
+  }
+
   async execute(input: AgentRunExecutionInput): Promise<AgentRunExecutionResult> {
     if (!input.run.context.conversation.sessionBindingId) throw new Error('Agent run does not have a persisted Pi session binding.');
     const sessionKey = input.piSessionId;

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -48,4 +48,31 @@ test('saved Work session restores its context ring from Pi usage and the configu
   assert.equal(usage?.tokens, 250);
   assert.equal(usage?.contextWindow, 1000);
   assert.equal(usage?.percent, 25);
+});
+
+test('completed async AI tickets replace their queued tool snapshot after restart', async (context) => {
+  const cwd = await mkdtemp(join(tmpdir(), 'yuanpu-async-ticket-'));
+  context.after(() => rm(cwd, { recursive: true, force: true }));
+  const sessionId = randomUUID();
+  const runId = randomUUID();
+  const directory = join(cwd, 'sessions');
+  const session = SessionManager.create(cwd, directory, { id: sessionId });
+  const queued = { id: runId, mode: 'single', status: 'queued', createdAt: new Date().toISOString(),
+    children: [{ agent: 'scout', task: 'Inspect the contract', status: 'queued', text: '' }] };
+  session.appendMessage({ role: 'user', content: 'Inspect the contract', timestamp: Date.now() });
+  session.appendMessage({ role: 'assistant', content: [{ type: 'toolCall', id: 'delegate-1',
+    name: 'subagent', arguments: { action: 'run', agent: 'scout', task: 'Inspect the contract', async: true } }],
+  api: 'fixture', provider: 'fixture', model: 'fixture', stopReason: 'toolUse', timestamp: Date.now(),
+  usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } });
+  session.appendMessage({ role: 'toolResult', toolCallId: 'delegate-1', toolName: 'subagent',
+    content: [{ type: 'text', text: JSON.stringify(queued) }], isError: false, timestamp: Date.now() });
+  const runDirectory = join(cwd, 'subagent-runs', runId);
+  await mkdir(runDirectory, { recursive: true });
+  await writeFile(join(runDirectory, 'result.json'), JSON.stringify({ ...queued, status: 'completed',
+    children: [{ ...queued.children[0], status: 'completed', text: 'Evidence found.' }] }));
+  const ticket = readYuanpuSessionTrajectory(cwd, sessionId, directory, 'work:test', cwd).children[0];
+  assert.equal(ticket.status, 'completed');
+  assert.equal(ticket.task, 'Inspect the contract');
+  assert.equal(ticket.result, 'Evidence found.');
 });
