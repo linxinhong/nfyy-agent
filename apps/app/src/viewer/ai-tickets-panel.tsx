@@ -269,10 +269,6 @@ export function AiTicketsPanel({ conversationId, desktop }: {
               </li>)}
             </ol></>}
           </div>
-          <details className="ai-ticket-dispatch"><summary>下发信息 <small>主会话 → 独立工单会话</small></summary>
-            <div><span>来源</span><span>当前工作会话</span><span>模型</span><span>{selected.model ?? '当前配置'}</span>
-              <span>工单编号</span><span>{orderNumber(selected)}</span></div>
-          </details>
           {selected.error && <p className="ai-ticket-error">{selected.error}</p>}
           {selected.status === 'running' && <button type="button" className="ai-ticket-cancel" disabled={busy}
             onClick={() => void cancel()}>停止当前任务</button>}

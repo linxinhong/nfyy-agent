@@ -93,11 +93,6 @@
 .ai-ticket-criteria { min-width: 0; margin: 0; padding: 0; list-style: none; }
 .ai-ticket-criteria li { display: grid; grid-template-columns: 20px minmax(0,1fr); gap: 8px; border-bottom: 1px dashed #e7e3d8; padding: 5px 0; line-height: 1.5; }
 .ai-ticket-criteria li small { color: #98a2b3; font-family: ui-monospace, Menlo, monospace; }
-.ai-ticket-dispatch { margin: 11px 18px 0; border: 1px solid #e7e3d8; border-radius: 6px; background: #f7f5ef; }
-.ai-ticket-dispatch summary { display: flex; gap: 10px; align-items: center; padding: 9px 11px; color: #475467; cursor: pointer; font-size: .75rem; font-weight: 650; }
-.ai-ticket-dispatch summary small { color: #98a2b3; font-weight: 400; }
-.ai-ticket-dispatch > div { display: grid; grid-template-columns: 64px minmax(0,1fr); gap: 5px 12px; border-top: 1px dashed #e0dace; padding: 10px 11px; color: #475467; font-size: .75rem; }
-.ai-ticket-dispatch > div span:nth-child(odd) { color: #98a2b3; }
 .ai-ticket-brief-body > .ai-ticket-error { margin: 12px 18px 0; }
 .ai-ticket-brief-body > .ai-ticket-cancel { margin: 12px 18px 0; }
 .ai-ticket-create input { width: 100%; box-sizing: border-box; border: 1px solid var(--yp-border-control); border-radius: 7px; padding: 10px; color: var(--yp-text); background: var(--yp-surface); font: inherit; font-size: .8125rem; }
