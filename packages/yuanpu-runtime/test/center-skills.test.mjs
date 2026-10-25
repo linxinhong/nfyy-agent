@@ -100,3 +100,37 @@ test('a protected center skill routes a real Pi chat through the center and neve
     assert.equal((await readFile(join(root, name), 'utf8')).includes(centerKey), false, `${name} persisted the center key`);
   }
 });
+
+test('an unreachable center leaves local chat usable without loading protected skills', async (context) => {
+  const requests = [];
+  const direct = createServer(async (request, response) => {
+    requests.push({ path: request.url, skills: request.headers['x-mindlink-skills'] });
+    for await (const _chunk of request) { /* Consume the local model request. */ }
+    response.writeHead(200, { 'content-type': 'text/event-stream' });
+    response.end('data: {"id":"fixture","object":"chat.completion.chunk","model":"fixture","choices":[{"index":0,"delta":{"role":"assistant","content":"local reply"},"finish_reason":null}]}\n\n'
+      + 'data: {"id":"fixture","object":"chat.completion.chunk","model":"fixture","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n'
+      + 'data: [DONE]\n\n');
+  });
+  await new Promise((resolve) => direct.listen(0, '127.0.0.1', resolve));
+  context.after(() => new Promise((resolve) => { direct.closeAllConnections(); direct.close(resolve); }));
+  const unavailable = createServer();
+  await new Promise((resolve) => unavailable.listen(0, '127.0.0.1', resolve));
+  const centerEndpoint = `http://127.0.0.1:${unavailable.address().port}`;
+  await new Promise((resolve) => unavailable.close(resolve));
+
+  const root = await mkdtemp(join(tmpdir(), 'yuanpu-center-offline-'));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  await writeFile(join(root, 'models.json'), JSON.stringify({ providers: { fixture: {
+    api: 'openai-completions', baseUrl: `http://127.0.0.1:${direct.address().port}/direct`,
+    models: [{ id: 'fixture', name: 'fixture', reasoning: false, input: ['text'], contextWindow: 8192, maxTokens: 256 }],
+  } } }));
+  const chat = await createYuanpuChatSession({
+    agentDir: root, modelConfigDir: root, cwd: root, provider: 'fixture', model: 'fixture', apiKey: 'direct-key',
+    centerConnection: parseCenterConnection({ endpoint: centerEndpoint, apiKey: centerKey }),
+    capabilityClient: { async search() { return { matches: [] }; }, async execute() { throw new Error('unused'); } },
+  });
+  context.after(() => chat.dispose());
+  assert.equal((await chat.prompt('Can local chat continue?')).message,
+    '知识服务中心暂不可用，本次未加载中心技能。\n\nlocal reply');
+  assert.deepEqual(requests, [{ path: '/direct/chat/completions', skills: undefined }]);
+});

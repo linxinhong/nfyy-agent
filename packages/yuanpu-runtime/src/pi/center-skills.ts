@@ -4,6 +4,13 @@ export interface CenterConnection {
   apiKey?: string;
 }
 
+export class CenterUnavailableError extends Error {
+  constructor(cause?: unknown) {
+    super('知识服务中心暂不可用。', { cause });
+    this.name = 'CenterUnavailableError';
+  }
+}
+
 export function parseCenterConnection(value: unknown): CenterConnection {
   if (!value || typeof value !== 'object') throw new Error('中心连接配置无效。');
   const input = value as { endpoint?: unknown; apiKey?: unknown };
@@ -26,12 +33,16 @@ export function parseCenterConnection(value: unknown): CenterConnection {
 }
 
 async function centerGet(connection: CenterConnection, path: string, workspace?: string): Promise<unknown> {
-  const response = await fetch(new URL(path, connection.endpoint), {
-    headers: { authorization: `Bearer ${connection.apiKey}`,
-      ...(workspace ? { 'X-Agent-Workspace': workspace } : {}) },
-    redirect: 'error',
-    signal: AbortSignal.timeout(8_000),
-  });
+  let response: Response;
+  try {
+    response = await fetch(new URL(path, connection.endpoint), {
+      headers: { authorization: `Bearer ${connection.apiKey}`,
+        ...(workspace ? { 'X-Agent-Workspace': workspace } : {}) },
+      redirect: 'error',
+      signal: AbortSignal.timeout(8_000),
+    });
+  } catch (cause) { throw new CenterUnavailableError(cause); }
+  if (response.status >= 500) throw new CenterUnavailableError(new Error(`HTTP ${response.status}`));
   if (!response.ok) throw new Error(`知识服务中心请求失败（HTTP ${response.status}）。`);
   return response.json();
 }
