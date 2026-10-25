@@ -1,0 +1,33 @@
+@property --yp-scrollbar-opacity {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+
+/* Keep the scrollbar's width stable while its thumb fades after scrolling. */
+:where(.app-shell *) { scrollbar-width: thin; }
+:root .app-shell * {
+  scrollbar-color: color-mix(in srgb, var(--yp-text-subtle) var(--yp-scrollbar-opacity), transparent) transparent;
+}
+:root .app-shell *:hover {
+  --yp-scrollbar-opacity: 35%;
+}
+:root .app-shell [data-yp-scrollbar='active'] {
+  --yp-scrollbar-opacity: 70%;
+}
+:root .app-shell [data-yp-scrollbar='idle'] {
+  animation: yp-scrollbar-fade 650ms ease forwards;
+}
+:root .app-shell [data-yp-scrollbar='idle']:hover {
+  --yp-scrollbar-opacity: 35%;
+  animation: none;
+}
+
+@keyframes yp-scrollbar-fade {
+  from { --yp-scrollbar-opacity: 70%; }
+  to { --yp-scrollbar-opacity: 0%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root .app-shell [data-yp-scrollbar='idle'] { animation-duration: 0ms; }
+}
