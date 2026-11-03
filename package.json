@@ -28,7 +28,7 @@
     "dev:server:web": "node server/scripts/eap.mjs web",
     "build:server:web": "node server/scripts/eap.mjs portal",
     "dev": "pnpm build && pnpm --filter @yuanpu-agent/desktop run dev",
-    "package:desktop": "pnpm run build && pnpm run build:native && pnpm run smoke:native && pnpm --filter @yuanpu-agent/desktop run package",
+    "package:desktop": "pnpm run build:app && pnpm run build:desktop && pnpm run build:runtime && pnpm run build:native && pnpm run smoke:native && pnpm --filter @yuanpu-agent/desktop run package",
     "package:native": "pnpm --filter @yuanpu-agent/runtime run package:native",
     "prepare:python-capabilities": "uv sync --frozen --project apps/python-capabilities",
     "presmoke:native": "pnpm run prepare:python-capabilities && pnpm run build:python-artifact && pnpm run smoke:python-artifact",
