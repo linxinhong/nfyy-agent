@@ -15,6 +15,8 @@ import {
   capabilityApprovalSigningPayload,
 } from '@yuanpu-agent/protocol';
 
+const runtimePackage = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+
 async function stopChild(child) {
   if (child.exitCode !== null || child.signalCode !== null) return;
   await new Promise((resolve) => {
@@ -715,7 +717,7 @@ test('runtime server exposes its protocol and greeting', async (context) => {
   assert.equal(disabledSchedule.revision, 2);
   assert.deepEqual(scheduleHistory, []);
   assert.deepEqual(health, {
-    version: '0.1.0',
+    version: runtimePackage.version,
     protocolVersion: 9,
     piVersion: '1.4.0',
     mcpTools: ['search_capabilities', 'execute_capability'],
