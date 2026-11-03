@@ -53,6 +53,12 @@ on:
         required: false
       APPLE_API_ISSUER:
         required: false
+      APPLE_ID:
+        required: false
+      APPLE_APP_SPECIFIC_PASSWORD:
+        required: false
+      APPLE_TEAM_ID:
+        required: false
 
 permissions:
   contents: read
@@ -100,26 +106,39 @@ jobs:
 
       # Developer ID signing and notarization are optional: without CSC_LINK the
       # macOS build stays ad-hoc signed. The .p8 key only ever lives in RUNNER_TEMP.
-      - name: Prepare macOS notarization key
+      # Notarization prefers an App Store Connect API key (.p8) and falls back to
+      # an Apple ID with an app-specific password. NOTARIZE_METHOD tells later
+      # steps which credentials, if any, electron-builder should receive.
+      - name: Prepare macOS notarization credentials
         if: matrix.target == 'darwin-arm64'
         shell: bash
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           if [ -z "$CSC_LINK" ]; then
             echo "::warning::CSC_LINK is not configured; building an ad-hoc signed macOS app."
+            echo "NOTARIZE_METHOD=none" >> "$GITHUB_ENV"
             exit 0
           fi
-          if [ -z "$APPLE_API_KEY_BASE64" ]; then
-            echo "::warning::APPLE_API_KEY_BASE64 is not configured; the app will be signed but not notarized."
-            exit 0
+          if [ -n "$APPLE_API_KEY_BASE64" ]; then
+            key="$RUNNER_TEMP/apple-notary/AuthKey.p8"
+            mkdir -p "$(dirname "$key")"
+            printf '%s' "$APPLE_API_KEY_BASE64" | base64 --decode > "$key"
+            chmod 600 "$key"
+            echo "APPLE_API_KEY=$key" >> "$GITHUB_ENV"
+            echo "NOTARIZE_METHOD=api-key" >> "$GITHUB_ENV"
+            echo "Notarizing with App Store Connect API key."
+          elif [ -n "$APPLE_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+            echo "NOTARIZE_METHOD=apple-id" >> "$GITHUB_ENV"
+            echo "Notarizing with Apple ID and app-specific password."
+          else
+            echo "::warning::No notarization credentials configured; the app will be signed but not notarized."
+            echo "NOTARIZE_METHOD=none" >> "$GITHUB_ENV"
           fi
-          key="$RUNNER_TEMP/apple-notary/AuthKey.p8"
-          mkdir -p "$(dirname "$key")"
-          printf '%s' "$APPLE_API_KEY_BASE64" | base64 --decode > "$key"
-          chmod 600 "$key"
-          echo "APPLE_API_KEY=$key" >> "$GITHUB_ENV"
 
       - name: Build desktop package
         env:
@@ -127,8 +146,11 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.target == 'darwin-arm64' && secrets.CSC_LINK != '' && 'true' || 'false' }}
           CSC_LINK: ${{ matrix.target == 'darwin-arm64' && secrets.CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ matrix.target == 'darwin-arm64' && secrets.CSC_KEY_PASSWORD || '' }}
-          APPLE_API_KEY_ID: ${{ matrix.target == 'darwin-arm64' && env.APPLE_API_KEY != '' && secrets.APPLE_API_KEY_ID || '' }}
-          APPLE_API_ISSUER: ${{ matrix.target == 'darwin-arm64' && env.APPLE_API_KEY != '' && secrets.APPLE_API_ISSUER || '' }}
+          APPLE_API_KEY_ID: ${{ env.NOTARIZE_METHOD == 'api-key' && secrets.APPLE_API_KEY_ID || '' }}
+          APPLE_API_ISSUER: ${{ env.NOTARIZE_METHOD == 'api-key' && secrets.APPLE_API_ISSUER || '' }}
+          APPLE_ID: ${{ env.NOTARIZE_METHOD == 'apple-id' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ env.NOTARIZE_METHOD == 'apple-id' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ env.NOTARIZE_METHOD == 'apple-id' && secrets.APPLE_TEAM_ID || '' }}
           YUANPU_ARTIFACT_TRUST_ROOT_PUBLIC_KEY_BASE64: ${{ secrets.YUANPU_ARTIFACT_TRUST_ROOT_PUBLIC_KEY_BASE64 }}
           YUANPU_ARTIFACT_SIGNING_KEY_ID: ${{ secrets.YUANPU_ARTIFACT_SIGNING_KEY_ID }}
         run: pnpm package:desktop
@@ -146,7 +168,7 @@ jobs:
           app=$(ls -d apps/desktop/release/mac-arm64/*.app | head -1)
           codesign --verify --deep --strict --verbose=2 "$app"
           codesign -dvv "$app" 2>&1 | grep -q "Authority=Developer ID Application"
-          if [ -n "${APPLE_API_KEY:-}" ]; then
+          if [ "${NOTARIZE_METHOD:-none}" != "none" ]; then
             xcrun stapler validate "$app"
             spctl --assess --type execute --verbose=4 "$app"
           fi

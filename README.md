@@ -94,6 +94,12 @@ macOS 签名和公证是可选的。未配置证书时，GitHub Actions 产出 a
 - `APPLE_API_KEY_BASE64`：App Store Connect API Key（`AuthKey_XXXX.p8`），base64 编码
 - `APPLE_API_KEY_ID`、`APPLE_API_ISSUER`：该 API Key 的 Key ID 和 Issuer ID
 
+没有 API Key（例如只有团队管理员、尚未由账号持有人开通 App Store Connect API）时，可改用 Apple ID 公证，配置以下三项即可；两者都配置时优先使用 API Key：
+
+- `APPLE_ID`：团队成员的 Apple ID
+- `APPLE_APP_SPECIFIC_PASSWORD`：在 account.apple.com 为 CI 单独生成的 App 专用密码
+- `APPLE_TEAM_ID`：Developer ID 证书括号中的 Team ID
+
 证书和密钥只保存在 GitHub Secrets 与密码管理器中，不要提交到仓库。
 
 桌面安装包只包含 `apps/desktop`、Renderer、Runtime 和内置 Python 能力包；`server/` 是独立服务，不参与桌面打包。
