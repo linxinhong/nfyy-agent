@@ -16,8 +16,6 @@ overrides:
   '@earendil-works/pi-telemetry': 1.4.0
   '@earendil-works/pi-tui': 1.4.0
 
-pnpmfileChecksum: sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=
-
 importers:
 
   .:
