@@ -51,5 +51,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-pnpmfile
 
+      - name: Prepare Python capability environment
+        # Runtime tests start the real Python MCP from apps/python-capabilities/.venv.
+        run: pnpm prepare:python-capabilities
+
       - name: Check agent
         run: pnpm check:agent
