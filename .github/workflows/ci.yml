@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   check:
-    name: Typecheck, build, and test
+    name: Agent typecheck, build, and test
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -31,11 +31,12 @@ jobs:
           cache: pnpm
 
       - name: Setup Go
-        # The independent center and its contract generator use the Go module version.
+        # Desktop tests start server/backend as a loopback catalog fixture.
+        # server/ itself is not checked or built here.
         uses: actions/setup-go@v6
         with:
-          go-version-file: server/eap/go.mod
-          cache-dependency-path: server/eap/go.sum
+          go-version-file: server/backend/go.mod
+          cache-dependency-path: server/backend/go.sum
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -50,5 +51,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-pnpmfile
 
-      - name: Check
-        run: pnpm check
+      - name: Check agent
+        run: pnpm check:agent

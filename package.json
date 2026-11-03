@@ -11,6 +11,7 @@
     "build:runtime": "pnpm --filter @yuanpu-agent/runtime... run build",
     "build:native": "pnpm --filter @yuanpu-agent/runtime run build:native",
     "check": "pnpm run build && pnpm run typecheck:yuanpu && pnpm run check:server && pnpm run test",
+    "check:agent": "pnpm -r --filter \"@yuanpu-agent/*\" --filter \"!@yuanpu-agent/monorepo\" --filter \"!@yuanpu-agent/server-web\" run build && pnpm -r --filter \"@yuanpu-agent/*\" --filter \"!@yuanpu-agent/monorepo\" --filter \"!@yuanpu-agent/server-web\" run typecheck && node --test apps/python-capabilities/scripts/*.test.mjs scripts/verification/test/*.test.mjs && pnpm -r --filter \"@yuanpu-agent/*\" --filter \"!@yuanpu-agent/monorepo\" --filter \"!@yuanpu-agent/server-web\" --if-present run test",
     "build:server": "node server/scripts/eap.mjs build",
     "dev:server": "node server/scripts/eap.mjs dev",
     "generate:server": "pnpm --filter @yuanpu-agent/server-client exec openapi-typescript ../../server/eap/api/mindlink-openapi.yaml -o ../../server/eap/api/schema.gen.ts",
