@@ -34,9 +34,9 @@ test('Work transcript pages load newest first and older pages without repeating 
 
 test('unrestricted capability grant stays bound to one running desktop Work session', async (context) => {
   const root = await mkdtemp(join(tmpdir(), 'yuanpu-work-permission-'));
-  context.after(() => rm(root, { recursive: true, force: true }));
   const database = openYuanpuMetadataDatabase(join(root, 'automation.sqlite'));
   context.after(() => database.close());
+  context.after(() => rm(root, { recursive: true, force: true }));
   const runs = database.agentRuns;
   const now = new Date().toISOString();
   const result = runs.submit({
@@ -175,9 +175,9 @@ test('nested folders, metadata, tags and archive persist without changing stable
 
 test('Work folders stop at five levels even when created through the store', async (context) => {
   const root = await mkdtemp(join(tmpdir(), 'yuanpu-work-depth-'));
-  context.after(() => rm(root, { recursive: true, force: true }));
   const database = openYuanpuMetadataDatabase(join(root, 'automation.sqlite'));
   context.after(() => database.close());
+  context.after(() => rm(root, { recursive: true, force: true }));
   const scope = join(root, 'workspace');
   let parentId = null;
   let path = '';

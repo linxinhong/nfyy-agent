@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import test from 'node:test';
 
 import {
@@ -33,14 +33,14 @@ test('workspace path resolution confines targets to the root directory', () => {
 
 test('capture records new and modified files and skips unchanged or failed reads', async () => {
   const root = '/tmp/yuanpu-review-root';
-  const files = { [join(root, 'a.ts')]: 'const b = 1;\n' };
+  const files = { [resolve(root, 'a.ts')]: 'const b = 1;\n' };
   const read = reader(files);
   const capture = beginWorkFileCapture({ rootDir: root, requestedPath: 'new.ts', toolCallId: 't1', toolName: 'write', reader: read });
   assert.ok(capture);
   assert.equal(capture.relativePath, 'new.ts');
   const before = await capture.before;
   assert.equal(before, null, 'missing file captures a null before snapshot');
-  files[join(root, 'new.ts')] = 'export const done = true;\n';
+  files[resolve(root, 'new.ts')] = 'export const done = true;\n';
   const change = await completeWorkFileCapture(capture, read);
   assert.ok(change);
   assert.equal(change.before, null);
@@ -49,14 +49,14 @@ test('capture records new and modified files and skips unchanged or failed reads
   const sameCapture = beginWorkFileCapture({ rootDir: root, requestedPath: 'a.ts', toolCallId: 't2', toolName: 'edit', reader: read });
   assert.equal(await (await completeWorkFileCapture(sameCapture, read)), undefined, 'unchanged file is skipped');
 
-  const failing = beginWorkFileCapture({ rootDir: root, requestedPath: 'a.ts', toolCallId: 't3', toolName: 'edit', reader: reader({ [join(root, 'a.ts')]: new Error('boom') }) });
+  const failing = beginWorkFileCapture({ rootDir: root, requestedPath: 'a.ts', toolCallId: 't3', toolName: 'edit', reader: reader({ [resolve(root, 'a.ts')]: new Error('boom') }) });
   assert.equal(await completeWorkFileCapture(failing, read), undefined, 'failed before read skips capture');
 });
 
 test('capture truncates oversized snapshots and keeps the full-size digest basis', async () => {
   const root = '/tmp/yuanpu-review-root';
   const big = 'x'.repeat(WORK_FILE_CHANGE_MAX_BYTES + 10);
-  const read = reader({ [join(root, 'big.txt')]: big });
+  const read = reader({ [resolve(root, 'big.txt')]: big });
   const capture = beginWorkFileCapture({ rootDir: root, requestedPath: 'big.txt', toolCallId: 't4', toolName: 'edit', reader: read });
   assert.equal((await capture.before).truncated, true);
   assert.equal((await capture.before).content.length, WORK_FILE_CHANGE_MAX_BYTES);
@@ -83,8 +83,9 @@ test('merge keeps the first before and the last after per file in first-seen ord
 
 test('store records idempotently, strips the work namespace and filters by run', async (context) => {
   const root = await mkdtemp(join(tmpdir(), 'yuanpu-file-changes-'));
-  context.after(() => rm(root, { recursive: true, force: true }));
   const database = openYuanpuMetadataDatabase(join(root, 'automation.sqlite'));
+  context.after(() => database.close());
+  context.after(() => rm(root, { recursive: true, force: true }));
   assert.ok(database.schemaVersion >= 16);
   const changes = [
     { toolCallId: 't1', toolName: 'edit', relativePath: 'a.ts',

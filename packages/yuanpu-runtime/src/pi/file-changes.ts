@@ -43,7 +43,8 @@ export function resolveWorkspaceRelativePath(rootDir: string, requestedPath: str
   const root = resolve(rootDir);
   const absolute = isAbsolute(requestedPath) ? resolve(requestedPath) : resolve(join(root, requestedPath));
   if (absolute === root || !absolute.startsWith(root + sep)) return undefined;
-  return absolute.slice(root.length + 1);
+  // Stored and displayed paths use '/' on every platform.
+  return absolute.slice(root.length + 1).split(sep).join('/');
 }
 
 /** 一次 edit/write 工具调用的捕获会话：start 时读 before，end 后读 after。 */

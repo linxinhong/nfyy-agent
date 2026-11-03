@@ -18,11 +18,11 @@ const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0
 
 test('searches scoped Work metadata and only visible saved text with stable Pi entry IDs', async (context) => {
   const root = await mkdtemp(join(tmpdir(), 'yuanpu-work-search-'));
-  context.after(() => rm(root, { recursive: true, force: true }));
   const sessions = join(root, 'sessions');
   await mkdir(sessions);
   const db = openYuanpuMetadataDatabase(join(root, 'metadata.sqlite'));
   context.after(() => db.close());
+  context.after(() => rm(root, { recursive: true, force: true }));
   const scope = join(root, 'workspace');
   const otherScope = join(root, 'other');
   const parentId = `folder:${randomUUID()}`;
@@ -96,11 +96,11 @@ test('searches scoped Work metadata and only visible saved text with stable Pi e
 
 test('an early search hit remains addressable beyond the default 100-message transcript', async (context) => {
   const root = await mkdtemp(join(tmpdir(), 'yuanpu-work-search-window-'));
-  context.after(() => rm(root, { recursive: true, force: true }));
   const sessions = join(root, 'sessions');
   await mkdir(sessions);
   const db = openYuanpuMetadataDatabase(join(root, 'metadata.sqlite'));
   context.after(() => db.close());
+  context.after(() => rm(root, { recursive: true, force: true }));
   const scope = join(root, 'workspace');
   const conversation = db.workConversations.create(scope, join(root, 'chat'));
   const sessionId = db.workConversations.sessionId(scope, conversation.id);
