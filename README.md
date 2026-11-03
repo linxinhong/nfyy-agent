@@ -78,4 +78,22 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-当前 macOS 仅使用 ad-hoc 签名，Windows 尚未正式签名。正式对外分发前仍需配置 Apple Developer ID、公证和 Windows 代码签名。
+激活 GitHub Actions：在仓库的 **Settings → Actions → General** 将 Actions 设为允许运行；提交 PR 或推送到 `main` 会自动运行 `CI`，推送符合 `v*.*.*` 的 tag 会运行 `Release`。也可以在 **Actions** 页面手动运行 `Runtime Bundle` 或 `Desktop Bundle`。
+
+正式发布前，在 **Settings → Secrets and variables → Actions** 配置以下仓库级 secrets：
+
+- `YUANPU_ARTIFACT_SIGNING_KEY_BASE64`
+- `YUANPU_ARTIFACT_TRUST_ROOT_PUBLIC_KEY_BASE64`
+- `YUANPU_ARTIFACT_SIGNING_KEY_ID`
+- `YUANPU_ARTIFACT_BASE_URL`
+
+macOS 签名和公证是可选的。未配置证书时，GitHub Actions 产出 ad-hoc 签名的 DMG/ZIP，用户首次打开会看到 Gatekeeper 提示。面向公众分发时，在同一位置再配置以下 secrets，`Desktop Bundle` 会自动使用 **Developer ID Application** 证书签名、经 Apple 公证并校验：
+
+- `CSC_LINK`：Developer ID Application 证书导出的 `.p12`，base64 编码（`base64 -i cert.p12`）
+- `CSC_KEY_PASSWORD`：导出 `.p12` 时设置的密码
+- `APPLE_API_KEY_BASE64`：App Store Connect API Key（`AuthKey_XXXX.p8`），base64 编码
+- `APPLE_API_KEY_ID`、`APPLE_API_ISSUER`：该 API Key 的 Key ID 和 Issuer ID
+
+证书和密钥只保存在 GitHub Secrets 与密码管理器中，不要提交到仓库。
+
+桌面安装包只包含 `apps/desktop`、Renderer、Runtime 和内置 Python 能力包；`server/` 是独立服务，不参与桌面打包。
