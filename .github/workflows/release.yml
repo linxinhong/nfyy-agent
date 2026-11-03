@@ -54,6 +54,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      # produce-manifest.mjs imports the built @yuanpu-agent/protocol package.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-pnpmfile
+
+      - name: Build protocol package
+        run: pnpm --filter @yuanpu-agent/protocol run build
+
       - name: Download native artifacts
         uses: actions/download-artifact@v8
         with:
