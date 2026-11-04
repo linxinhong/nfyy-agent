@@ -2,12 +2,15 @@ export type RendererTheme = 'yuanpu-light' | 'yuanpu-dark' | 'mindlink';
 
 const storageKey = 'yuanpu:theme:v1';
 
+/** 元朴主题 is the default; an explicit light or dark choice is kept. */
+export const defaultTheme: RendererTheme = 'mindlink';
+
 export function readThemePreference(): RendererTheme {
   try {
     const stored = window.localStorage.getItem(storageKey);
-    return stored === 'mindlink' || stored === 'yuanpu-dark' ? stored : 'yuanpu-light';
+    return stored === 'yuanpu-light' || stored === 'yuanpu-dark' || stored === 'mindlink' ? stored : defaultTheme;
   } catch {
-    return 'yuanpu-light';
+    return defaultTheme;
   }
 }
 

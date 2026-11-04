@@ -1,0 +1,21 @@
+# WordBridge 直接依赖 —— 锁定精确版本（macOS 随包构建用）
+# 完整闭包见 requirements-lock.txt（pip download 用那份，最确定）。
+#
+# 注意：
+#  - 热键已废弃（main.py `run()` 注释「热键已废弃」，`_register_hotkey` 无调用点），
+#    故 keyboard / pywin32 不再随包。keyboard 在 mac 会拖入整套 pyobjc(~170 框架)，
+#    删掉可省 ~150MB 且零风险（hotkey_hook.py 里 import 均在 try/except 内）。
+#  - 桥以 `--no-hotkey` 常驻，仅需 server 模式。
+
+fastmcp-slim[server]==4.0.3   # MCP HTTP server（:9877/mcp）
+websockets==17.1             # legacy 调试 WS :9876
+aiohttp==3.14.3              # HTTP fallback server
+aiofiles==25.1.0             # 异步文件 I/O
+pyyaml==6.0.3                # config.yaml 解析（import yaml）
+colorlog==6.12.0             # 彩色日志
+openai==3.19.2               # 多厂商 LLM（翻译）
+tiktoken==0.14.0             # 精确 token 计数
+python-docx==1.2.0           # word_create_document 生成 .docx
+
+# Windows 分支（仅 win 打包时启用；mac 构建忽略）：
+# pywin32>=306; sys_platform == "win32"

@@ -173,6 +173,17 @@ jobs:
             spctl --assess --type execute --verbose=4 "$app"
           fi
 
+      - name: Verify bundled WordBridge
+        if: matrix.target == 'darwin-arm64'
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+        run: |
+          app=$(ls -d apps/desktop/release/mac-arm64/*.app | head -1)
+          node apps/wordbridge/scripts/smoke-bundle.mjs "$app/Contents/Resources/wordbridge"
+          # Running the bridge must leave the signed bundle untouched.
+          if [ -n "$CSC_LINK" ]; then codesign --verify --deep --strict "$app"; fi
+
       - name: Verify packaged capability without system Python
         run: node apps/desktop/test/task-008-packaged-capability-probe.mjs
 

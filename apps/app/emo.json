@@ -1,7 +1,7 @@
 {
   "brand": {
-    "name": "Yuanpu Agent",
-    "icon": "brand/app-icon.png"
+    "name": "MindLink",
+    "icon": "brand/mindlink-icon.png"
   },
   "navigation": {
     "desktop": true,

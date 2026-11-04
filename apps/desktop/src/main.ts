@@ -9,6 +9,7 @@ import type { NotificationNavigationTarget, RuntimeRecoveryNotice, ServerCenterR
 import { BrowserGuestManager } from './browser-guest-manager.js';
 import { startBrowserControlService } from './browser-control-service.js';
 import { RuntimeManager } from './runtime-manager.js';
+import { WordBridgeHost } from './wordbridge-host.js';
 import { ElectronNotificationHost, type NativeNotification } from './notification-host.js';
 import { isTrustedRendererUrl, packagedRendererUrl } from './renderer-security.js';
 import { getServerWikiPreview, ServerCenterSession } from './server-center.js';
@@ -24,6 +25,7 @@ let trustedRendererEntry = '';
 let quitInProgress = false;
 let quitAllowed = false;
 let notificationHost: ElectronNotificationHost | undefined;
+let wordBridge: WordBridgeHost | undefined;
 let pendingNotificationTarget: NotificationNavigationTarget | undefined;
 let notificationsEnabled = true;
 let runtimeRecoveryNotice: RuntimeRecoveryNotice | undefined;
@@ -159,6 +161,13 @@ function createWindow(): void {
   }
 }
 
+// The packaged product was renamed from "Yuanpu Agent" to "MindLink". Electron
+// derives userData from the product name, so keep the original directory to
+// preserve stored credentials and staged Runtime updates across the rename.
+if (app.isPackaged && !app.commandLine.hasSwitch('user-data-dir')) {
+  app.setPath('userData', join(app.getPath('appData'), 'Yuanpu Agent'));
+}
+
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 
@@ -195,6 +204,12 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     const key = await serverCenterCredentials.loadKey();
     return { endpoint: serverUrl, ...(key?.startsWith('agk_') ? { apiKey: key } : {}) };
   };
+  wordBridge = WordBridgeHost.detect({
+    payloadRoot: app.isPackaged
+      ? join(process.resourcesPath, 'wordbridge')
+      : resolve(process.env.YUANPU_WORDBRIDGE_ROOT || resolve(__dirname, '../../wordbridge/dist')),
+    stateRoot: join(app.getPath('userData'), 'wordbridge'),
+  });
   runtime = new RuntimeManager(
     app.getAppPath(),
     process.resourcesPath,
@@ -205,6 +220,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       onUpdateRecovery: (kind) => { runtimeRecoveryNotice = { kind }; },
       browserControl: { port: browserControlService.port, token: browserControlToken },
       centerConnection,
+      ...(wordBridge ? { environment: wordBridge.runtimeEnvironment() } : {}),
     },
   );
 
@@ -481,6 +497,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
   runtime.connectHostEvents((event) => notificationHost!.handle(event));
   createWindow();
+  // Started after the window so a one-time keychain confirmation appears over the App.
+  void wordBridge?.start().catch((error) => {
+    console.error('WordBridge failed to start:', error instanceof Error ? error.message : String(error));
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -498,7 +518,7 @@ app.on('before-quit', (event) => {
   if (quitInProgress) return;
   quitInProgress = true;
   notificationHost?.stop();
-  void Promise.resolve(runtime?.stop()).finally(() => {
+  void Promise.allSettled([runtime?.stop(), wordBridge?.stop()]).finally(() => {
     quitAllowed = true;
     app.quit();
   });

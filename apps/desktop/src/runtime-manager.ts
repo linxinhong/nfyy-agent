@@ -84,6 +84,8 @@ export interface RuntimeManagerOptions {
   /** Loopback browser-control endpoint delivered to the runtime bootstrap. */
   browserControl?: { port: number; token: string };
   centerConnection?: () => Promise<{ endpoint: string; apiKey?: string }>;
+  /** Extra variables for the Runtime process, such as the WordBridge MCP endpoint. */
+  environment?: NodeJS.ProcessEnv;
 }
 
 const execFileAsync = promisify(execFile);
@@ -101,8 +103,8 @@ export class RuntimeManager {
   private readonly token = randomBytes(32).toString('hex');
   private readonly approvalKeyPair = generateKeyPairSync('ed25519');
   private readonly updater: RuntimeUpdater;
-  private readonly options: Required<Omit<RuntimeManagerOptions, 'command' | 'onError' | 'onUpdateRecovery' | 'browserControl' | 'centerConnection'>>
-    & Pick<RuntimeManagerOptions, 'command' | 'onError' | 'onUpdateRecovery' | 'browserControl' | 'centerConnection'>;
+  private readonly options: Required<Omit<RuntimeManagerOptions, 'command' | 'onError' | 'onUpdateRecovery' | 'browserControl' | 'centerConnection' | 'environment'>>
+    & Pick<RuntimeManagerOptions, 'command' | 'onError' | 'onUpdateRecovery' | 'browserControl' | 'centerConnection' | 'environment'>;
 
   constructor(
     private readonly appPath: string,
@@ -130,6 +132,7 @@ export class RuntimeManager {
       onUpdateRecovery: options.onUpdateRecovery,
       browserControl: options.browserControl,
       centerConnection: options.centerConnection,
+      environment: options.environment,
     };
   }
 
@@ -272,7 +275,7 @@ export class RuntimeManager {
           stdio: ['pipe', 'pipe', 'pipe'],
           detached: process.platform !== 'win32',
           windowsHide: true,
-          env: { ...process.env, ...this.capabilityEnvironment() },
+          env: { ...process.env, ...this.capabilityEnvironment(), ...this.options.environment },
         },
       );
       child.once('spawn', () => resolveSpawn(child));

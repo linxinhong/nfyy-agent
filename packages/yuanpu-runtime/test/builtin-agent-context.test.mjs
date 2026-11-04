@@ -55,6 +55,7 @@ test('Work Pi session loads bundled AGENTS.md before workspace context and disco
   assert.match(systemPrompt, /markdown-visuals/);
   assert.match(systemPrompt, /browser-control/);
   assert.match(systemPrompt, /<name>tailscale<\/name>/);
+  assert.match(systemPrompt, /<name>word-revision<\/name>/);
   assert.match(systemPrompt, /<name>low-ai-ui-design<\/name>/);
   assert.match(systemPrompt, /Save user-facing artifacts with relative paths under cwd, not \/tmp/);
   assert.match(systemPrompt, /Do not create a file, start a server, or navigate the browser merely to display a diagram/);

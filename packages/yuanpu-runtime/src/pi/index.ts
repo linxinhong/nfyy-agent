@@ -54,7 +54,7 @@ import { activeProtectedSkills, centerWorkspace, CenterUnavailableError, require
   type CenterConnection } from './center-skills.js';
 export { parseCenterConnection, type CenterConnection } from './center-skills.js';
 export { withYuanpuModelCompatibility } from './model-compatibility.js';
-export { builtinMcpExtensions, BUILTIN_MCP_NAME, BUILTIN_MCP_VERSION } from './mcp.js';
+export { builtinMcpExtensions, builtinWordBridgeServer, BUILTIN_MCP_NAME, BUILTIN_MCP_VERSION } from './mcp.js';
 export { YuanpuSubagentManager } from './subagents/manager.js';
 export { BUILTIN_SUBAGENTS } from './subagents/profiles.js';
 export { projectSessionTrajectory } from './session-trajectory.js';

@@ -1,5 +1,5 @@
 appId: com.yuanpu.agent
-productName: Yuanpu Agent
+productName: MindLink
 asar: true
 directories:
   output: release
@@ -29,10 +29,16 @@ extraResources:
     to: capabilities/builtin.python.echo
     filter:
       - '**/*'
-artifactName: 'YuanpuAgent-${version}-${os}-${arch}.${ext}'
-executableName: YuanpuAgent
+artifactName: 'MindLink-${version}-${os}-${arch}.${ext}'
+executableName: MindLink
 mac:
   icon: dist/emo-icon.png
+  # WordBridge (Word revision bridge) ships only in the macOS bundle; see apps/wordbridge.
+  extraResources:
+    - from: ../wordbridge/dist
+      to: wordbridge
+      filter:
+        - '**/*'
   target:
     - dmg
     - zip

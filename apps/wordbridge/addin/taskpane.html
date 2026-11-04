@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MindLink</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>
+    body { font-family: -apple-system, "Segoe UI", sans-serif; margin: 0; padding: 12px; color: #333; font-size: 14px; }
+    h1 { font-size: 15px; margin: 0 0 4px; }
+    .status { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ccc; margin-right: 6px; }
+    .status.on { background: #2e7d32; }
+    p { color: #666; margin: 6px 0; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <h1>MindLink</h1>
+  <p><span class="status" id="status"></span><span id="statusText">连接中…</span></p>
+  <p>面板保持打开即可。在 Word 中选中文字后，回到 Hermes 让模型做最小改动并回填。</p>
+  <script src="/taskpane.js"></script>
+</body>
+</html>

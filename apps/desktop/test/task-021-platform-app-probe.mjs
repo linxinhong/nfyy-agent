@@ -17,11 +17,11 @@ let providerRequests = 0;
 
 async function packagedExecutable() {
   if (process.platform === 'darwin') {
-    return join(release, `mac-${process.arch}`, 'YuanpuAgent.app', 'Contents', 'MacOS', 'YuanpuAgent');
+    return join(release, `mac-${process.arch}`, 'MindLink.app', 'Contents', 'MacOS', 'MindLink');
   }
   const unpacked = join(release, process.platform === 'win32' ? 'win-unpacked' : 'linux-unpacked');
   const candidates = (await readdir(unpacked)).filter((name) =>
-    /^yuanpuagent(?:\.exe)?$/i.test(name));
+    /^mindlink(?:\.exe)?$/i.test(name));
   assert.equal(candidates.length, 1, `Expected one packaged executable in ${unpacked}`);
   return join(unpacked, candidates[0]);
 }

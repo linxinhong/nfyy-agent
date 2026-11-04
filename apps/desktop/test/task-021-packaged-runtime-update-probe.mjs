@@ -8,7 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { RuntimeManager } from '../dist/runtime-manager.cjs';
 
-const packagedResources = resolve(import.meta.dirname, '../release/mac-arm64/YuanpuAgent.app/Contents/Resources');
+const packagedResources = resolve(import.meta.dirname, '../release/mac-arm64/MindLink.app/Contents/Resources');
 const bundledSea = join(packagedResources, 'runtime', 'YuanpuAgentRuntime-darwin-arm64');
 const root = await mkdtemp(join(tmpdir(), 'yuanpu-task-021-packaged-update-'));
 const userData = join(root, 'user-data');

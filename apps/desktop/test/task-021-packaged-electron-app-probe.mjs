@@ -13,9 +13,9 @@ import { SEA_SENTINEL_FUSE } from '../../runtime/scripts/native/lib.mjs';
 const execFileAsync = promisify(execFile);
 
 const appBundle = resolve(
-  process.env.TASK_021_PACKAGED_APP_PATH || resolve(import.meta.dirname, '../release/mac-arm64/YuanpuAgent.app'),
+  process.env.TASK_021_PACKAGED_APP_PATH || resolve(import.meta.dirname, '../release/mac-arm64/MindLink.app'),
 );
-const executable = join(appBundle, 'Contents', 'MacOS', 'YuanpuAgent');
+const executable = join(appBundle, 'Contents', 'MacOS', 'MindLink');
 const bundledSea = join(appBundle, 'Contents', 'Resources', 'runtime', 'YuanpuAgentRuntime-darwin-arm64');
 const versionedSeaVersion = '0.1.1-test.021';
 const root = await mkdtemp(join(tmpdir(), 'yuanpu-task-021-packaged-app-'));

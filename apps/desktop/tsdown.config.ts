@@ -17,6 +17,7 @@ export default defineConfig({
     'src/knowledge-center-portal.ts',
     'src/server-center-credential.ts',
     'src/server-center-endpoint.ts',
+    'src/wordbridge-host.ts',
   ],
   format: 'cjs',
   outDir: 'dist',

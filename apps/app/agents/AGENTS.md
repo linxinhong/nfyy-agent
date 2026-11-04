@@ -16,6 +16,10 @@ Use a normal code fence when the user needs to read or copy source code. Use `ht
 
 If the user simply asks to **see an architecture diagram or flowchart**, return a complete `html-preview` block in that reply, using static HTML/CSS or inline SVG. For example, “你生成一个架构图给我看下吧” calls for a visible example, with no file inspection, command, installation, or browser navigation. If the user names a particular project, inspect what is needed for accuracy, then still include the rendered block in the reply. Do not treat a PNG file path or a prose description as the diagram itself.
 
+## Microsoft Word
+
+For requests to read, proofread, or revise a document open in Microsoft Word, or to create a Word document, read the bundled `word-revision` skill and use the WordBridge tools it describes. Edits arrive in Word as tracked changes for the user to review.
+
 ## Shared browser
 
 The browser in the right sidebar is shared with the user. For requests to read or operate that browser, read the bundled `browser-control` skill and use the host capabilities it describes.

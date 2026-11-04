@@ -7,6 +7,28 @@ import { createMcpExtension, createToolSearchExtension,
 export const BUILTIN_MCP_NAME = 'pi-mcp';
 export const BUILTIN_MCP_VERSION = '1.4.0';
 
+/**
+ * The desktop host runs WordBridge (Word for Mac revisions) on loopback and passes its
+ * endpoint plus a per-launch token. The token stays an environment reference so it is
+ * never written to configuration files. A user-defined `wordbridge` entry wins.
+ */
+export function builtinWordBridgeServer(environment: NodeJS.ProcessEnv = process.env):
+  { value: Record<string, unknown>; source: string; scope: 'global' } | undefined {
+  const url = environment.YUANPU_WORDBRIDGE_MCP_URL;
+  if (!url || !environment.YUANPU_WORDBRIDGE_MCP_TOKEN) return undefined;
+  const parsed = URL.canParse(url) ? new URL(url) : undefined;
+  if (!parsed || parsed.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname)) return undefined;
+  return {
+    value: {
+      url,
+      headers: { Authorization: 'Bearer ${YUANPU_WORDBRIDGE_MCP_TOKEN}' },
+      exposure: 'deferred',
+    },
+    source: 'builtin:wordbridge',
+    scope: 'global',
+  };
+}
+
 /** MCP uses Pi's deferred tool search; no extra JS VM/worker is needed in the SEA. */
 export function builtinMcpExtensions(agentDir: string, cwd: string,
   settings: SettingsManager): InlineExtension[] {
@@ -66,6 +88,8 @@ export function builtinMcpExtensions(agentDir: string, cwd: string,
           if ((error as NodeJS.ErrnoException).code !== 'ENOENT') errors.push(`${path}: ${String(error)}`);
         }
       }
+      const wordBridge = builtinWordBridgeServer();
+      if (wordBridge && !servers.has('wordbridge')) servers.set('wordbridge', wordBridge);
       const entries: McpServerEntry[] = [];
       for (const [name, { value, source, scope }] of servers) {
         try {
