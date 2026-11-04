@@ -13,3 +13,4 @@ __pycache__/
 .worktrees/
 .zvec-grep/
 .zcode/
+dist-tailscale/

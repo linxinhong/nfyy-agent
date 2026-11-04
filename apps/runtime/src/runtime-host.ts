@@ -64,6 +64,7 @@ export interface RuntimeCleanupResources {
   closeNotificationRouter(): void;
   closeAgentService(): Promise<void>;
   closePythonSource?(): Promise<void>;
+  closeTailscale?(): Promise<void>;
   closeMetadata(): void;
 }
 
@@ -92,6 +93,9 @@ export async function cleanupRuntimeResources(resources: RuntimeCleanupResources
     Promise.resolve().then(() => resources.closeAgentService()),
     ...(resources.closePythonSource
       ? [Promise.resolve().then(() => resources.closePythonSource!())]
+      : []),
+    ...(resources.closeTailscale
+      ? [Promise.resolve().then(() => resources.closeTailscale!())]
       : []),
   ]);
   failures.push(...closeResults

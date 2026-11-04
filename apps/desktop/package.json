@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsdown",
     "dev": "node scripts/dev.mjs",
-    "package": "node scripts/prepare-emo-icon.mjs && node scripts/prepare-wordbridge.mjs && electron-builder --config electron-builder.yml --publish never",
+    "package": "node scripts/prepare-emo-icon.mjs && node scripts/prepare-wordbridge.mjs && node scripts/prepare-tailscale.mjs && electron-builder --config electron-builder.yml --publish never",
     "start": "electron .",
     "test": "node --test test/*.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"

@@ -8,6 +8,7 @@ Electron 图形界面与 Node.js SEA Runtime 解耦的 pnpm monorepo。工程组
 - `apps/desktop`：Electron main/preload，负责窗口、Runtime 生命周期与桌面端更新。
 - `apps/runtime`：Node SEA sidecar，承载 Agent 与本地服务，可以独立于桌面壳更新。
 - `apps/wordbridge`：Word for Mac 修订桥（内置技能 `word-revision`），仅随 macOS arm64 安装包分发，见 [说明](apps/wordbridge/README.md)。
+- 内置 Tailscale：macOS 安装包自带 userspace `tailscaled`，在设置里输入一次 Auth Key 即可加入 Tailnet，见 [docs/tailscale.md](docs/tailscale.md)。
 - `server/backend`：独立 Go 中心服务及技能目录（8788）；`server/web`：中心网站（8789）。见 [开发与部署说明](server/README.md)。
 - Pi：固定版本的官方 npm 包；依赖边界、内置 MCP 与升级验证见 [Pi 集成说明](docs/pi-integration.md)。
 - `packages/yuanpu-protocol`：Renderer、Electron 和 Runtime 共用的协议版本与类型。
@@ -57,7 +58,7 @@ pnpm smoke:native
 pnpm package:native
 ```
 
-构建当前平台的 Electron 安装包（会先构建并嵌入 SEA Runtime；macOS arm64 还会准备 WordBridge）。安装包名称为 **MindLink**：
+构建当前平台的 Electron 安装包（会先构建并嵌入 SEA Runtime；macOS arm64 还会准备 WordBridge，并用 Go 编译内置 tailscaled）。安装包名称为 **MindLink**：
 
 ```bash
 pnpm package:desktop
@@ -103,4 +104,4 @@ macOS 签名和公证是可选的。未配置证书时，GitHub Actions 产出 a
 
 证书和密钥只保存在 GitHub Secrets 与密码管理器中，不要提交到仓库。
 
-桌面安装包只包含 `apps/desktop`、Renderer、Runtime、内置 Python 能力包，以及 macOS 上的 WordBridge；`server/` 是独立服务，不参与桌面打包。
+桌面安装包只包含 `apps/desktop`、Renderer、Runtime、内置 Python 能力包，以及 macOS 上的 WordBridge 和 tailscaled；`server/` 是独立服务，不参与桌面打包。

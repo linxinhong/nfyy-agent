@@ -177,12 +177,12 @@ test('connection management preserves the previous config when an enabled creden
   const listed = await send('/v1/connections/wecom');
   assert.equal((await listed.json()).connections[0].status, 'disabled');
   const unconfigured = await send('/v1/connections/tailscale');
-  assert.deepEqual(await unconfigured.json(), { hasAuthKey: false });
+  assert.deepEqual(await unconfigured.json(), { hasAuthKey: false, node: { state: 'unavailable' } });
   const tailscale = await send('/v1/connections/tailscale', 'POST', { authKey: 'tskey-auth-fixture' });
   assert.equal(tailscale.status, 200);
   const tailscaleBody = await tailscale.text();
   assert.doesNotMatch(tailscaleBody, /tskey-auth-fixture/);
-  assert.deepEqual(JSON.parse(tailscaleBody), { hasAuthKey: true });
+  assert.deepEqual(JSON.parse(tailscaleBody), { hasAuthKey: true, node: { state: 'unavailable' } });
   const tailscalePath = join(home, 'app', 'connections', 'tailscale.json');
   if (process.platform !== 'win32') assert.equal((await stat(tailscalePath)).mode & 0o777, 0o600);
   const retained = await send('/v1/connections/tailscale', 'POST', {});
@@ -196,7 +196,7 @@ test('connection management preserves the previous config when an enabled creden
   assert.notEqual(extraField.status, 200);
   assert.equal(JSON.parse(await readFile(tailscalePath, 'utf8')).authKey, 'tskey-auth-fixture');
   const removed = await send('/v1/connections/tailscale', 'POST', { removeAuthKey: true });
-  assert.deepEqual(await removed.json(), { hasAuthKey: false });
+  assert.deepEqual(await removed.json(), { hasAuthKey: false, node: { state: 'unavailable' } });
   assert.equal((await send('/v1/chat/submit', 'POST', { message: '' })).status, 400);
   assert.equal((await send('/v1/health')).status, 200);
 });

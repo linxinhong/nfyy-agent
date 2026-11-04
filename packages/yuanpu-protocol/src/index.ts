@@ -79,8 +79,18 @@ export const RUNTIME_ROUTES = {
 
 export type ModelApi = 'openai-completions' | 'openai-responses' | 'anthropic-messages' | 'google-generative-ai';
 
+export interface TailscaleNodeStatus {
+  /** `unavailable` means this build does not ship tailscaled (non-macOS or disabled). */
+  state: 'unavailable' | 'stopped' | 'starting' | 'connected' | 'needs-login' | 'error';
+  ipv4?: string;
+  dnsName?: string;
+  tailnet?: string;
+  message?: string;
+}
+
 export interface TailscaleConnectionSettings {
   hasAuthKey: boolean;
+  node: TailscaleNodeStatus;
 }
 
 export interface SaveTailscaleConnectionInput {

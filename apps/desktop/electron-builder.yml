@@ -39,6 +39,12 @@ mac:
       to: wordbridge
       filter:
         - '**/*'
+    # Userspace tailscaled + CLI for joining a tailnet without installing Tailscale.
+    - from: dist-tailscale
+      to: tailscale
+      filter:
+        - tailscaled
+        - tailscale
   target:
     - dmg
     - zip

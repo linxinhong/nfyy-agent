@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { SaveTailscaleConnectionInput, TailscaleConnectionSettings } from '@yuanpu-agent/protocol';
+import type { SaveTailscaleConnectionInput, TailscaleConnectionSettings, TailscaleNodeStatus } from '@yuanpu-agent/protocol';
 
 interface TailscaleConnectionDocument {
   schemaVersion: 1;
@@ -30,6 +30,8 @@ function parseDocument(value: unknown): TailscaleConnectionDocument {
   return value as unknown as TailscaleConnectionDocument;
 }
 
+export type { TailscaleConnectionDocument };
+
 export async function readTailscaleConnectionDocument(appPath: string): Promise<TailscaleConnectionDocument> {
   const path = join(appPath, 'connections', 'tailscale.json');
   try {
@@ -43,9 +45,11 @@ export async function readTailscaleConnectionDocument(appPath: string): Promise<
   }
 }
 
-export function summarizeTailscaleConnection(document: TailscaleConnectionDocument): TailscaleConnectionSettings {
+export function summarizeTailscaleConnection(document: TailscaleConnectionDocument,
+  node: TailscaleNodeStatus = { state: 'unavailable' }): TailscaleConnectionSettings {
   return {
     hasAuthKey: Boolean(document.authKey),
+    node,
   };
 }
 

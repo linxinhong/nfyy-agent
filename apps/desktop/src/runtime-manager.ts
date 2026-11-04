@@ -166,6 +166,8 @@ export class RuntimeManager {
         YUANPU_PYTHON_MCP_EXECUTABLE: join(root, process.platform === 'win32' ? 'YuanpuEchoMcp.exe' : 'YuanpuEchoMcp'),
         YUANPU_PYTHON_MCP_ROOT: root,
         YUANPU_PYTHON_MCP_ARGS: '[]',
+        // macOS bundles tailscaled/tailscale for userspace tailnet access.
+        ...(process.platform === 'darwin' ? { YUANPU_TAILSCALE_ROOT: join(this.resourcesPath, 'tailscale') } : {}),
         YUANPU_CAPABILITY_TRUST_ROOT_FILE: join(
           this.resourcesPath,
           'capabilities',
@@ -182,6 +184,7 @@ export class RuntimeManager {
         : join(pythonRoot, '.venv', 'bin', 'python'),
       YUANPU_PYTHON_MCP_ROOT: pythonRoot,
       YUANPU_PYTHON_MCP_ARGS: JSON.stringify(['-m', 'yuanpu_echo_mcp']),
+      YUANPU_TAILSCALE_ROOT: process.env.YUANPU_TAILSCALE_ROOT || resolve(this.appPath, 'dist-tailscale'),
       ...(process.env.YUANPU_CAPABILITY_TRUST_ROOT_FILE
         ? { YUANPU_CAPABILITY_TRUST_ROOT_FILE: process.env.YUANPU_CAPABILITY_TRUST_ROOT_FILE }
         : {}),

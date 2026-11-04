@@ -125,6 +125,15 @@ jobs:
         with:
           version: '0.4.25'
 
+      # Builds the bundled userspace tailscaled; GOTOOLCHAIN=auto fetches the exact
+      # Go release Tailscale pins, verified through the Go checksum database.
+      - name: Setup Go
+        if: matrix.target == 'darwin-arm64'
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-pnpmfile
 
@@ -207,6 +216,19 @@ jobs:
           node apps/wordbridge/scripts/smoke-bundle.mjs "$app/Contents/Resources/wordbridge"
           # Running the bridge must leave the signed bundle untouched.
           if [ -n "$CSC_LINK" ]; then codesign --verify --deep --strict "$app"; fi
+
+      - name: Verify bundled Tailscale
+        if: matrix.target == 'darwin-arm64'
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+        run: |
+          app=$(ls -d apps/desktop/release/mac-arm64/*.app | head -1)
+          node apps/desktop/scripts/smoke-tailscale.mjs "$app/Contents/Resources/tailscale"
+          if [ -n "$CSC_LINK" ]; then
+            codesign --verify --strict "$app/Contents/Resources/tailscale/tailscaled"
+            codesign --verify --deep --strict "$app"
+          fi
 
       - name: Verify packaged capability without system Python
         run: node apps/desktop/test/task-008-packaged-capability-probe.mjs

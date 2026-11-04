@@ -103,6 +103,8 @@ import { cleanupRuntimeResources, getDesktopNavigableRun, getDesktopPrivateImRun
 import { createScheduledImDelivery, handleScheduledImHttp } from './scheduled-im-delivery.js';
 import { WorkspaceFileAccessError, listWorkspaceFiles, listWorkspaceTree, readWorkspaceFile, resolveWorkspaceFilePath } from './workspace-files.js';
 import { readTailscaleConnectionDocument, saveTailscaleConnection, summarizeTailscaleConnection } from './tailscale-connection.js';
+import { installTailnetRouting } from './tailnet-routing.js';
+import { TailscaleNode } from './tailscale-node.js';
 import {
   closeWecomChannels,
   configuredWecomDocument,
@@ -557,6 +559,16 @@ async function serve(): Promise<void> {
   };
   const notificationRouter = new HostNotificationRouter();
   const notificationSource = createNotificationCapabilitySource(notificationRouter);
+  // The bundled tailscaled (macOS) joins the tailnet with the saved auth key; only
+  // tailnet destinations are routed through it.
+  const tailscaleNode = TailscaleNode.fromEnvironment(join(home.appPath, 'connections', 'tailscale'));
+  const uninstallTailnetRouting = tailscaleNode ? await installTailnetRouting(tailscaleNode) : undefined;
+  const tailscaleStatus = () => tailscaleNode?.status() ?? { state: 'unavailable' as const };
+  if (tailscaleNode) {
+    void readTailscaleConnectionDocument(home.appPath)
+      .then((document) => (document.authKey ? tailscaleNode.apply(document.authKey) : undefined))
+      .catch((error: unknown) => console.warn(`[tailscale] ${error instanceof Error ? error.message : String(error)}`));
+  }
   const webSource = createBuiltinWebSource({ authPath: join(home.appPath, 'auth.json') });
   const browserControlClient = browserControl ? new BrowserControlClient(browserControl) : undefined;
   const workflowCheckpointSource = createWorkflowCheckpointSource();
@@ -1127,12 +1139,18 @@ async function serve(): Promise<void> {
       }
       if (url.pathname === RUNTIME_ROUTES.tailscaleConnection && request.method === 'GET') {
         response.end(JSON.stringify(summarizeTailscaleConnection(
-          await readTailscaleConnectionDocument(home.appPath),
+          await readTailscaleConnectionDocument(home.appPath), tailscaleStatus(),
         )));
         return;
       }
       if (url.pathname === RUNTIME_ROUTES.tailscaleConnection && request.method === 'POST') {
-        response.end(JSON.stringify(await saveTailscaleConnection(home.appPath, await readJsonBody(request))));
+        await saveTailscaleConnection(home.appPath, await readJsonBody(request));
+        const document = await readTailscaleConnectionDocument(home.appPath);
+        // Joining can take up to a minute; the settings page polls the status meanwhile.
+        const applied = tailscaleNode?.apply(document.authKey);
+        applied?.catch(() => undefined);
+        response.end(JSON.stringify(summarizeTailscaleConnection(document,
+          tailscaleNode ? { state: document.authKey ? 'starting' : 'stopped' } : tailscaleStatus())));
         return;
       }
       const wecomTestPath = url.pathname.startsWith(`${RUNTIME_ROUTES.wecomConnections}/`)
@@ -2632,6 +2650,7 @@ async function serve(): Promise<void> {
       closeAgentService: async () => { clearInterval(ticketFeedbackTimer); await ticketService.dispose(); await agentService.close(); },
       ...(pythonSource ? { closePythonSource: () => pythonSource!.close() } : {}),
       closeMetadata: () => { clearInterval(workScanTimer); metadata.close(); },
+      ...(tailscaleNode ? { closeTailscale: async () => { await uninstallTailnetRouting?.(); await tailscaleNode.stop(); } } : {}),
     });
     return cleanupPromise;
   };
