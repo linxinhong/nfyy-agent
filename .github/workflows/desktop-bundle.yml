@@ -20,7 +20,7 @@ on:
         description: Artifact retention in days
         required: false
         type: number
-        default: 3
+        default: 1
   workflow_call:
     inputs:
       artifact-mode:
@@ -37,7 +37,7 @@ on:
         description: Artifact retention in days
         required: false
         type: number
-        default: 7
+        default: 1
     secrets:
       YUANPU_ARTIFACT_TRUST_ROOT_PUBLIC_KEY_BASE64:
         required: false

@@ -31,7 +31,7 @@ jobs:
     secrets: inherit
     with:
       artifact-prefix: yuanpu-agent-native
-      retention-days: 7
+      retention-days: 1
 
   desktop-artifacts:
     needs: capability-signing-gate
@@ -40,7 +40,7 @@ jobs:
     with:
       artifact-mode: grouped
       artifact-prefix: yuanpu-agent-desktop
-      retention-days: 7
+      retention-days: 1
 
   publish:
     name: Publish GitHub Release
