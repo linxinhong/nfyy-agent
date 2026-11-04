@@ -20,7 +20,7 @@ const port = await new Promise((resolvePort) => {
 });
 const child = spawn(join(root, 'tailscaled'), ['--tun=userspace-networking', `--statedir=${join(state, 'state')}`,
   `--socket=${socket}`, '--port=0', `--outbound-http-proxy-listen=127.0.0.1:${port}`, '--no-logs-no-support'],
-{ stdio: ['ignore', 'ignore', 'pipe'] });
+{ stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, TS_LOGS_DIR: state } });
 let stderr = '';
 child.stderr.on('data', (chunk) => { stderr = (stderr + chunk).slice(-8_000); });
 const exited = new Promise((resolveExit) => child.once('exit', (code, signal) => resolveExit({ code, signal })));
@@ -45,6 +45,7 @@ try {
   assert.equal(status.BackendState, 'NeedsLogin', `unexpected backend state ${status.BackendState}`);
   assert.equal(await listening(port), true, 'the outbound HTTP proxy should listen on loopback');
   assert.match(readFileSync(join(root, 'VERSION'), 'utf8'), /^v\d+\.\d+\.\d+/);
+  assert.doesNotMatch(stderr, /\.local\/share\/tailscale|Library\/Caches\/Tailscale/, 'tailscaled must keep its log policy inside the state dir');
   console.log('[tailscale] bundle smoke ok');
 } catch (error) {
   console.error(stderr);

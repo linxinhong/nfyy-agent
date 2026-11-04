@@ -249,7 +249,11 @@ export class TailscaleNode implements TailnetRoute {
       '--port=0',
       `--outbound-http-proxy-listen=127.0.0.1:${port}`,
       '--no-logs-no-support',
-    ], { stdio: ['ignore', log, log] });
+    ], {
+      stdio: ['ignore', log, log],
+      // Keep logpolicy files inside our state dir instead of ~/.local/share/tailscale.
+      env: { ...process.env, TS_LOGS_DIR: root },
+    });
     closeSync(log);
     await new Promise<void>((resolveSpawn, reject) => {
       child.once('spawn', resolveSpawn);

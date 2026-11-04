@@ -45,6 +45,7 @@ mac:
       filter:
         - tailscaled
         - tailscale
+        - VERSION
   target:
     - dmg
     - zip
