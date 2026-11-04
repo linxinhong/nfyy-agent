@@ -1,0 +1,29 @@
+name: macOS Bundle
+
+# Builds, signs, notarizes and verifies only the macOS (Apple silicon) app.
+# Uploads the DMG and ZIP as workflow artifacts.
+on:
+  workflow_dispatch:
+    inputs:
+      retention-days:
+        description: Artifact retention in days
+        required: false
+        type: number
+        default: 1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-bundle-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    uses: ./.github/workflows/desktop-bundle.yml
+    secrets: inherit
+    with:
+      platforms: darwin-arm64
+      artifact-mode: direct
+      artifact-prefix: mindlink-macos
+      retention-days: ${{ inputs.retention-days }}

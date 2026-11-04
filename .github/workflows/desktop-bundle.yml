@@ -21,6 +21,16 @@ on:
         required: false
         type: number
         default: 1
+      platforms:
+        description: Platforms to build
+        required: false
+        type: choice
+        options:
+          - all
+          - darwin-arm64
+          - linux-x64
+          - win32-x64
+        default: all
   workflow_call:
     inputs:
       artifact-mode:
@@ -38,6 +48,11 @@ on:
         required: false
         type: number
         default: 1
+      platforms:
+        description: "all, or one of darwin-arm64, linux-x64, win32-x64"
+        required: false
+        type: string
+        default: all
     secrets:
       YUANPU_ARTIFACT_TRUST_ROOT_PUBLIC_KEY_BASE64:
         required: false
@@ -64,19 +79,28 @@ permissions:
   contents: read
 
 jobs:
+  plan:
+    name: Select platforms
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+    steps:
+      - id: select
+        env:
+          PLATFORMS: ${{ inputs.platforms || 'all' }}
+        run: |
+          all='[{"os":"ubuntu-24.04","target":"linux-x64"},{"os":"macos-14","target":"darwin-arm64"},{"os":"windows-2022","target":"win32-x64"}]'
+          matrix=$(jq -c --arg p "$PLATFORMS" '[.[] | select($p == "all" or .target == $p)]' <<<"$all")
+          if [ "$matrix" = "[]" ]; then echo "::error::Unknown platform: $PLATFORMS"; exit 1; fi
+          echo "matrix={\"include\":$matrix}" >> "$GITHUB_OUTPUT"
+
   desktop-bundle:
     name: Desktop bundle (${{ matrix.target }})
+    needs: plan
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            target: linux-x64
-          - os: macos-14
-            target: darwin-arm64
-          - os: windows-2022
-            target: win32-x64
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
 
     steps:
       - name: Checkout
