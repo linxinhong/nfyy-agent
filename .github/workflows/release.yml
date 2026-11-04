@@ -84,6 +84,18 @@ jobs:
           path: dist-release
           merge-multiple: true
 
+      # Native artifacts upload from apps/runtime and apps/python-capabilities, so
+      # they download nested under their common ancestor. Manifests and the
+      # release upload expect every asset at the top of dist-release.
+      - name: Flatten release assets
+        run: |
+          find dist-release -mindepth 2 -type f -exec mv -n -t dist-release {} +
+          find dist-release -mindepth 1 -type d -empty -delete
+          if find dist-release -mindepth 1 -type d | grep -q .; then
+            echo "::error::Unexpected nested files remain in dist-release"; find dist-release; exit 1
+          fi
+          ls -la dist-release
+
       - name: Produce update manifest
         env:
           RELEASE_TAG: ${{ github.ref_name }}
