@@ -35,6 +35,11 @@ jobs:
 
   desktop-artifacts:
     needs: capability-signing-gate
+    # Upper bound for the reusable workflow: its build jobs stay contents: read and
+    # only the draft-release job (unused here) asks for write.
+    permissions:
+      contents: write
+      actions: write
     uses: ./.github/workflows/desktop-bundle.yml
     secrets: inherit
     with:

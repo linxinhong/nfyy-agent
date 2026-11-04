@@ -10,6 +10,7 @@ on:
         options:
           - direct
           - grouped
+          - draft-release
         default: direct
       artifact-prefix:
         description: Prefix for uploaded artifact names
@@ -34,7 +35,7 @@ on:
   workflow_call:
     inputs:
       artifact-mode:
-        description: Upload installers directly or as a grouped release artifact
+        description: "direct, grouped, or draft-release (macOS only; uploads to a draft GitHub Release)"
         required: false
         type: string
         default: grouped
@@ -88,10 +89,14 @@ jobs:
       - id: select
         env:
           PLATFORMS: ${{ inputs.platforms || 'all' }}
+          MODE: ${{ inputs.artifact-mode }}
         run: |
           all='[{"os":"ubuntu-24.04","target":"linux-x64"},{"os":"macos-14","target":"darwin-arm64"},{"os":"windows-2022","target":"win32-x64"}]'
           matrix=$(jq -c --arg p "$PLATFORMS" '[.[] | select($p == "all" or .target == $p)]' <<<"$all")
           if [ "$matrix" = "[]" ]; then echo "::error::Unknown platform: $PLATFORMS"; exit 1; fi
+          if [ "$MODE" = "draft-release" ] && [ "$PLATFORMS" != "darwin-arm64" ]; then
+            echo "::error::draft-release mode only supports platforms=darwin-arm64"; exit 1
+          fi
           echo "matrix={\"include\":$matrix}" >> "$GITHUB_OUTPUT"
 
   desktop-bundle:
@@ -267,6 +272,25 @@ jobs:
           retention-days: ${{ inputs.retention-days }}
           if-no-files-found: error
 
+      # Draft-release mode hands the installers to the release job through the Actions
+      # cache (separate from the artifact storage quota), so this build job never
+      # holds a write token.
+      - name: Stage macOS installers for the draft release
+        if: inputs.artifact-mode == 'draft-release' && matrix.target == 'darwin-arm64'
+        shell: bash
+        run: |
+          mkdir -p apps/desktop/release/draft
+          cp apps/desktop/release/*-mac-arm64.dmg apps/desktop/release/*-mac-arm64.zip apps/desktop/release/draft/
+          (cd apps/desktop/release/draft && shasum -a 256 * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+
+      - name: Hand installers to the draft release job
+        if: inputs.artifact-mode == 'draft-release' && matrix.target == 'darwin-arm64'
+        uses: actions/cache/save@v4
+        with:
+          path: apps/desktop/release/draft
+          key: mindlink-draft-${{ github.run_id }}-${{ github.run_attempt }}
+          enableCrossOsArchive: true
+
       - name: Upload Windows installer directly
         if: inputs.artifact-mode == 'direct' && matrix.target == 'win32-x64'
         uses: actions/upload-artifact@v7
@@ -302,3 +326,44 @@ jobs:
           archive: false
           retention-days: ${{ inputs.retention-days }}
           if-no-files-found: error
+
+  draft-release:
+    name: Publish draft GitHub Release (macOS)
+    needs: desktop-bundle
+    if: inputs.artifact-mode == 'draft-release'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: write
+    env:
+      CACHE_KEY: mindlink-draft-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Restore installers
+        uses: actions/cache/restore@v4
+        with:
+          path: apps/desktop/release/draft
+          key: ${{ env.CACHE_KEY }}
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          short=${GITHUB_SHA::7}
+          tag="mindlink-macos-build-${GITHUB_RUN_NUMBER}"
+          # A draft does not create the tag until it is published.
+          gh release create "$tag" --draft --target "$GITHUB_SHA" \
+            --title "MindLink macOS build #${GITHUB_RUN_NUMBER} (${short})" \
+            --notes "Signed macOS (Apple silicon) build of ${short} from run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Draft only; delete it when no longer needed." \
+            apps/desktop/release/draft/*
+          echo "Draft release: $(gh release view "$tag" --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Drop the hand-off cache
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh cache delete "$CACHE_KEY" || true
