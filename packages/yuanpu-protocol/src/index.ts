@@ -765,6 +765,8 @@ export interface DesktopBridge {
   readWorkFile(conversationId: string, filePath: string): Promise<WorkFilePreview>;
   /** Saves a dropped or picked file into the conversation workspace under 附件/. */
   importWorkFile(conversationId: string, name: string, data: ArrayBuffer): Promise<WorkFileImportResult>;
+  /** Absolute local path of a dropped or picked File; '' when it has none (e.g. a pasted screenshot). */
+  pathForFile(file: { readonly name: string }): string;
   openWorkFile(conversationId: string, filePath: string): Promise<void>;
   listWorkFileChanges(query: { conversationId: string; runId?: string }): Promise<WorkFileChangesSummary>;
   getAssistantLink(): Promise<AssistantLinkStatus>;

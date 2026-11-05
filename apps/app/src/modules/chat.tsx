@@ -166,19 +166,23 @@ function maxRightPanelWidth(panelWidth: number, listOpen: boolean, workTree: boo
   return Math.floor(rightPanelSpace(panelWidth, listOpen, workTree) * 0.7);
 }
 
+/**
+ * Files are referenced by path, never inlined: `local` is the file's own absolute
+ * path, `workspace` a copy saved under 附件/ for files without one (pasted images).
+ */
 type ComposerAttachment =
-  | { kind: 'inline'; name: string; contents: string }
+  | { kind: 'local'; name: string; path: string; directory: boolean }
   | { kind: 'workspace'; name: string; path: string };
 
-const MAX_COMPOSER_ATTACHMENTS = 10;
-const MAX_INLINE_ATTACHMENT_BYTES = 100_000;
+const MAX_COMPOSER_ATTACHMENTS = 20;
 const MAX_WORKSPACE_ATTACHMENT_BYTES = 50 * 1024 * 1024;
-const INLINE_ATTACHMENT_PATTERN = /\.(txt|md|json|csv|ts|tsx|js|jsx|py|yaml|yml|xml|html|css)$/i;
 
-function attachmentMessage(file: ComposerAttachment): string {
-  return file.kind === 'inline'
-    ? `附件 ${file.name}：\n${file.contents}`
-    : `附件 ${file.name} 已保存到当前工作目录：${file.path}（请用文件工具读取）`;
+function attachmentsMessage(draft: string, files: ComposerAttachment[]): string {
+  if (!files.length) return draft;
+  const lines = files.map((file) => file.kind === 'local'
+    ? `- ${file.path}${file.directory ? '（文件夹）' : ''}`
+    : `- ${file.path}（已保存到当前工作目录）`);
+  return `${draft || '请阅读并分析以下文件。'}\n\n附件（本机路径，请用文件工具读取内容）：\n${lines.join('\n')}`;
 }
 
 export function ChatPanel({
@@ -922,9 +926,7 @@ export function ChatPanel({
     const includedAttachments = attachments;
     if ((!draft && !includedAttachments.length) || sending.current || runRecovery || workArchived
       || (surface === 'work' && desktop && !workConversationId)) return;
-    const text = includedAttachments.length
-      ? `${draft || '请阅读附件。'}\n\n${includedAttachments.map(attachmentMessage).join('\n\n')}`
-      : draft;
+    const text = attachmentsMessage(draft, includedAttachments);
     sending.current = true;
     followConversationBottom.current = true;
     setMessages((current) => [...current, { id: nextId.current++, role: 'user', text, at: new Date().toISOString() }]);
@@ -991,29 +993,30 @@ export function ChatPanel({
     }
   }
 
-  async function addAttachments(files: FileList | File[] | null, skippedFolders = 0) {
+  async function addAttachments(files: FileList | File[] | null, directories: ReadonlySet<File> = new Set()) {
     const selected = Array.from(files ?? []);
     if (attachmentInput.current) attachmentInput.current.value = '';
-    if (!selected.length && !skippedFolders) return;
-    const errors: string[] = skippedFolders ? ['暂不支持拖入文件夹，请拖入其中的文件。'] : [];
+    if (!selected.length) return;
     if (archiveOpen || workArchived) {
       setAttachmentError('当前会话只读，不能添加附件。');
       return;
     }
+    const errors: string[] = [];
     const remaining = Math.max(0, MAX_COMPOSER_ATTACHMENTS - attachments.length - importingAttachments);
     if (selected.length > remaining) errors.push(`每条消息最多添加 ${MAX_COMPOSER_ATTACHMENTS} 个附件。`);
     setAttachmentError(errors.join(' '));
     const conversationId = surface === 'work' ? workConversationId : undefined;
     for (const file of selected.slice(0, remaining)) {
-      if (file.size <= MAX_INLINE_ATTACHMENT_BYTES && INLINE_ATTACHMENT_PATTERN.test(file.name)) {
-        const contents = await file.text();
-        setAttachments((current) => [...current, { kind: 'inline', name: file.name, contents }]);
+      const path = desktop?.pathForFile?.(file) ?? '';
+      if (path) {
+        setAttachments((current) => current.some((item) => item.path === path) ? current
+          : [...current, { kind: 'local', name: file.name, path, directory: directories.has(file) }]);
         continue;
       }
+      // Pasted images and other in-memory files have no path; keep a copy in the workspace.
       if (!desktop || !conversationId) {
-        errors.push(surface === 'work'
-          ? '请先选择或新建一个工作，再添加文件。'
-          : `助理会话只支持 100 KB 以内的文本附件；${file.name} 请在工作中添加。`);
+        errors.push(desktop ? `${file.name || '粘贴的内容'} 没有本机路径，请在工作中粘贴，或先保存为文件再拖入。`
+          : '请在桌面应用中添加附件。');
         continue;
       }
       if (file.size > MAX_WORKSPACE_ATTACHMENT_BYTES) {
@@ -1022,8 +1025,8 @@ export function ChatPanel({
       }
       setImportingAttachments((count) => count + 1);
       try {
-        const saved = await desktop.importWorkFile(conversationId, file.name, await file.arrayBuffer());
-        setAttachments((current) => [...current, { kind: 'workspace', name: file.name, path: saved.path }]);
+        const saved = await desktop.importWorkFile(conversationId, file.name || 'pasted', await file.arrayBuffer());
+        setAttachments((current) => [...current, { kind: 'workspace', name: file.name || saved.path, path: saved.path }]);
       } catch (error) {
         errors.push(`${file.name} 添加失败：${formatError(error)}`);
       } finally {
@@ -1059,14 +1062,15 @@ export function ChatPanel({
       setDropActive(false);
       if (composerLocked) return;
       const files: File[] = [];
-      let folders = 0;
+      const directories = new Set<File>();
       for (const item of Array.from(event.dataTransfer.items)) {
         if (item.kind !== 'file') continue;
-        if (item.webkitGetAsEntry?.()?.isDirectory) { folders += 1; continue; }
         const file = item.getAsFile();
-        if (file) files.push(file);
+        if (!file) continue;
+        files.push(file);
+        if (item.webkitGetAsEntry?.()?.isDirectory) directories.add(file);
       }
-      void addAttachments(files, folders);
+      void addAttachments(files, directories);
       composerInput.current?.focus();
     },
   };
@@ -1440,9 +1444,7 @@ export function ChatPanel({
       <div className={`chat-main ${dropActive ? 'drop-active' : ''}`} {...dropHandlers}>
         {dropActive && <div className="chat-drop-overlay" aria-hidden="true">
           <strong>{composerLocked ? '当前会话不能添加附件' : '松开以添加附件'}</strong>
-          {!composerLocked && <span>{surface === 'work'
-            ? '文本文件直接附在消息里；其他文件保存到工作目录的「附件」文件夹'
-            : '助理会话支持 100 KB 以内的文本文件'}</span>}
+          {!composerLocked && <span>消息里会附上文件的完整路径，由模型自行读取分析</span>}
         </div>}
         {surface === 'work' && emptyConversation && <div className="mindlink-work-background" aria-hidden="true">
           <img src={mindlinkSeal} alt="" /><strong>元朴思联</strong><span>MindLink</span>
@@ -1595,7 +1597,6 @@ export function ChatPanel({
           </div>}
           <div className="composer">
             <input ref={attachmentInput} className="composer-attachment-input" type="file" multiple
-              {...(surface === 'work' ? {} : { accept: '.txt,.md,.json,.csv,.ts,.tsx,.js,.jsx,.py,.yaml,.yml,.xml,.html,.css' })}
               onChange={(event) => void addAttachments(event.currentTarget.files)} />
             <textarea
               ref={composerInput}
@@ -1610,14 +1611,14 @@ export function ChatPanel({
             />
             {(attachments.length > 0 || importingAttachments > 0) && <div className="composer-attachments" aria-label="待发送附件">
               {attachments.map((file, index) => <span key={`${file.name}-${index}`}
-                title={file.kind === 'workspace' ? `已保存到工作目录：${file.path}` : '内容将附在消息中'}>{file.kind === 'workspace' ? `${file.name} · 工作目录` : file.name}
+                title={file.path}>{file.kind === 'workspace' ? `${file.name} · 工作目录` : file.kind === 'local' && file.directory ? `${file.name}/` : file.name}
                 <button type="button" aria-label={`移除附件 ${file.name}`} onClick={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}>×</button>
               </span>)}
               {importingAttachments > 0 && <span role="status">正在添加 {importingAttachments} 个文件…</span>}
             </div>}
             <div className="composer-toolbar">
               <div className="composer-actions">
-                <button type="button" className="composer-utility" title={surface === 'work' ? '添加附件（也可以把文件拖到对话区）' : '添加文本附件'} aria-label="添加附件" disabled={archiveOpen || workArchived || busy}
+                <button type="button" className="composer-utility" title="添加附件（也可以把文件或文件夹拖到对话区）" aria-label="添加附件" disabled={archiveOpen || workArchived || busy}
                   onClick={() => attachmentInput.current?.click()}><AppIcon name="plus" /></button>
                 {surface === 'work' && <button type="button" className="composer-permission" title={fullAccessEnabled
                   ? '完全权限已开启 · 后续任务无需逐次审批' : '逐次审批 · 点击开启完全权限'}

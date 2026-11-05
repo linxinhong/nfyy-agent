@@ -1,5 +1,5 @@
 import type { DesktopBridge } from '@yuanpu-agent/protocol';
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
 
 const bridge: DesktopBridge = {
   runtimeInfo: () => ipcRenderer.invoke('runtime:info'),
@@ -53,6 +53,8 @@ const bridge: DesktopBridge = {
   listWorkFiles: (conversationId, dirPath, options) => ipcRenderer.invoke('work:files:list', conversationId, dirPath, options),
   readWorkFile: (conversationId, filePath) => ipcRenderer.invoke('work:files:read', conversationId, filePath),
   importWorkFile: (conversationId, name, data) => ipcRenderer.invoke('work:files:import', conversationId, name, data),
+  // Only reads the path Electron attached to a File the user dropped or picked.
+  pathForFile: (file) => { try { return webUtils.getPathForFile(file as File); } catch { return ''; } },
   openWorkFile: (conversationId, filePath) => ipcRenderer.invoke('work:files:open', conversationId, filePath),
   listWorkFileChanges: (query) => ipcRenderer.invoke('work:file-changes:list', query),
   getAssistantLink: () => ipcRenderer.invoke('assistant:link:get'),
