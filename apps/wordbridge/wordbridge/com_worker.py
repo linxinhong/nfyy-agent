@@ -81,7 +81,7 @@ class WordHandler:
 
     def connect(self) -> bool:
         """
-        连接到正在运行的 Word 实例（不自动启动新的，避免打开 Hermes 就弹 Word）。
+        连接到正在运行的 Word 实例（不自动启动新的，避免打开 MindLink 就弹 Word）。
         在 STA 线程内调用。
         """
         try:

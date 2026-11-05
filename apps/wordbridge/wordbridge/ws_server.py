@@ -2,7 +2,7 @@
 WebSocket / HTTP 服务模块
 ────────────────────────────────────────
 
-与 Hermes Client 通信的桥接层。
+与 MindLink 通信的桥接层。
 
 协议设计：
 
@@ -277,10 +277,10 @@ class WordBridgeService:
         - 如果已有未处理的 Region，直接返回最新的一条
         - 否则等待至超时
 
-        实际用法：Hermes 调用 word_capture → 用户按热键 → Region 进入 registry
-                  → Hermes 轮询拿到结果
+        实际用法：MindLink 调用 word_capture → 用户按热键 → Region 进入 registry
+                  → MindLink 轮询拿到结果
         """
-        # 先查看是否有尚未被 Hermes 处理的新 Region
+        # 先查看是否有尚未被 MindLink 处理的新 Region
         pending = [
             r for r in self.registry.list_by_status(RegionStatus.CAPTURED)
         ]

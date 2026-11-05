@@ -42,8 +42,8 @@ logger = get_logger("registry")
 
 class RegionStatus(str, Enum):
     """Region 生命周期状态。"""
-    CAPTURED = "captured"        # 已捕获，等待 Hermes 处理
-    PROCESSING = "processing"    # Hermes 正在处理
+    CAPTURED = "captured"        # 已捕获，等待 MindLink 处理
+    PROCESSING = "processing"    # MindLink 正在处理
     READY = "ready"              # AI 结果就绪，等待应用
     APPLYING = "applying"        # 正在应用修改
     APPLIED = "applied"          # 已成功应用
@@ -69,7 +69,7 @@ class Region:
     ai_ooxml: Optional[str] = None        # 构建好的 OOXML
     current_hash: Optional[str] = None     # 应用前的最新 hash（用于冲突检测）
     conflict_text: Optional[str] = None    # 冲突时的当前文本
-    user_instruction: Optional[str] = None  # 用户给 Hermes 的指令
+    user_instruction: Optional[str] = None  # 用户给 MindLink 的指令
     version: int = 1
     metadata: dict = field(default_factory=dict)
 
@@ -121,7 +121,7 @@ class RegionRegistry:
             region = self._regions.get(region_id)
             if region is None:
                 # A pre-LLM capture can be created by the short-lived capture
-                # helper while Hermes' long-lived MCP process is already up.
+                # helper while MindLink' long-lived MCP process is already up.
                 # Refresh from SQLite on a miss so both processes share the
                 # same durable Region without restarting the MCP server.
                 self.recover_from_db()

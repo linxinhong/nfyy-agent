@@ -2,7 +2,7 @@
 WordBridge — 主入口
 ────────────────────────────────────────
 
-Hermes ↔ Microsoft Word 后台桥接服务。
+MindLink ↔ Microsoft Word 后台桥接服务。
 
 启动流程：
   1. 加载配置
@@ -54,7 +54,7 @@ class WordBridgeApp:
 
         # 日志
         if stdio_mode:
-            # Windows 上 Hermes 可能按系统代码页读取 stderr。中文日志写文件，
+            # Windows 上 MindLink 可能按系统代码页读取 stderr。中文日志写文件，
             # stdin/stdout/stderr 均不混入协议之外的数据。
             stdio_log = str(Path(os.environ.get("TEMP", ".")) / "wordbridge-stdio.log")
             self.log = setup_logging(
@@ -170,7 +170,7 @@ class WordBridgeApp:
 
         # 热键已废弃 — 改用 MCP word_get_active_selection 主动强挖
         self.log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        self.log.info("  WordBridge 已就绪，等待 Hermes 连接")
+        self.log.info("  WordBridge 已就绪，等待 MindLink 连接")
         self.log.info("  使用 word_get_active_selection 主动拉取 Word 选区")
         self.log.info("  按 Ctrl+C 停止服务")
         self.log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -266,7 +266,7 @@ class WordBridgeApp:
                 for captured in captured_list:
                     self.registry.create(captured)
                 self.log.info(
-                    "✓ 已捕获 %d 个区域（可通过 Hermes 处理）",
+                    "✓ 已捕获 %d 个区域（可通过 MindLink 处理）",
                     len(captured_list),
                 )
             else:
@@ -304,7 +304,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="WordBridge — Hermes ↔ Word 后台桥接服务",
+        description="WordBridge — MindLink ↔ Word 后台桥接服务",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
@@ -322,7 +322,7 @@ def main():
     parser.add_argument(
         "--no-hotkey",
         action="store_true",
-        help="禁用全局热键（仅通过 Hermes MCP 工具调用）",
+        help="禁用全局热键（仅通过 MindLink MCP 工具调用）",
     )
     parser.add_argument(
         "--debug",
@@ -371,7 +371,7 @@ def main():
 
 
 async def _run_stdio(app: WordBridgeApp) -> None:
-    """Run the FastMCP stdio transport for a Hermes-managed process."""
+    """Run the FastMCP stdio transport for a MindLink-managed process."""
     from .mcp_server import create_mcp_server
 
     mcp = create_mcp_server(app.service, app.config.bridge.version)

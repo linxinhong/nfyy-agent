@@ -5,13 +5,13 @@ WordBridge 启动脚本。
   python run_bridge.py              # 启动
   python run_bridge.py --debug      # Debug 模式
   python run_bridge.py --no-hotkey  # 不注册热键
-  python run_bridge.py --stdio      # MCP stdio 模式（Hermes 托管）
+  python run_bridge.py --stdio      # MCP stdio 模式（MindLink 托管）
 
 依赖安装：
   pip install -r requirements.txt
 
 环境变量（可选）：
-  WORDBRIDGE_PYTHON_SITE   干净的 site-packages 路径，规避 Hermes venv 污染
+  WORDBRIDGE_PYTHON_SITE   干净的 site-packages 路径，规避 宿主 venv 污染
   DEEPSEEK_API_KEY         翻译引擎密钥（也可写在项目目录 .env）
 """
 
@@ -38,7 +38,7 @@ project_dir = os.path.dirname(os.path.abspath(__file__))
 # 加载项目 .env（DEEPSEEK_API_KEY 等），stdio / HTTP 两种模式都生效
 _load_dotenv(os.path.join(project_dir, ".env"))
 
-# 可选：若被 Hermes venv 的 broken openai/pydantic 污染，用环境变量指定
+# 可选：若被 宿主 venv 的 broken openai/pydantic 污染，用环境变量指定
 # 一个干净的 site-packages 优先加载（默认不注入）。
 _extra_site = os.environ.get("WORDBRIDGE_PYTHON_SITE", "").strip()
 if _extra_site and _extra_site not in sys.path:

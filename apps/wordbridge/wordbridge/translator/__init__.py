@@ -20,7 +20,7 @@
 集成入口:
   from wordbridge.translator import TranslatorEngine
   → ws_server.py 中的 WordBridgeService 持有 TranslatorEngine 实例
-  → 通过 MCP Tool translate_long_text 暴露给 Hermes
+  → 通过 MCP Tool translate_long_text 暴露给 MindLink
 """
 
 from .engine import TranslatorEngine, TranslationResult, TranslationStatus

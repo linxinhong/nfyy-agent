@@ -1,5 +1,5 @@
 """
-WordBridge — Hermes ↔ Microsoft Word 后台桥接服务
+WordBridge — MindLink ↔ Microsoft Word 后台桥接服务
 
 零 UI 痕迹的 Word 集成方案：
   - COM Automation 后台直连 Word 进程
