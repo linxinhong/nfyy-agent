@@ -5,7 +5,9 @@ import {
   useMemo,
   useRef,
   useState,
+  type ClipboardEvent,
   type CSSProperties,
+  type DragEvent,
   type KeyboardEvent,
 } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -164,6 +166,21 @@ function maxRightPanelWidth(panelWidth: number, listOpen: boolean, workTree: boo
   return Math.floor(rightPanelSpace(panelWidth, listOpen, workTree) * 0.7);
 }
 
+type ComposerAttachment =
+  | { kind: 'inline'; name: string; contents: string }
+  | { kind: 'workspace'; name: string; path: string };
+
+const MAX_COMPOSER_ATTACHMENTS = 10;
+const MAX_INLINE_ATTACHMENT_BYTES = 100_000;
+const MAX_WORKSPACE_ATTACHMENT_BYTES = 50 * 1024 * 1024;
+const INLINE_ATTACHMENT_PATTERN = /\.(txt|md|json|csv|ts|tsx|js|jsx|py|yaml|yml|xml|html|css)$/i;
+
+function attachmentMessage(file: ComposerAttachment): string {
+  return file.kind === 'inline'
+    ? `附件 ${file.name}：\n${file.contents}`
+    : `附件 ${file.name} 已保存到当前工作目录：${file.path}（请用文件工具读取）`;
+}
+
 export function ChatPanel({
   active,
   surface,
@@ -190,7 +207,10 @@ export function ChatPanel({
     try { return window.localStorage.getItem(`yuanpu:draft:${surface}`) ?? ''; }
     catch { return ''; }
   });
-  const [attachments, setAttachments] = useState<Array<{ name: string; contents: string }>>([]);
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
+  const [importingAttachments, setImportingAttachments] = useState(0);
+  const [dropActive, setDropActive] = useState(false);
+  const dragDepth = useRef(0);
   const pendingAssistantMessage = useRef<{ text: string; id: string; createdAt: number } | undefined>(undefined);
   const [attachmentError, setAttachmentError] = useState('');
   const [redactionPreviewEnabled, setRedactionPreviewEnabled] = useState(false);
@@ -903,7 +923,7 @@ export function ChatPanel({
     if ((!draft && !includedAttachments.length) || sending.current || runRecovery || workArchived
       || (surface === 'work' && desktop && !workConversationId)) return;
     const text = includedAttachments.length
-      ? `${draft || '请阅读附件。'}\n\n${includedAttachments.map((file) => `附件 ${file.name}：\n${file.contents}`).join('\n\n')}`
+      ? `${draft || '请阅读附件。'}\n\n${includedAttachments.map(attachmentMessage).join('\n\n')}`
       : draft;
     sending.current = true;
     followConversationBottom.current = true;
@@ -971,21 +991,91 @@ export function ChatPanel({
     }
   }
 
-  async function addAttachments(files: FileList | null) {
+  async function addAttachments(files: FileList | File[] | null, skippedFolders = 0) {
     const selected = Array.from(files ?? []);
     if (attachmentInput.current) attachmentInput.current.value = '';
-    const remaining = Math.max(0, 3 - attachments.length);
-    if (selected.length > remaining) setAttachmentError('每条消息最多添加 3 个文本附件。');
-    else setAttachmentError('');
-    const added: Array<{ name: string; contents: string }> = [];
+    if (!selected.length && !skippedFolders) return;
+    const errors: string[] = skippedFolders ? ['暂不支持拖入文件夹，请拖入其中的文件。'] : [];
+    if (archiveOpen || workArchived) {
+      setAttachmentError('当前会话只读，不能添加附件。');
+      return;
+    }
+    const remaining = Math.max(0, MAX_COMPOSER_ATTACHMENTS - attachments.length - importingAttachments);
+    if (selected.length > remaining) errors.push(`每条消息最多添加 ${MAX_COMPOSER_ATTACHMENTS} 个附件。`);
+    setAttachmentError(errors.join(' '));
+    const conversationId = surface === 'work' ? workConversationId : undefined;
     for (const file of selected.slice(0, remaining)) {
-      if (file.size > 100_000 || !/\.(txt|md|json|csv|ts|tsx|js|jsx|py|yaml|yml|xml|html|css)$/i.test(file.name)) {
-        setAttachmentError('仅支持 100 KB 以内的文本附件。');
+      if (file.size <= MAX_INLINE_ATTACHMENT_BYTES && INLINE_ATTACHMENT_PATTERN.test(file.name)) {
+        const contents = await file.text();
+        setAttachments((current) => [...current, { kind: 'inline', name: file.name, contents }]);
         continue;
       }
-      added.push({ name: file.name, contents: await file.text() });
+      if (!desktop || !conversationId) {
+        errors.push(surface === 'work'
+          ? '请先选择或新建一个工作，再添加文件。'
+          : `助理会话只支持 100 KB 以内的文本附件；${file.name} 请在工作中添加。`);
+        continue;
+      }
+      if (file.size > MAX_WORKSPACE_ATTACHMENT_BYTES) {
+        errors.push(`${file.name} 超过 50 MB，未添加。`);
+        continue;
+      }
+      setImportingAttachments((count) => count + 1);
+      try {
+        const saved = await desktop.importWorkFile(conversationId, file.name, await file.arrayBuffer());
+        setAttachments((current) => [...current, { kind: 'workspace', name: file.name, path: saved.path }]);
+      } catch (error) {
+        errors.push(`${file.name} 添加失败：${formatError(error)}`);
+      } finally {
+        setImportingAttachments((count) => count - 1);
+      }
     }
-    if (added.length) setAttachments((current) => [...current, ...added]);
+    setAttachmentError(errors.join(' '));
+  }
+
+  const composerLocked = archiveOpen || workArchived || (surface === 'work' && Boolean(desktop) && !workConversationId);
+  const draggingFiles = (event: DragEvent<HTMLElement>) => Array.from(event.dataTransfer.types).includes('Files');
+  const dropHandlers = {
+    onDragEnter(event: DragEvent<HTMLElement>) {
+      if (!draggingFiles(event)) return;
+      event.preventDefault();
+      dragDepth.current += 1;
+      setDropActive(true);
+    },
+    onDragOver(event: DragEvent<HTMLElement>) {
+      if (!draggingFiles(event)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = composerLocked ? 'none' : 'copy';
+    },
+    onDragLeave(event: DragEvent<HTMLElement>) {
+      if (!draggingFiles(event)) return;
+      dragDepth.current = Math.max(0, dragDepth.current - 1);
+      if (!dragDepth.current) setDropActive(false);
+    },
+    onDrop(event: DragEvent<HTMLElement>) {
+      if (!draggingFiles(event)) return;
+      event.preventDefault();
+      dragDepth.current = 0;
+      setDropActive(false);
+      if (composerLocked) return;
+      const files: File[] = [];
+      let folders = 0;
+      for (const item of Array.from(event.dataTransfer.items)) {
+        if (item.kind !== 'file') continue;
+        if (item.webkitGetAsEntry?.()?.isDirectory) { folders += 1; continue; }
+        const file = item.getAsFile();
+        if (file) files.push(file);
+      }
+      void addAttachments(files, folders);
+      composerInput.current?.focus();
+    },
+  };
+
+  function pasteFiles(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const files = Array.from(event.clipboardData.files);
+    if (!files.length) return;
+    event.preventDefault();
+    void addAttachments(files);
   }
 
   async function copyUserMessage(message: ChatMessage) {
@@ -1347,7 +1437,13 @@ export function ChatPanel({
             }
           }} />}
       </aside>}
-      <div className="chat-main">
+      <div className={`chat-main ${dropActive ? 'drop-active' : ''}`} {...dropHandlers}>
+        {dropActive && <div className="chat-drop-overlay" aria-hidden="true">
+          <strong>{composerLocked ? '当前会话不能添加附件' : '松开以添加附件'}</strong>
+          {!composerLocked && <span>{surface === 'work'
+            ? '文本文件直接附在消息里；其他文件保存到工作目录的「附件」文件夹'
+            : '助理会话支持 100 KB 以内的文本文件'}</span>}
+        </div>}
         {surface === 'work' && emptyConversation && <div className="mindlink-work-background" aria-hidden="true">
           <img src={mindlinkSeal} alt="" /><strong>元朴思联</strong><span>MindLink</span>
         </div>}
@@ -1499,7 +1595,7 @@ export function ChatPanel({
           </div>}
           <div className="composer">
             <input ref={attachmentInput} className="composer-attachment-input" type="file" multiple
-              accept=".txt,.md,.json,.csv,.ts,.tsx,.js,.jsx,.py,.yaml,.yml,.xml,.html,.css"
+              {...(surface === 'work' ? {} : { accept: '.txt,.md,.json,.csv,.ts,.tsx,.js,.jsx,.py,.yaml,.yml,.xml,.html,.css' })}
               onChange={(event) => void addAttachments(event.currentTarget.files)} />
             <textarea
               ref={composerInput}
@@ -1507,18 +1603,21 @@ export function ChatPanel({
               value={input}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={handleKeyDown}
+              onPaste={pasteFiles}
               placeholder={workArchived ? workConversationId === 'default' ? '旧工作归档只读，请选择或新建工作' : '会话已归档，恢复后可继续对话' : archiveOpen ? '归档只读，请返回已绑定会话继续对话' : emo.composer.placeholder}
               disabled={archiveOpen || workArchived || (surface === 'work' && Boolean(desktop) && !workConversationId)}
               rows={2}
             />
-            {attachments.length > 0 && <div className="composer-attachments" aria-label="待发送附件">
-              {attachments.map((file, index) => <span key={`${file.name}-${index}`}>{file.name}
+            {(attachments.length > 0 || importingAttachments > 0) && <div className="composer-attachments" aria-label="待发送附件">
+              {attachments.map((file, index) => <span key={`${file.name}-${index}`}
+                title={file.kind === 'workspace' ? `已保存到工作目录：${file.path}` : '内容将附在消息中'}>{file.kind === 'workspace' ? `${file.name} · 工作目录` : file.name}
                 <button type="button" aria-label={`移除附件 ${file.name}`} onClick={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))}>×</button>
               </span>)}
+              {importingAttachments > 0 && <span role="status">正在添加 {importingAttachments} 个文件…</span>}
             </div>}
             <div className="composer-toolbar">
               <div className="composer-actions">
-                <button type="button" className="composer-utility" title="添加文本附件" aria-label="添加附件" disabled={archiveOpen || workArchived || busy}
+                <button type="button" className="composer-utility" title={surface === 'work' ? '添加附件（也可以把文件拖到对话区）' : '添加文本附件'} aria-label="添加附件" disabled={archiveOpen || workArchived || busy}
                   onClick={() => attachmentInput.current?.click()}><AppIcon name="plus" /></button>
                 {surface === 'work' && <button type="button" className="composer-permission" title={fullAccessEnabled
                   ? '完全权限已开启 · 后续任务无需逐次审批' : '逐次审批 · 点击开启完全权限'}

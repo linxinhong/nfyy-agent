@@ -107,6 +107,9 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .chat-panel.view-hidden { display: none; }
 .chat-panel.activity-closed { grid-template-columns: minmax(0, 1fr); }
 .chat-main { display: grid; min-width: 0; min-height: 0; grid-column: 1; grid-row: var(--yp-chat-content-row, 2); grid-template-rows: minmax(0, 1fr) auto; row-gap: 10px; background: var(--yp-surface-subtle); }
+.chat-main { position: relative; }
+.chat-drop-overlay { position: absolute; inset: 10px; z-index: 30; display: grid; place-content: center; gap: 6px; border: 2px dashed var(--yp-accent); border-radius: 16px; background: color-mix(in srgb, var(--yp-surface) 88%, transparent); color: var(--yp-text-muted); text-align: center; font-size: 0.8125rem; pointer-events: none; }
+.chat-drop-overlay strong { color: var(--yp-text); font-size: 1rem; font-weight: 650; }
 .chat-header {
   position: relative;
   z-index: 5;

@@ -70,6 +70,7 @@ export const RUNTIME_ROUTES = {
   workFiles: '/v1/work/files',
   workFileContent: '/v1/work/files/content',
   workFilePath: '/v1/work/files/path',
+  workFileImport: '/v1/work/files/import',
   workFileChanges: '/v1/work/file-changes',
   modelSettings: '/v1/settings/models',
   modelSettingsDelete: '/v1/settings/models/delete',
@@ -260,6 +261,12 @@ export interface WorkDirectoryListing {
   entries: WorkFileEntry[];
   /** Present on recursive listings: entry growth hit the server-side cap. */
   truncated?: boolean;
+}
+
+/** Workspace-relative path of an imported attachment. */
+export interface WorkFileImportResult {
+  path: string;
+  size: number;
 }
 
 /** Read-only preview of one workspace file. Never carries the absolute workspace path. */
@@ -756,6 +763,8 @@ export interface DesktopBridge {
   onBrowserGuestCrashed(listener: (guestKey: string) => void): () => void;
   onBrowserSessionRequest(listener: (conversationId: string) => void): () => void;
   readWorkFile(conversationId: string, filePath: string): Promise<WorkFilePreview>;
+  /** Saves a dropped or picked file into the conversation workspace under 附件/. */
+  importWorkFile(conversationId: string, name: string, data: ArrayBuffer): Promise<WorkFileImportResult>;
   openWorkFile(conversationId: string, filePath: string): Promise<void>;
   listWorkFileChanges(query: { conversationId: string; runId?: string }): Promise<WorkFileChangesSummary>;
   getAssistantLink(): Promise<AssistantLinkStatus>;

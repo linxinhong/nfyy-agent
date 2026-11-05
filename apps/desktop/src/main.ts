@@ -356,6 +356,13 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   ipcMain.handle('work:order', trustedHandler((kind: 'folder' | 'conversation', parentId: string | null, ids: string[]) => runtime.reorderWorkSiblings(kind, parentId, ids)));
   ipcMain.handle('work:files:list', trustedHandler((conversationId: string, dirPath?: string, options?: { recursive?: boolean }) => runtime.listWorkFiles(conversationId, dirPath, options)));
   ipcMain.handle('work:files:read', trustedHandler((conversationId: string, filePath: string) => runtime.readWorkFile(conversationId, filePath)));
+  // Bytes come from a File the user dropped or picked; the renderer never names a
+  // source path, so it cannot make the main process copy arbitrary files.
+  ipcMain.handle('work:files:import', trustedHandler((conversationId: string, name: string, data: ArrayBuffer | Uint8Array) => {
+    if (typeof conversationId !== 'string' || typeof name !== 'string' || name.length > 1024) throw new Error('Invalid attachment.');
+    if (!(data instanceof ArrayBuffer) && !(data instanceof Uint8Array)) throw new Error('Invalid attachment data.');
+    return runtime.importWorkFile(conversationId, name, data instanceof Uint8Array ? data : new Uint8Array(data));
+  }));
   ipcMain.handle('work:files:open', trustedHandler(async (conversationId: string, filePath: string) => {
     const resolved = await runtime.resolveWorkFilePath(conversationId, filePath);
     const error = await shell.openPath(resolved.path);

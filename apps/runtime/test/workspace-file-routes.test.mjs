@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -102,6 +102,21 @@ test('work file routes serve the workspace with containment enforcement', async 
 
   const missing = await send(`/v1/work/files?conversationId=${encodeURIComponent(conversation.id)}&path=${encodeURIComponent('nope.txt')}`);
   assert.equal(missing.status, 404);
+
+  const imported = await fetch(`${root}/v1/work/files/import?conversationId=${encodeURIComponent(conversation.id)}&name=${encodeURIComponent('报告.pdf')}`, {
+    method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' }, body: Buffer.from('%PDF-1.7 bytes'),
+  });
+  assert.equal(imported.status, 200);
+  assert.deepEqual(await imported.json(), { path: '附件/报告.pdf', size: 14 });
+  assert.equal(await readFile(join(conversationWorkspace, '附件', '报告.pdf'), 'utf8'), '%PDF-1.7 bytes');
+  const importUnknown = await fetch(`${root}/v1/work/files/import?conversationId=work:does-not-exist&name=x.txt`, {
+    method: 'POST', headers: { authorization: `Bearer ${token}` }, body: 'x',
+  });
+  assert.equal(importUnknown.status, 404);
+  const importUnauthenticated = await fetch(`${root}/v1/work/files/import?conversationId=${encodeURIComponent(conversation.id)}&name=x.txt`, {
+    method: 'POST', body: 'x',
+  });
+  assert.equal(importUnauthenticated.status, 401);
 
   const unknownConversation = await send('/v1/work/files?conversationId=work:does-not-exist');
   assert.equal(unknownConversation.status, 404);

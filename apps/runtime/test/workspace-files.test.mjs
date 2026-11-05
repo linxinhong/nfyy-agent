@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, mkdir, writeFile, symlink, rm, realpath } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, symlink, rm, realpath, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -19,6 +19,8 @@ const {
   readWorkspaceFile,
   resolveWorkspacePath,
   resolveWorkspaceFilePath,
+  importWorkspaceFile,
+  safeImportName,
 } = await import('../src/workspace-files.ts');
 
 async function createWorkspace() {
@@ -221,4 +223,49 @@ test('listWorkspaceTree stops growing at the entry cap', async () => {
     assert.equal(tree.entries.length, MAX_TREE_ENTRIES);
     assert.equal(tree.truncated, true);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+async function* chunks(...parts) { for (const part of parts) yield Buffer.from(part); }
+
+test('dropped files are saved under 附件 without overwriting and keep their bytes', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'yuanpu-import-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const first = await importWorkspaceFile(root, '合同 v2.pdf', chunks('%PDF-', '1.7'));
+  assert.deepEqual(first, { path: '附件/合同 v2.pdf', size: 8 });
+  assert.equal(await readFile(join(root, '附件', '合同 v2.pdf'), 'utf8'), '%PDF-1.7');
+  const second = await importWorkspaceFile(root, '合同 v2.pdf', chunks('other'));
+  assert.equal(second.path, '附件/合同 v2 (2).pdf');
+  assert.equal(await readFile(join(root, '附件', '合同 v2.pdf'), 'utf8'), '%PDF-1.7');
+  assert.deepEqual((await readdir(join(root, '附件'))).filter((name) => name.endsWith('.part')), []);
+});
+
+test('import names cannot escape the attachment folder', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'yuanpu-import-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  assert.equal(safeImportName('../../etc/passwd'), 'passwd');
+  assert.equal(safeImportName('..\\..\\boot.ini'), 'boot.ini');
+  assert.equal(safeImportName('.env'), 'env');
+  assert.equal(safeImportName('a:b*c?.docx'), 'a_b_c_.docx');
+  assert.equal(safeImportName(''), 'attachment');
+  assert.equal(safeImportName('..'), 'attachment');
+  const saved = await importWorkspaceFile(root, '../../outside.txt', chunks('x'));
+  assert.equal(saved.path, '附件/outside.txt');
+});
+
+test('oversized imports are rejected and leave nothing behind', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'yuanpu-import-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await assert.rejects(importWorkspaceFile(root, 'big.bin', chunks('12345', '67890'), 8),
+    (error) => error instanceof WorkspaceFileAccessError && error.statusCode === 413);
+  assert.deepEqual(await readdir(join(root, '附件')), []);
+});
+
+test('a symlinked attachment folder pointing outside the workspace is refused', { skip: process.platform === 'win32' }, async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'yuanpu-import-'));
+  const outside = await mkdtemp(join(tmpdir(), 'yuanpu-outside-'));
+  t.after(() => Promise.all([rm(root, { recursive: true, force: true }), rm(outside, { recursive: true, force: true })]));
+  await symlink(outside, join(root, '附件'));
+  await assert.rejects(importWorkspaceFile(root, 'x.txt', chunks('x')),
+    (error) => error instanceof WorkspaceFileAccessError && error.statusCode === 400);
+  assert.deepEqual(await readdir(outside), []);
 });

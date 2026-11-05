@@ -835,6 +835,15 @@ export class RuntimeManager {
     return this.request(`${RUNTIME_ROUTES.workFileContent}?${query}`);
   }
 
+  importWorkFile(conversationId: string, name: string, data: Uint8Array): Promise<import('@yuanpu-agent/protocol').WorkFileImportResult> {
+    const query = new URLSearchParams({ conversationId, name });
+    return this.request(`${RUNTIME_ROUTES.workFileImport}?${query}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: new Blob([data as Uint8Array<ArrayBuffer>]),
+    });
+  }
+
   resolveWorkFilePath(conversationId: string, filePath: string): Promise<{ path: string }> {
     const query = new URLSearchParams({ conversationId, path: filePath });
     return this.request(`${RUNTIME_ROUTES.workFilePath}?${query}`);

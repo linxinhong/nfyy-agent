@@ -101,7 +101,7 @@ import { createManagedWorkspaceDirectory, removeUncommittedWorkspaceDirectory } 
 import { installParentProcessMonitor, type ParentProcessMonitor } from './process-lifecycle.js';
 import { cleanupRuntimeResources, getDesktopNavigableRun, getDesktopPrivateImRunSummary } from './runtime-host.js';
 import { createScheduledImDelivery, handleScheduledImHttp } from './scheduled-im-delivery.js';
-import { WorkspaceFileAccessError, listWorkspaceFiles, listWorkspaceTree, readWorkspaceFile, resolveWorkspaceFilePath } from './workspace-files.js';
+import { MAX_IMPORT_BYTES, WorkspaceFileAccessError, importWorkspaceFile, listWorkspaceFiles, listWorkspaceTree, readWorkspaceFile, resolveWorkspaceFilePath } from './workspace-files.js';
 import { readTailscaleConnectionDocument, saveTailscaleConnection, summarizeTailscaleConnection } from './tailscale-connection.js';
 import { installTailnetRouting } from './tailnet-routing.js';
 import { TailscaleNode } from './tailscale-node.js';
@@ -1595,6 +1595,31 @@ async function serve(): Promise<void> {
             ?? home.config.workingDirectory;
           response.end(JSON.stringify(await readWorkspaceFile(workspaceRoot, url.searchParams.get('path') ?? '')));
         } catch (error) {
+          respondWorkspaceFileError(response, error);
+        }
+        return;
+      }
+
+      if (url.pathname === RUNTIME_ROUTES.workFileImport && request.method === 'POST') {
+        const conversationId = url.searchParams.get('conversationId');
+        if (!workFileConversation(conversationId)) {
+          response.statusCode = 404;
+          response.end(JSON.stringify({ error: 'Unknown Work conversation.' }));
+          return;
+        }
+        const declared = Number(request.headers['content-length'] ?? 0);
+        if (declared > MAX_IMPORT_BYTES) {
+          response.statusCode = 413;
+          response.end(JSON.stringify({ error: `单个附件不能超过 ${MAX_IMPORT_BYTES / 1024 / 1024} MB。` }));
+          request.resume();
+          return;
+        }
+        try {
+          const workspaceRoot = workConversations.row(home.config.workingDirectory, conversationId!)?.working_directory
+            ?? home.config.workingDirectory;
+          response.end(JSON.stringify(await importWorkspaceFile(workspaceRoot, url.searchParams.get('name') ?? '', request)));
+        } catch (error) {
+          request.resume();
           respondWorkspaceFileError(response, error);
         }
         return;

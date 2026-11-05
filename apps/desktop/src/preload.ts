@@ -52,6 +52,7 @@ const bridge: DesktopBridge = {
   reorderWorkSiblings: (kind, parentId, ids) => ipcRenderer.invoke('work:order', kind, parentId, ids),
   listWorkFiles: (conversationId, dirPath, options) => ipcRenderer.invoke('work:files:list', conversationId, dirPath, options),
   readWorkFile: (conversationId, filePath) => ipcRenderer.invoke('work:files:read', conversationId, filePath),
+  importWorkFile: (conversationId, name, data) => ipcRenderer.invoke('work:files:import', conversationId, name, data),
   openWorkFile: (conversationId, filePath) => ipcRenderer.invoke('work:files:open', conversationId, filePath),
   listWorkFileChanges: (query) => ipcRenderer.invoke('work:file-changes:list', query),
   getAssistantLink: () => ipcRenderer.invoke('assistant:link:get'),

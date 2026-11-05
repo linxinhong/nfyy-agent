@@ -1,5 +1,6 @@
-import { promises as fs } from 'node:fs';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { constants as fsConstants, promises as fs } from 'node:fs';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 
 /** Text previews are hard-capped and reported as truncated above this size. */
 export const MAX_TEXT_PREVIEW_BYTES = 256 * 1024;
@@ -250,4 +251,74 @@ export async function readWorkspaceFile(root: string, filePath: string) {
     size: stat.size,
     updatedAt,
   };
+}
+
+/** Files the user drops into the composer are saved here, relative to the workspace. */
+export const IMPORT_DIRECTORY = '附件';
+export const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
+
+/** Keeps only a safe final path segment; the extension survives truncation. */
+export function safeImportName(name: string): string {
+  const base = String(name).split(/[\\/]/).at(-1) ?? '';
+  const cleaned = base.replace(/[\u0000-\u001f\u007f:*?"<>|]/g, '_').trim().replace(/^\.+/, '').replace(/[. ]+$/, '');
+  if (!cleaned) return 'attachment';
+  const dot = cleaned.lastIndexOf('.');
+  const extension = dot > 0 && cleaned.length - dot <= 16 ? cleaned.slice(dot) : '';
+  const stem = extension ? cleaned.slice(0, dot) : cleaned;
+  return `${Array.from(stem).slice(0, 100).join('')}${extension}`;
+}
+
+function candidateName(name: string, attempt: number): string {
+  if (attempt === 1) return name;
+  const dot = name.lastIndexOf('.');
+  return dot > 0 ? `${name.slice(0, dot)} (${attempt})${name.slice(dot)}` : `${name} (${attempt})`;
+}
+
+/**
+ * Streams one dropped file into `<workspace>/附件/` without ever overwriting an
+ * existing file. The directory is re-checked after realpath so a symlinked 附件
+ * cannot redirect the write outside the workspace.
+ */
+export async function importWorkspaceFile(root: string, name: string, chunks: AsyncIterable<Uint8Array>,
+  maxBytes = MAX_IMPORT_BYTES): Promise<{ path: string; size: number }> {
+  const realRoot = await fs.realpath(resolve(root))
+    .catch(() => { throw new WorkspaceFileAccessError('工作目录不存在。', 404); });
+  const directory = join(realRoot, IMPORT_DIRECTORY);
+  await fs.mkdir(directory, { recursive: true });
+  const realDirectory = await fs.realpath(directory);
+  if (!containsReal(realRoot, realDirectory) || !(await fs.lstat(realDirectory)).isDirectory()) {
+    throw new WorkspaceFileAccessError('附件目录越出工作区，已拒绝写入。', 400);
+  }
+  const temporary = join(realDirectory, `.import-${randomUUID()}.part`);
+  const handle = await fs.open(temporary, 'wx', 0o644);
+  let size = 0;
+  try {
+    try {
+      for await (const chunk of chunks) {
+        size += chunk.byteLength;
+        if (size > maxBytes) throw new WorkspaceFileAccessError(`单个附件不能超过 ${Math.floor(maxBytes / 1024 / 1024)} MB。`, 413);
+        await handle.write(chunk);
+      }
+    } finally {
+      await handle.close();
+    }
+    const safe = safeImportName(name);
+    for (let attempt = 1; attempt <= 1000; attempt++) {
+      const finalName = candidateName(safe, attempt);
+      const target = join(realDirectory, finalName);
+      try {
+        // link() and COPYFILE_EXCL both fail instead of replacing an existing file.
+        await fs.link(temporary, target).catch(async (error: NodeJS.ErrnoException) => {
+          if (error.code === 'EEXIST') throw error;
+          await fs.copyFile(temporary, target, fsConstants.COPYFILE_EXCL);
+        });
+        return { path: `${IMPORT_DIRECTORY}/${finalName}`, size };
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      }
+    }
+    throw new WorkspaceFileAccessError('同名附件过多，请先整理附件目录。', 409);
+  } finally {
+    await fs.rm(temporary, { force: true });
+  }
 }
