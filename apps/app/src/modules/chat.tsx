@@ -24,7 +24,6 @@ import type {
   DesktopTranscriptMessage,
 } from '@yuanpu-agent/protocol';
 import { effectiveHotkeyBinding } from '@yuanpu-agent/protocol';
-import mindlinkSeal from '../../themes/assets/mindlink-seal.png';
 import { emo } from '../emo.js';
 
 import { AppIcon } from '../shared/app-icon.js';
@@ -1447,7 +1446,7 @@ export function ChatPanel({
           {!composerLocked && <span>消息里会附上文件的完整路径，由模型自行读取分析</span>}
         </div>}
         {surface === 'work' && emptyConversation && <div className="mindlink-work-background" aria-hidden="true">
-          <img src={mindlinkSeal} alt="" /><strong>元朴思联</strong><span>MindLink</span>
+          <span>MindLink</span>
         </div>}
 
         <div className="conversation" ref={conversation} aria-live="polite" onScroll={() => {
@@ -1462,13 +1461,12 @@ export function ChatPanel({
             {surface === 'work' && !emptyConversation && <div className="mindlink-work-background-track" aria-hidden="true">
               {Array.from({ length: watermarkCount }, (_, index) =>
                 <div className="mindlink-work-background" key={index} style={{ top: `${400 + index * 800}px` }}>
-                  <img src={mindlinkSeal} alt="" /><strong>元朴思联</strong><span>MindLink</span>
+                  <span>MindLink</span>
                 </div>)}
             </div>}
             {emptyConversation && <div className="empty-chat">
-              <div className="mindlink-welcome" aria-label="元朴思联 MindLink">
-                <img src={mindlinkSeal} alt="" />
-                <strong>元朴思联</strong><span>MindLink</span>
+              <div className="mindlink-welcome" aria-label="MindLink">
+                <span>MindLink</span>
               </div>
               <div className="empty-chat-heading">
                 {surface === 'assistant' && <div className="empty-chat-mark" aria-hidden="true"><AppIcon name="assistant" /></div>}
@@ -1512,7 +1510,7 @@ export function ChatPanel({
               : <article key={message.entryId ?? message.id} data-message-entry-id={message.entryId} className={`message ${message.role}`}>
                 {surface === 'assistant' && message.role === 'assistant' && <span className="assistant-message-avatar" role="img" aria-label="助理标识"><img src={new URL('../assets/assistant/portrait-resting.png', import.meta.url).href} alt="" /></span>}
                 <div className="message-label">
-                  {message.role === 'user' ? '你' : message.role === 'error' ? '运行错误' : 'YuanpuAgent'}
+                  {message.role === 'user' ? '你' : message.role === 'error' ? '运行错误' : 'MindLink'}
                 </div>
                 {surface === 'assistant' && message.channel && <span className="assistant-message-channel">
                   {message.channel === 'wecom' ? '企业微信' : '桌面'}
@@ -1555,7 +1553,7 @@ export function ChatPanel({
             {!archiveOpen && !workArchived && busy && (
               <article className="message assistant pending">
                 {surface === 'assistant' && <span className="assistant-message-avatar" aria-hidden="true"><img src={new URL('../assets/assistant/portrait-resting.png', import.meta.url).href} alt="" /></span>}
-                <div className="message-label">YuanpuAgent</div>
+                <div className="message-label">MindLink</div>
                 {activeReplyRun || activeProgress?.text
                   ? <div className="message-body"><AssistantReply text={activeProgress?.text ?? ''} surface={surface}
                     run={activeReplyRun} pending

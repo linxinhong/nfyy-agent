@@ -451,7 +451,11 @@ export async function runAssistantWorker(): Promise<void> {
           if (event.feedId === 'legacy-memory' && event.status === 'processed') {
             const audience = { kind: 'personal' as const, id: 'local-user' };
             const text = memory.sources.sourceText(event.change.sourceId, audience);
-            if (text?.trim() && text.trim() !== '# YuanpuAgent memory\n\nAdd durable preferences and working context here.') {
+            const memoryPlaceholders = new Set([
+              '# YuanpuAgent memory\n\nAdd durable preferences and working context here.',
+              '# MindLink memory\n\nAdd durable preferences and working context here.',
+            ]);
+            if (text?.trim() && !memoryPlaceholders.has(text.trim())) {
               await memory.importLegacyMemory({ id: 'legacy-memory', text,
               source: { sourceId: event.change.sourceId,
                 sourceVersion: event.change.sourceVersion, observedAt: event.change.occurredAt },

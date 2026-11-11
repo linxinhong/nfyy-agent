@@ -5,7 +5,7 @@
   xsi:type="TaskPaneApp">
   <Id>2f9a1c7e-4d5b-4a6e-8f3d-1a2b3c4d5e6f</Id>
   <Version>1.0.0.0</Version>
-  <ProviderName>Yuanpu</ProviderName>
+  <ProviderName>MindLink</ProviderName>
   <DefaultLocale>zh-CN</DefaultLocale>
   <DisplayName DefaultValue="MindLink"/>
   <Description DefaultValue="MindLink：选中文字 → 模型最小改动 → 回填 Word"/>

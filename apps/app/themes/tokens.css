@@ -1,4 +1,4 @@
-/* Yuanpu's light palette. Components use semantic tokens, not palette literals. */
+/* Light palette. Components use semantic tokens, not palette literals. */
 :root {
   color-scheme: light;
 

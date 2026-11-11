@@ -54,7 +54,7 @@ const provider = createServer(async (request, response) => {
   response.writeHead(200, { 'content-type': 'text/event-stream' });
   const chunk = (delta, finishReason = null) => `data: ${JSON.stringify({ id: `fixture-${providerRequests}`,
     object: 'chat.completion.chunk', created: 1, model: 'fixture-model', choices: [{ index: 0, delta, finish_reason: finishReason }] })}\n\n`;
-  if (!messages.some((message) => message.role === 'system' && String(message.content).includes('You are YuanpuAgent'))) {
+  if (!messages.some((message) => message.role === 'system' && String(message.content).includes('You are MindLink'))) {
     response.end(chunk({ role: 'assistant', content: 'Fixture idle.' }, 'stop') + 'data: [DONE]\n\n');
     return;
   }

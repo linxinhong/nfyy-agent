@@ -424,7 +424,7 @@ export function SkillPage({ active }: { active: boolean }) {
   async function install(candidate: PluginSearchResult) {
     const source = candidate.source;
     if (!desktop) {
-      setError('浏览器预览模式不会执行技能安装。请通过 Electron 启动 YuanpuAgent。');
+      setError('浏览器预览模式不会执行技能安装。请通过 Electron 启动 MindLink。');
       return;
     }
     setTrustCandidate(undefined);
@@ -543,7 +543,7 @@ export function SkillPage({ active }: { active: boolean }) {
       <header className="plugin-header">
         <div>
           <h1>技能</h1>
-          <p>为 YuanpuAgent 添加工作能力</p>
+          <p>为 MindLink 添加工作能力</p>
         </div>
         <button type="button" onClick={() => setEditingPlugin(builtinMcp)}>MCP 服务</button>
         <span>已安装 {installed.length}</span>

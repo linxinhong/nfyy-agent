@@ -40,11 +40,11 @@ function readEmoBrand(): { name: string; icon: string } {
       brand?: { name?: unknown; icon?: unknown };
     };
     const name = typeof config.brand?.name === 'string' && config.brand.name.trim()
-      ? config.brand.name : 'Yuanpu Agent';
+      ? config.brand.name : 'MindLink';
     const icon = typeof config.brand?.icon === 'string' ? resolve(iconRoot, config.brand.icon) : '';
     return { name, icon: icon.startsWith(`${iconRoot}${sep}`) && existsSync(icon) ? icon : '' };
   } catch {
-    return { name: 'Yuanpu Agent', icon: '' };
+    return { name: 'MindLink', icon: '' };
   }
 }
 
@@ -514,8 +514,8 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
 }).catch((error) => {
   const message = error instanceof Error ? error.message : String(error);
-  console.error('Yuanpu Runtime startup failed:', message);
-  dialog.showErrorBox('Yuanpu Runtime 无法启动', message);
+  console.error('MindLink Runtime startup failed:', message);
+  dialog.showErrorBox('MindLink 无法启动', message);
   app.quit();
 });
 

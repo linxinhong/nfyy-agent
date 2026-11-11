@@ -2,7 +2,7 @@ export type RendererTheme = 'yuanpu-light' | 'yuanpu-dark' | 'mindlink';
 
 const storageKey = 'yuanpu:theme:v1';
 
-/** 元朴主题 is the default; an explicit light or dark choice is kept. */
+/** The warm theme is the default; an explicit light or dark choice is kept. */
 export const defaultTheme: RendererTheme = 'mindlink';
 
 export function readThemePreference(): RendererTheme {

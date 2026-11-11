@@ -57,9 +57,6 @@
 :root[data-yuanpu-theme='mindlink'] .simple-page,
 :root[data-yuanpu-theme='mindlink'] .settings-page {
   background-color: #f9f8f5;
-  background-image: linear-gradient(rgb(249 248 245 / 86%), rgb(249 248 245 / 86%)), url('./assets/xuan-paper-tile.jpg');
-  background-repeat: repeat;
-  background-size: auto, 300px 300px;
 }
 :root[data-yuanpu-theme='mindlink'] .chat-main,
 :root[data-yuanpu-theme='mindlink'] .chat-panel.is-empty .chat-main,
@@ -106,10 +103,8 @@
   border-right: 0;
   background: var(--yp-sidebar-surface);
 }
-:root[data-yuanpu-theme='mindlink'] .brand-showcase-mindlink { display: flex; min-height: 250px; justify-content: flex-end; gap: 14px; }
-:root[data-yuanpu-theme='mindlink'] .brand-showcase-mindlink .brand-showcase-name { color: var(--yp-brand-text); text-orientation: upright; font-size: 1.25rem; font-weight: 500; letter-spacing: .08em; }
-:root[data-yuanpu-theme='mindlink'] .brand-showcase-mindlink .brand-showcase-roman { writing-mode: vertical-rl; text-orientation: sideways; color: var(--yp-brand-text); font-size: 1rem; letter-spacing: .14em; }
-:root[data-yuanpu-theme='mindlink'] .brand-showcase-mindlink .brand-showcase-seal { width: 48px; height: 48px; max-width: none; }
+:root[data-yuanpu-theme='mindlink'] .brand-showcase-mindlink { display: flex; min-height: 0; align-items: center; justify-content: center; padding: 12px 0; }
+:root[data-yuanpu-theme='mindlink'] .brand-showcase-mindlink .brand-showcase-roman { writing-mode: vertical-rl; text-orientation: mixed; color: var(--yp-brand-text); font-size: 0.75rem; letter-spacing: .14em; }
 :root[data-yuanpu-theme='mindlink'] .chat-panel.is-empty .conversation-inner { padding-bottom: 0; }
 :root[data-yuanpu-theme='mindlink'] .chat-panel.is-empty .composer-wrap { margin-bottom: 0; }
 :root[data-yuanpu-theme='mindlink'] .empty-chat-heading,
@@ -124,12 +119,8 @@
 :root[data-yuanpu-theme='mindlink'] .work-mode:not(.is-empty) .conversation-inner > :not(.mindlink-work-background-track) { position: relative; z-index: 1; }
 :root[data-yuanpu-theme='mindlink'] .mindlink-work-background-track { display: block; position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 :root[data-yuanpu-theme='mindlink'] .mindlink-work-background { display: flex; position: absolute; z-index: 0; top: 46%; left: 50%; flex-direction: column; align-items: center; opacity: .15; pointer-events: none; transform: translate(-50%, -50%); }
-:root[data-yuanpu-theme='mindlink'] .mindlink-work-background img { width: 120px; height: 120px; margin-bottom: 12px; object-fit: contain; }
-:root[data-yuanpu-theme='mindlink'] .mindlink-work-background strong { color: var(--yp-brand-text); font-family: 'Songti SC', 'Noto Serif CJK SC', serif; font-size: 2.1875rem; font-weight: 500; letter-spacing: .09em; white-space: nowrap; }
-:root[data-yuanpu-theme='mindlink'] .mindlink-work-background span { margin-top: 9px; color: var(--yp-brand-text); font-family: Georgia, serif; font-size: 0.8125rem; letter-spacing: .55em; }
-:root[data-yuanpu-theme='mindlink'] .mindlink-welcome img { width: 120px; height: 120px; margin-bottom: 12px; object-fit: contain; }
-:root[data-yuanpu-theme='mindlink'] .mindlink-welcome strong { color: var(--yp-brand-text); font-family: 'Songti SC', 'Noto Serif CJK SC', serif; font-size: 2.1875rem; font-weight: 500; letter-spacing: .09em; }
-:root[data-yuanpu-theme='mindlink'] .mindlink-welcome span { margin-top: 9px; color: var(--yp-brand-text); font-family: Georgia, serif; font-size: 0.8125rem; letter-spacing: .55em; }
+:root[data-yuanpu-theme='mindlink'] .mindlink-work-background span { color: var(--yp-brand-text); font-size: 1.5rem; font-weight: 500; letter-spacing: .12em; white-space: nowrap; }
+:root[data-yuanpu-theme='mindlink'] .mindlink-welcome span { color: var(--yp-brand-text); font-size: 1.75rem; font-weight: 500; letter-spacing: .14em; }
 :root[data-yuanpu-theme='mindlink'] .nav-item:hover { background: #dedbd7; }
 :root[data-yuanpu-theme='mindlink'] .nav-item.active,
 :root[data-yuanpu-theme='mindlink'] .sidebar-footer.settings-trigger.active {

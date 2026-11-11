@@ -50,7 +50,7 @@ test('Work Pi session loads bundled AGENTS.md before workspace context and disco
   context.after(() => chat.dispose());
   await chat.prompt('Reply briefly.');
 
-  assert.match(systemPrompt, /Yuanpu Agent conversation guide/);
+  assert.match(systemPrompt, /MindLink conversation guide/);
   assert.match(systemPrompt, /html-preview/);
   assert.match(systemPrompt, /markdown-visuals/);
   assert.match(systemPrompt, /browser-control/);
@@ -59,7 +59,7 @@ test('Work Pi session loads bundled AGENTS.md before workspace context and disco
   assert.match(systemPrompt, /<name>low-ai-ui-design<\/name>/);
   assert.match(systemPrompt, /Save user-facing artifacts with relative paths under cwd, not \/tmp/);
   assert.match(systemPrompt, /Do not create a file, start a server, or navigate the browser merely to display a diagram/);
-  assert.ok(systemPrompt.indexOf('Yuanpu Agent conversation guide') < systemPrompt.indexOf('PROJECT_CONTEXT_MARKER'));
+  assert.ok(systemPrompt.indexOf('MindLink conversation guide') < systemPrompt.indexOf('PROJECT_CONTEXT_MARKER'));
   assert.ok(systemPrompt.indexOf('<name>markdown-visuals</name>') < systemPrompt.indexOf('<name>low-ai-ui-design</name>'));
 
   await chat.prompt('你生成一个架构图给我看下吧');

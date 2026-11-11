@@ -16,7 +16,7 @@ export function KnowledgePage({ active, onOpen }: { active: boolean; onOpen: (vi
   const visible = items.filter((item) => item.kind === kind);
 
   return <section className={`simple-page saved-content-page ${active ? '' : 'view-hidden'}`} aria-hidden={!active}>
-    <header><span className="eyebrow">YUANPU / KNOWLEDGE</span><h1>知识库</h1><p>整理从助手回复中保存的内容。</p></header>
+    <header><span className="eyebrow">MINDLINK / KNOWLEDGE</span><h1>知识库</h1><p>整理从助手回复中保存的内容。</p></header>
     <div className="saved-content-tabs" role="group" aria-label="保存内容类型">
       <button type="button" aria-pressed={kind === 'knowledge'} onClick={() => setKind('knowledge')}>知识库资料 <span>{items.filter((item) => item.kind === 'knowledge').length}</span></button>
       <button type="button" aria-pressed={kind === 'memory'} onClick={() => setKind('memory')}>记忆 <span>{items.filter((item) => item.kind === 'memory').length}</span></button>

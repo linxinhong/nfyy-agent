@@ -1,7 +1,7 @@
 {
   "brand": {
     "name": "MindLink",
-    "icon": "brand/mindlink-icon.png"
+    "icon": "brand/app-icon.png"
   },
   "navigation": {
     "desktop": true,
@@ -15,7 +15,7 @@
   "welcome": {
     "work": {
       "title": "开始一项工作",
-      "description": "你好，我是 YuanpuAgent。你可以直接开始对话，也可以让我调用外部 MCP 能力。"
+      "description": "你好，我是 MindLink。你可以直接开始对话，也可以让我调用外部 MCP 能力。"
     },
     "assistant": {
       "title": "你的桌面助理",

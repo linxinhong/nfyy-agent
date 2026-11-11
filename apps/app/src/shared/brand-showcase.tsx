@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import mindlinkSeal from '../../themes/assets/mindlink-seal.png';
 import { brandIconUrl } from '../emo.js';
 
-export function BrandShowcase({ variant, name = 'Yuanpu Agent' }: { variant: 'yuanpu' | 'mindlink'; name?: string }) {
+export function BrandShowcase({ variant, name = 'MindLink' }: { variant: 'yuanpu' | 'mindlink'; name?: string }) {
   const [iconFailed, setIconFailed] = useState(false);
   const iconUrl = brandIconUrl();
   return variant === 'yuanpu'
@@ -16,9 +15,7 @@ export function BrandShowcase({ variant, name = 'Yuanpu Agent' }: { variant: 'yu
       </span>
       <span className="brand-showcase-name">{name}</span>
     </div>
-    : <div className="brand-showcase brand-showcase-mindlink" aria-label="元朴思联 MindLink 品牌">
-      <span className="brand-showcase-name">元朴思联</span>
+    : <div className="brand-showcase brand-showcase-mindlink" aria-label="MindLink">
       <span className="brand-showcase-roman">MindLink</span>
-      <img className="brand-showcase-seal" src={mindlinkSeal} alt="" />
     </div>;
 }
