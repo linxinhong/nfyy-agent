@@ -191,7 +191,18 @@ jobs:
           APPLE_TEAM_ID: ${{ env.NOTARIZE_METHOD == 'apple-id' && secrets.APPLE_TEAM_ID || '' }}
           YUANPU_ARTIFACT_TRUST_ROOT_PUBLIC_KEY_BASE64: ${{ secrets.YUANPU_ARTIFACT_TRUST_ROOT_PUBLIC_KEY_BASE64 }}
           YUANPU_ARTIFACT_SIGNING_KEY_ID: ${{ secrets.YUANPU_ARTIFACT_SIGNING_KEY_ID }}
-        run: pnpm package:desktop
+        run: |
+          # electron-builder treats an empty CSC_LINK as a certificate path
+          # (the package directory) and fails with "not a file".
+          if [ -z "$CSC_LINK" ]; then
+            unset CSC_LINK CSC_KEY_PASSWORD
+          fi
+          [ -z "${APPLE_API_KEY_ID:-}" ] && unset APPLE_API_KEY_ID
+          [ -z "${APPLE_API_ISSUER:-}" ] && unset APPLE_API_ISSUER
+          [ -z "${APPLE_ID:-}" ] && unset APPLE_ID
+          [ -z "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] && unset APPLE_APP_SPECIFIC_PASSWORD
+          [ -z "${APPLE_TEAM_ID:-}" ] && unset APPLE_TEAM_ID
+          pnpm package:desktop
 
       - name: Verify macOS signature and notarization
         if: matrix.target == 'darwin-arm64'
