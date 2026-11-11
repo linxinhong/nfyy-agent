@@ -91,7 +91,7 @@ jobs:
           PLATFORMS: ${{ inputs.platforms || 'all' }}
           MODE: ${{ inputs.artifact-mode }}
         run: |
-          all='[{"os":"ubuntu-24.04","target":"linux-x64"},{"os":"macos-14","target":"darwin-arm64"},{"os":"windows-2022","target":"win32-x64"}]'
+          all='[{"os":"ubuntu-24.04","target":"linux-x64"},{"os":"macos-15","target":"darwin-arm64"},{"os":"windows-2022","target":"win32-x64"}]'
           matrix=$(jq -c --arg p "$PLATFORMS" '[.[] | select($p == "all" or .target == $p)]' <<<"$all")
           if [ "$matrix" = "[]" ]; then echo "::error::Unknown platform: $PLATFORMS"; exit 1; fi
           if [ "$MODE" = "draft-release" ] && [ "$PLATFORMS" != "darwin-arm64" ]; then
