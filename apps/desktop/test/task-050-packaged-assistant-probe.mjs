@@ -7,7 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 // A packaged Electron/SEA business probe. All content and model responses are synthetic.
-const executable = resolve(import.meta.dirname, '../release/mac-arm64/MindLink.app/Contents/MacOS/MindLink');
+const executable = resolve(import.meta.dirname, '../release/mac-arm64/南医小助.app/Contents/MacOS/nanyi-xiaozhu');
 const root = await mkdtemp(join(tmpdir(), 'yp-task-050-packaged-'));
 const home = join(root, 'home');
 const userData = join(root, 'user-data');

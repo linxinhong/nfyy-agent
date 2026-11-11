@@ -523,7 +523,7 @@ export class PluginManager {
       const plugin = name === 'pi-mcp' ? builtinMcpPlugin : (await this.readState()).plugins[name];
       if (!plugin) throw new Error(`未安装插件：${name}`);
       const adapter = await this.configAdapter(plugin);
-      if (!adapter) throw new Error(`${name} 未声明可由 MindLink 管理的配置。`);
+      if (!adapter) throw new Error(`${name} 未声明可由南医小助管理的配置。`);
       return this.configDocument(plugin, adapter, scope);
     });
   }
@@ -533,7 +533,7 @@ export class PluginManager {
       const plugin = input.name === 'pi-mcp' ? builtinMcpPlugin : (await this.readState()).plugins[input.name];
       if (!plugin) throw new Error(`未安装插件：${input.name}`);
       const adapter = await this.configAdapter(plugin);
-      if (!adapter) throw new Error(`${input.name} 未声明可由 MindLink 管理的配置。`);
+      if (!adapter) throw new Error(`${input.name} 未声明可由南医小助管理的配置。`);
       if (input.scope === 'workspace' && !adapter.supportsWorkspace) {
         return { valid: false, errors: [`${input.name} 不支持工作区级配置。`] };
       }
@@ -546,7 +546,7 @@ export class PluginManager {
       const plugin = input.name === 'pi-mcp' ? builtinMcpPlugin : (await this.readState()).plugins[input.name];
       if (!plugin) throw new Error(`未安装插件：${input.name}`);
       const adapter = await this.configAdapter(plugin);
-      if (!adapter) throw new Error(`${input.name} 未声明可由 MindLink 管理的配置。`);
+      if (!adapter) throw new Error(`${input.name} 未声明可由南医小助管理的配置。`);
       if (input.scope === 'workspace' && !adapter.supportsWorkspace) {
         throw new Error(`${input.name} 不支持工作区级配置。`);
       }
@@ -562,7 +562,7 @@ export class PluginManager {
       const plugin = name === 'pi-mcp' ? builtinMcpPlugin : (await this.readState()).plugins[name];
       if (!plugin) throw new Error(`未安装插件：${name}`);
       const adapter = await this.configAdapter(plugin);
-      if (!adapter) throw new Error(`${name} 未声明可由 MindLink 管理的配置。`);
+      if (!adapter) throw new Error(`${name} 未声明可由南医小助管理的配置。`);
       if (scope === 'workspace' && !adapter.supportsWorkspace) {
         throw new Error(`${name} 不支持工作区级配置。`);
       }

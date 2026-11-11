@@ -12,7 +12,7 @@ await Promise.all([
   writeFile(join(outputRoot, 'theme.css'), stylesheet),
   writeFile(join(outputRoot, 'theme.json'), `${JSON.stringify({
     id: 'mindlink-test',
-    name: 'MindLink（测试）',
+    name: '南医小助（测试）',
     version: 1,
     temporary: true,
     base: 'tokens.css',

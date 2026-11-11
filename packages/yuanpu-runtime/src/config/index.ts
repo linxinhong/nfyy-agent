@@ -46,7 +46,7 @@ const DEFAULT_CONFIG: Omit<YuanpuConfig, 'workingDirectory'> = {
 };
 
 function validateConfig(value: unknown, configPath: string): YuanpuConfig {
-  if (!value || typeof value !== 'object') throw new Error(`Invalid MindLink config: ${configPath}`);
+  if (!value || typeof value !== 'object') throw new Error(`Invalid 南医小助 config: ${configPath}`);
   const config = value as Partial<YuanpuConfig>;
   if (
     config.schemaVersion !== 1
@@ -72,7 +72,7 @@ function validateConfig(value: unknown, configPath: string): YuanpuConfig {
       || Object.values(config.hotkeys).some((binding) => binding !== null && typeof binding !== 'string')
     ))
   ) {
-    throw new Error(`Invalid MindLink config: ${configPath}`);
+    throw new Error(`Invalid 南医小助 config: ${configPath}`);
   }
   return { ...config } as YuanpuConfig;
 }
@@ -104,7 +104,7 @@ async function writePrivateJson(path: string, value: unknown): Promise<void> {
 
 function jsonObject(value: unknown, path: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`Invalid MindLink JSON: ${path}`);
+    throw new Error(`Invalid 南医小助 JSON: ${path}`);
   }
   return value as Record<string, unknown>;
 }
@@ -182,12 +182,12 @@ async function migrateLegacyModelConfig(configPath: string, appPath: string, con
     }
     if (!models || typeof models !== 'object' || Array.isArray(models)
       || !models.providers || typeof models.providers !== 'object' || Array.isArray(models.providers)) {
-      throw new Error(`Invalid MindLink models: ${modelsPath}`);
+      throw new Error(`Invalid 南医小助 models: ${modelsPath}`);
     }
     const providers = models.providers as Record<string, unknown>;
     const existing = providers[config.provider];
     if (existing !== undefined && (!existing || typeof existing !== 'object' || Array.isArray(existing))) {
-      throw new Error(`Invalid MindLink models: ${modelsPath}`);
+      throw new Error(`Invalid 南医小助 models: ${modelsPath}`);
     }
     const definition = existing as Record<string, unknown> | undefined;
     if (definition && (
@@ -282,7 +282,7 @@ export async function ensureYuanpuHome(root = join(homedir(), '.yuanpu')): Promi
   try {
     await writeFile(
       memoryFile,
-      '# MindLink memory\n\nAdd durable preferences and working context here.\n',
+      '# 南医小助 memory\n\nAdd durable preferences and working context here.\n',
       { flag: 'wx' },
     );
   } catch (error) {

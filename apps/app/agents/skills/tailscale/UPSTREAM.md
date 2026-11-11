@@ -5,4 +5,4 @@
 - License: BSD-3-Clause; see `LICENSE` in this directory.
 - Imported content: `skills/tailscale/SKILL.md` and all `skills/tailscale/references/*.md` files.
 
-MindLink adds integration notes to `SKILL.md` for `fetch_content` and the local connection settings, and replaces one Claude-specific reference with “the agent”. The reference files are otherwise copied without changes.
+南医小助 adds integration notes to `SKILL.md` for `fetch_content` and the local connection settings, and replaces one Claude-specific reference with “the agent”. The reference files are otherwise copied without changes.

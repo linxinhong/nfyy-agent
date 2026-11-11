@@ -281,12 +281,12 @@ export function AiTicketsPanel({ conversationId, desktop }: {
         <div className="ai-ticket-messages" ref={chatMessages}>
           {!selected.messages?.length && <p className="ai-ticket-muted">正在创建工单会话…</p>}
           {selected.messages?.map((message) => <article className={`message ${message.role}`} key={message.id}>
-            <div className="message-label">{message.role === 'user' ? '你' : 'MindLink'}</div>
+            <div className="message-label">{message.role === 'user' ? '你' : '南医小助'}</div>
             <div className="message-body">{message.role === 'assistant'
               ? <AssistantReply text={message.text} surface="work" run={message.run} /> : <p>{message.text}</p>}</div>
           </article>)}
           {selected.status === 'running' && <article className="message assistant pending">
-            <div className="message-label">MindLink</div>
+            <div className="message-label">南医小助</div>
             {selected.progress || selected.liveRun ? <div className="message-body"><AssistantReply text={selected.progress ?? ''}
               surface="work" run={selected.liveRun} pending /></div>
               : <div className="thinking"><span /><span /><span /> 正在处理</div>}

@@ -1,4 +1,4 @@
-/* Opt-in test palette inspired by the supplied MindLink screenshot. */
+/* Warm palette. The product name stays horizontal; this theme has no side lockup. */
 :root[data-yuanpu-theme='mindlink'] {
   --yp-app-backdrop: #eae8e5;
   --yp-sidebar-surface: #eae8e5;
@@ -35,9 +35,7 @@
   --yp-assistant-gradient-end: #f3dfc7;
   --yp-assistant-card-surface: rgb(255 253 250 / 78%);
 }
-:root[data-yuanpu-theme='mindlink'] .app-shell { grid-template-columns: 50px minmax(0, 1fr) 50px; background: var(--yp-app-backdrop); }
-:root[data-yuanpu-theme='mindlink'] .brand-rail { display: flex; background: var(--yp-app-backdrop); }
-:root[data-yuanpu-theme='mindlink'] .sidebar-bottom .brand-showcase-yuanpu { display: none; }
+:root[data-yuanpu-theme='mindlink'] .app-shell { grid-template-columns: 50px minmax(0, 1fr); background: var(--yp-app-backdrop); }
 
 :root[data-yuanpu-theme='mindlink'] .page-host {
   padding: 50px 0 7px;
@@ -103,8 +101,6 @@
   border-right: 0;
   background: var(--yp-sidebar-surface);
 }
-:root[data-yuanpu-theme='mindlink'] .brand-showcase-mindlink { display: flex; min-height: 0; align-items: center; justify-content: center; padding: 12px 0; }
-:root[data-yuanpu-theme='mindlink'] .brand-showcase-mindlink .brand-showcase-roman { writing-mode: vertical-rl; text-orientation: mixed; color: var(--yp-brand-text); font-size: 0.75rem; letter-spacing: .14em; }
 :root[data-yuanpu-theme='mindlink'] .chat-panel.is-empty .conversation-inner { padding-bottom: 0; }
 :root[data-yuanpu-theme='mindlink'] .chat-panel.is-empty .composer-wrap { margin-bottom: 0; }
 :root[data-yuanpu-theme='mindlink'] .empty-chat-heading,
@@ -119,8 +115,8 @@
 :root[data-yuanpu-theme='mindlink'] .work-mode:not(.is-empty) .conversation-inner > :not(.mindlink-work-background-track) { position: relative; z-index: 1; }
 :root[data-yuanpu-theme='mindlink'] .mindlink-work-background-track { display: block; position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 :root[data-yuanpu-theme='mindlink'] .mindlink-work-background { display: flex; position: absolute; z-index: 0; top: 46%; left: 50%; flex-direction: column; align-items: center; opacity: .15; pointer-events: none; transform: translate(-50%, -50%); }
-:root[data-yuanpu-theme='mindlink'] .mindlink-work-background span { color: var(--yp-brand-text); font-size: 1.5rem; font-weight: 500; letter-spacing: .12em; white-space: nowrap; }
-:root[data-yuanpu-theme='mindlink'] .mindlink-welcome span { color: var(--yp-brand-text); font-size: 1.75rem; font-weight: 500; letter-spacing: .14em; }
+:root[data-yuanpu-theme='mindlink'] .mindlink-work-background span,
+:root[data-yuanpu-theme='mindlink'] .mindlink-welcome span { writing-mode: horizontal-tb; color: var(--yp-brand-text); font-size: 1.75rem; font-weight: 500; letter-spacing: 0.08em; white-space: nowrap; }
 :root[data-yuanpu-theme='mindlink'] .nav-item:hover { background: #dedbd7; }
 :root[data-yuanpu-theme='mindlink'] .nav-item.active,
 :root[data-yuanpu-theme='mindlink'] .sidebar-footer.settings-trigger.active {
@@ -129,7 +125,6 @@
 }
 @media (max-width: 780px) {
   :root[data-yuanpu-theme='mindlink'] .app-shell { grid-template-columns: 1fr; }
-  :root[data-yuanpu-theme='mindlink'] .brand-rail { display: none; }
   :root[data-yuanpu-theme='mindlink'] .page-host { padding: 0; }
   :root[data-yuanpu-theme='mindlink'] .chat-panel { --yp-chat-content-row: 2; grid-template-rows: 50px minmax(0, 1fr); overflow: hidden; }
   :root[data-yuanpu-theme='mindlink'] .chat-main,

@@ -162,7 +162,7 @@ export function App() {
           </button>)}</nav>
 
         <div className="sidebar-bottom full-sidebar-bottom">
-          <BrandShowcase variant="yuanpu" name={emo.brand.name} />
+          <BrandShowcase name={emo.brand.name} />
           <button className={`sidebar-footer settings-trigger ${view === 'settings' ? 'active' : ''}`} type="button"
             title="设置" aria-label="设置" onClick={() => setView('settings')}><AppIcon name="settings" /></button>
           <div className="profile-avatar" role="img" aria-label={`${emo.brand.name} 头像`}><AvatarMark /></div>
@@ -217,7 +217,6 @@ export function App() {
           },
         })}
       </div>)}
-      <aside className="brand-rail" aria-label="品牌"><BrandShowcase variant="mindlink" /></aside>
     </main></PageToolbarHost.Provider>
   );
 }

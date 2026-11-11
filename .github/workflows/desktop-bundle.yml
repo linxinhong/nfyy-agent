@@ -353,10 +353,10 @@ jobs:
         shell: bash
         run: |
           short=${GITHUB_SHA::7}
-          tag="mindlink-macos-build-${GITHUB_RUN_NUMBER}"
+          tag="nanyi-xiaozhu-macos-build-${GITHUB_RUN_NUMBER}"
           # A draft does not create the tag until it is published.
           gh release create "$tag" --draft --target "$GITHUB_SHA" \
-            --title "MindLink macOS build #${GITHUB_RUN_NUMBER} (${short})" \
+            --title "南医小助 macOS build #${GITHUB_RUN_NUMBER} (${short})" \
             --notes "Signed macOS (Apple silicon) build of ${short} from run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Draft only; delete it when no longer needed." \
             apps/desktop/release/draft/*
           echo "Draft release: $(gh release view "$tag" --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"

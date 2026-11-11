@@ -157,7 +157,7 @@ async def yuanpu_show_message(
     title: Annotated[
         str,
         Field(description="Short title displayed above the message.", min_length=1, max_length=80),
-    ] = "MindLink",
+    ] = "南医小助",
 ) -> DialogResult:
     """Show one native desktop dialog after the host grants one-time approval."""
 

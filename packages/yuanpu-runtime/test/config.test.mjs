@@ -130,7 +130,7 @@ test('notification preference is read from app config and rejects non-boolean va
   assert.equal((await ensureYuanpuHome(root)).config.notifications.enabled, false);
 
   await writeFile(configPath, JSON.stringify({ ...base, notifications: { enabled: 'no' } }));
-  await assert.rejects(ensureYuanpuHome(root), /Invalid MindLink config/);
+  await assert.rejects(ensureYuanpuHome(root), /Invalid 南医小助 config/);
   await writeFile(configPath, JSON.stringify({ ...base, notifications: null }));
-  await assert.rejects(ensureYuanpuHome(root), /Invalid MindLink config/);
+  await assert.rejects(ensureYuanpuHome(root), /Invalid 南医小助 config/);
 });

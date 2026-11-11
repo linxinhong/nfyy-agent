@@ -1,6 +1,6 @@
 ---
 name: word-revision
-description: Read, find, and revise text in documents open in Microsoft Word for Mac through the built-in WordBridge (MindLink add-in). Edits are written back as tracked changes the user can accept or reject. Also creates new .docx files.
+description: Read, find, and revise text in documents open in Microsoft Word for Mac through the built-in WordBridge (南医小助 add-in). Edits are written back as tracked changes the user can accept or reject. Also creates new .docx files.
 ---
 
 # Word revision (WordBridge)
@@ -9,7 +9,7 @@ WordBridge connects this App to Microsoft Word for Mac. Its tools are deferred M
 
 ## Before the first call
 
-Word must have a document open with the add-in pane open: in Word choose **Home → MindLink → 打开 MindLink**. A green dot in the pane means it is connected. If a tool reports that no add-in is connected (`没有已连接的 Word 加载项`), ask the user to open the pane and try again. Do not retry in a loop.
+Word must have a document open with the add-in pane open: in Word choose **Home → 南医小助 → 打开南医小助**. A green dot in the pane means it is connected. If a tool reports that no add-in is connected (`没有已连接的 Word 加载项`), ask the user to open the pane and try again. Do not retry in a loop.
 
 ## Tools
 

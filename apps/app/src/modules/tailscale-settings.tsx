@@ -60,7 +60,7 @@ export function TailscaleSettingsPanel({ active, configRoot }: { active: boolean
   }
 
   return <section className="tailscale-settings" aria-label="Tailscale 连接配置">
-    <header><h2>Tailscale</h2><p>输入一次 Auth Key，MindLink 就会以独立设备身份加入 Tailnet，无需安装 Tailscale。只有 Tailnet 内的地址（100.x、*.ts.net、子网路由）经由该连接，其他网络访问不受影响。</p></header>
+    <header><h2>Tailscale</h2><p>输入一次 Auth Key，南医小助就会以独立设备身份加入 Tailnet，无需安装 Tailscale。只有 Tailnet 内的地址（100.x、*.ts.net、子网路由）经由该连接，其他网络访问不受影响。</p></header>
     {query.data && <NodeStatus node={query.data.node} />}
     {!desktop && <p role="status">请在桌面应用中配置 Tailscale。</p>}
     {query.isLoading && <p role="status">正在读取配置…</p>}

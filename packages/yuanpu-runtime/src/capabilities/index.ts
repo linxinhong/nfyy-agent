@@ -375,7 +375,7 @@ export class CapabilityRegistry implements CapabilityToolClient {
 export const YUANPU_MCP_TOOLS: readonly CapabilityToolDefinition[] = [
   {
     name: CAPABILITY_TOOL_NAMES.search,
-    description: 'Find MindLink-managed external capabilities available in the current workspace.',
+    description: 'Find external capabilities managed by 南医小助 that are available in the current workspace.',
     inputSchema: {
       type: 'object',
       properties: {

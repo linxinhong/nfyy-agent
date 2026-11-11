@@ -323,7 +323,7 @@ export function ScheduleManagement({
   return (
     <section className={`management-panel ${active ? '' : 'view-hidden'}`} aria-hidden={!active}>
       <header className="management-header">
-        <div><h1>定时任务</h1><p>让 MindLink 按计划执行任务，并分别查看执行与投递结果。</p></div>
+        <div><h1>定时任务</h1><p>让南医小助按计划执行任务，并分别查看执行与投递结果。</p></div>
         <div className="management-header-actions">
           <ManagementStatus kind={desktop ? 'good' : 'muted'}>{desktop ? 'Runtime 数据' : '浏览器演示数据'}</ManagementStatus>
           <button type="button" className="management-primary" onClick={beginCreate}>＋ 新建任务</button>

@@ -388,7 +388,7 @@ try {
     await page.screenshot({ path: join(evidence, 'electron-legacy-readonly.png') });
   }
   await page.goto(`${rendererUrl}#/settings`);
-  for (const [name, value] of [['浅色', 'yuanpu-light'], ['深色', 'yuanpu-dark'], ['MindLink 测试主题', 'mindlink']]) {
+  for (const [name, value] of [['浅色', 'yuanpu-light'], ['深色', 'yuanpu-dark'], ['暖色', 'mindlink']]) {
     await page.getByRole('group', { name: '界面主题' }).getByRole('button', { name }).click();
     assert.equal(await page.evaluate(() => document.documentElement.dataset.yuanpuTheme), value);
     await page.goto(`${rendererUrl}#/work`);

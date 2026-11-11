@@ -58,7 +58,7 @@ pnpm smoke:native
 pnpm package:native
 ```
 
-构建当前平台的 Electron 安装包（会先构建并嵌入 SEA Runtime；macOS arm64 还会准备 WordBridge，并用 Go 编译内置 tailscaled）。安装包名称为 **MindLink**：
+构建当前平台的 Electron 安装包（会先构建并嵌入 SEA Runtime；macOS arm64 还会准备 WordBridge，并用 Go 编译内置 tailscaled）。应用显示名称为 **南医小助**，安装包文件名使用 `nanyi-xiaozhu`：
 
 ```bash
 pnpm package:desktop

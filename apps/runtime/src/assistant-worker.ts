@@ -454,6 +454,7 @@ export async function runAssistantWorker(): Promise<void> {
             const memoryPlaceholders = new Set([
               '# YuanpuAgent memory\n\nAdd durable preferences and working context here.',
               '# MindLink memory\n\nAdd durable preferences and working context here.',
+              '# 南医小助 memory\n\nAdd durable preferences and working context here.',
             ]);
             if (text?.trim() && !memoryPlaceholders.has(text.trim())) {
               await memory.importLegacyMemory({ id: 'legacy-memory', text,

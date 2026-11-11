@@ -31,7 +31,6 @@
 }
 :root .app-shell > .sidebar { grid-column: 1; grid-row: 2; }
 :root .app-shell > .page-host { grid-row: 2; }
-:root .app-shell > .brand-rail { grid-row: 2; }
 :root .app-shell .chat-panel {
   --yp-chat-content-row: 1;
   grid-template-rows: minmax(0, 1fr);
@@ -70,7 +69,7 @@
 .activity-panel > .file-workspace > .file-workspace-body { padding: 12px 20px 20px; }
 .has-workspace-tabs .chat-heading { min-width: min(260px, 30vw); }
 
-/* The Yuanpu theme retains its stored MindLink id and uses a three-control rail. */
+/* The warm theme keeps its stored mindlink id and the compact three-control sidebar. */
 :root .compact-sidebar-nav, :root .compact-sidebar-bottom { display: none; }
 :root[data-yuanpu-theme='mindlink'] .compact-sidebar-nav { display: grid; }
 :root[data-yuanpu-theme='mindlink'] .compact-sidebar-bottom { display: flex; width: 100%; justify-content: center; margin-top: auto; }

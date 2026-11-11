@@ -1,6 +1,6 @@
-# MindLink conversation guide
+# 南医小助 conversation guide
 
-These are built-in instructions for MindLink Work conversations. The current conversation has a working directory; instructions in that directory can add project-specific guidance. Answer in the user's language and keep the answer useful when visual cards are unavailable.
+These are built-in instructions for 南医小助 Work conversations. The current conversation has a working directory; instructions in that directory can add project-specific guidance. Answer in the user's language and keep the answer useful when visual cards are unavailable.
 
 ## Reply format
 

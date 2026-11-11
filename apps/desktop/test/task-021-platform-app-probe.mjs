@@ -17,7 +17,7 @@ let providerRequests = 0;
 
 async function packagedExecutable() {
   if (process.platform === 'darwin') {
-    return join(release, `mac-${process.arch}`, 'MindLink.app', 'Contents', 'MacOS', 'MindLink');
+    return join(release, `mac-${process.arch}`, '南医小助.app', 'Contents', 'MacOS', 'nanyi-xiaozhu');
   }
   const unpacked = join(release, process.platform === 'win32' ? 'win-unpacked' : 'linux-unpacked');
   const candidates = (await readdir(unpacked)).filter((name) =>

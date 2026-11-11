@@ -5,10 +5,10 @@
   xsi:type="TaskPaneApp">
   <Id>2f9a1c7e-4d5b-4a6e-8f3d-1a2b3c4d5e6f</Id>
   <Version>1.0.0.0</Version>
-  <ProviderName>MindLink</ProviderName>
+  <ProviderName>南医小助</ProviderName>
   <DefaultLocale>zh-CN</DefaultLocale>
-  <DisplayName DefaultValue="MindLink"/>
-  <Description DefaultValue="MindLink：选中文字 → 模型最小改动 → 回填 Word"/>
+  <DisplayName DefaultValue="南医小助"/>
+  <Description DefaultValue="南医小助：选中文字 → 模型最小改动 → 回填 Word"/>
   <IconUrl DefaultValue="https://localhost:9879/assets/icon-32.png"/>
   <SupportUrl DefaultValue="https://localhost:9879/"/>
   <AppDomains>
@@ -66,9 +66,9 @@
         <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:9879/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="Group.Label" DefaultValue="MindLink"/>
-        <bt:String id="Open.Label" DefaultValue="打开 MindLink"/>
-        <bt:String id="Open.Title" DefaultValue="打开 MindLink 面板"/>
+        <bt:String id="Group.Label" DefaultValue="南医小助"/>
+        <bt:String id="Open.Label" DefaultValue="打开南医小助"/>
+        <bt:String id="Open.Title" DefaultValue="打开南医小助面板"/>
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String id="Open.Desc" DefaultValue="选中文字后让模型做最小改动并回填 Word"/>

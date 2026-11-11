@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 const release = resolve(import.meta.dirname, '../release');
 const target = `${process.platform}-${process.arch}`;
 const unpacked = process.platform === 'darwin'
-  ? join(release, `mac-${process.arch}`, 'MindLink.app', 'Contents', 'Resources')
+  ? join(release, `mac-${process.arch}`, '南医小助.app', 'Contents', 'Resources')
   : join(release, process.platform === 'win32' ? 'win-unpacked' : 'linux-unpacked', 'resources');
 const runtimeDir = join(unpacked, 'runtime');
 const runtimeNames = (await readdir(runtimeDir)).filter((name) =>

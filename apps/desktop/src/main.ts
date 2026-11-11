@@ -40,11 +40,11 @@ function readEmoBrand(): { name: string; icon: string } {
       brand?: { name?: unknown; icon?: unknown };
     };
     const name = typeof config.brand?.name === 'string' && config.brand.name.trim()
-      ? config.brand.name : 'MindLink';
+      ? config.brand.name : '南医小助';
     const icon = typeof config.brand?.icon === 'string' ? resolve(iconRoot, config.brand.icon) : '';
     return { name, icon: icon.startsWith(`${iconRoot}${sep}`) && existsSync(icon) ? icon : '' };
   } catch {
-    return { name: 'MindLink', icon: '' };
+    return { name: '南医小助', icon: '' };
   }
 }
 
@@ -161,7 +161,7 @@ function createWindow(): void {
   }
 }
 
-// The packaged product was renamed from "Yuanpu Agent" to "MindLink". Electron
+// The packaged display name is 南医小助. Electron
 // derives userData from the product name, so keep the original directory to
 // preserve stored credentials and staged Runtime updates across the rename.
 if (app.isPackaged && !app.commandLine.hasSwitch('user-data-dir')) {
@@ -514,8 +514,8 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   });
 }).catch((error) => {
   const message = error instanceof Error ? error.message : String(error);
-  console.error('MindLink Runtime startup failed:', message);
-  dialog.showErrorBox('MindLink 无法启动', message);
+  console.error('南医小助 Runtime startup failed:', message);
+  dialog.showErrorBox('南医小助无法启动', message);
   app.quit();
 });
 

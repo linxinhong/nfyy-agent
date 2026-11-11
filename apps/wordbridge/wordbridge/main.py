@@ -170,7 +170,7 @@ class WordBridgeApp:
 
         # 热键已废弃 — 改用 MCP word_get_active_selection 主动强挖
         self.log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        self.log.info("  WordBridge 已就绪，等待 MindLink 连接")
+        self.log.info("  WordBridge 已就绪，等待南医小助连接")
         self.log.info("  使用 word_get_active_selection 主动拉取 Word 选区")
         self.log.info("  按 Ctrl+C 停止服务")
         self.log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -266,7 +266,7 @@ class WordBridgeApp:
                 for captured in captured_list:
                     self.registry.create(captured)
                 self.log.info(
-                    "✓ 已捕获 %d 个区域（可通过 MindLink 处理）",
+                    "✓ 已捕获 %d 个区域（可通过南医小助处理）",
                     len(captured_list),
                 )
             else:
@@ -304,7 +304,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="WordBridge — MindLink ↔ Word 后台桥接服务",
+        description="WordBridge — 南医小助 ↔ Word 后台桥接服务",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
@@ -322,7 +322,7 @@ def main():
     parser.add_argument(
         "--no-hotkey",
         action="store_true",
-        help="禁用全局热键（仅通过 MindLink MCP 工具调用）",
+        help="禁用全局热键（仅通过南医小助 MCP 工具调用）",
     )
     parser.add_argument(
         "--debug",

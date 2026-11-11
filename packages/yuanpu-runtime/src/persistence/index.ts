@@ -682,7 +682,7 @@ function applyMigrations(database: DatabaseSync): number {
   ).get() as { version: number };
   if (row.version > YUANPU_METADATA_SCHEMA_VERSION) {
     throw new Error(
-      `MindLink metadata schema ${row.version} is newer than supported ${YUANPU_METADATA_SCHEMA_VERSION}.`,
+      `南医小助 metadata schema ${row.version} is newer than supported ${YUANPU_METADATA_SCHEMA_VERSION}.`,
     );
   }
   const pending = migrations.filter((migration) => migration.version > row.version);
@@ -789,7 +789,7 @@ export function openYuanpuMetadataDatabase(path: string): YuanpuMetadataDatabase
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     try {
       if (lstatSync(path).isSymbolicLink()) {
-        throw new Error('Refusing to open a symbolic link as the MindLink metadata database.');
+        throw new Error('Refusing to open a symbolic link as the 南医小助 metadata database.');
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;

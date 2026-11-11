@@ -94,7 +94,7 @@ export function SettingsPage({ active, configRoot }: { active: boolean; configRo
     setFont(nextPreference);
   };
   return <section className={`settings-page ${active ? '' : 'view-hidden'}`} aria-hidden={!active}>
-    <aside className="settings-navigation"><span className="eyebrow">MINDLINK / SETTINGS</span><h1>设置</h1>
+    <aside className="settings-navigation"><span className="eyebrow">南医小助 / SETTINGS</span><h1>设置</h1>
       <button type="button" className={section === 'general' ? 'selected' : ''} onClick={() => setSection('general')}>通用</button>
       <button type="button" className={section === 'models' ? 'selected' : ''} onClick={() => setSection('models')}>模型</button>
       <button type="button" className={section === 'hotkeys' ? 'selected' : ''} onClick={() => setSection('hotkeys')}>快捷键</button>
