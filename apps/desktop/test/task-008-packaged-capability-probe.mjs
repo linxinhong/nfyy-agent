@@ -2,13 +2,11 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+import { packagedResourcesDir } from './packaged-mac-app.mjs';
 
-const release = resolve(import.meta.dirname, '../release');
 const target = `${process.platform}-${process.arch}`;
-const unpacked = process.platform === 'darwin'
-  ? join(release, `mac-${process.arch}`, '南医小助.app', 'Contents', 'Resources')
-  : join(release, process.platform === 'win32' ? 'win-unpacked' : 'linux-unpacked', 'resources');
+const unpacked = packagedResourcesDir();
 const runtimeDir = join(unpacked, 'runtime');
 const runtimeNames = (await readdir(runtimeDir)).filter((name) =>
   name === `YuanpuAgentRuntime-${target}${process.platform === 'win32' ? '.exe' : ''}`);

@@ -5,6 +5,7 @@ import { chmod, copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } fr
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { findPackagedMacApp } from './packaged-mac-app.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { promisify } from 'node:util';
 
@@ -12,9 +13,7 @@ import { SEA_SENTINEL_FUSE } from '../../runtime/scripts/native/lib.mjs';
 
 const execFileAsync = promisify(execFile);
 
-const appBundle = resolve(
-  process.env.TASK_021_PACKAGED_APP_PATH || resolve(import.meta.dirname, '../release/mac-arm64/南医小助.app'),
-);
+const appBundle = resolve(process.env.TASK_021_PACKAGED_APP_PATH || findPackagedMacApp());
 const executable = join(appBundle, 'Contents', 'MacOS', 'nanyi-xiaozhu');
 const bundledSea = join(appBundle, 'Contents', 'Resources', 'runtime', 'YuanpuAgentRuntime-darwin-arm64');
 const versionedSeaVersion = '0.1.1-test.021';

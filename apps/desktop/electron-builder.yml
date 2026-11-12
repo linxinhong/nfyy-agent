@@ -1,6 +1,7 @@
 appId: com.yuanpu.agent
 productName: "南医小助"
 asar: true
+afterPack: ./scripts/after-pack.cjs
 directories:
   output: release
 files:
@@ -33,8 +34,32 @@ artifactName: 'nanyi-xiaozhu-${version}-${os}-${arch}.${ext}'
 executableName: nanyi-xiaozhu
 mac:
   icon: dist/emo-icon.png
-  # WordBridge (Word revision bridge) ships only in the macOS bundle; see apps/wordbridge.
+  # Platform extraResources replace the top-level list in electron-builder, so macOS
+  # must restate app/runtime/capabilities plus the mac-only payloads.
   extraResources:
+    - from: ../app/dist
+      to: app
+      filter:
+        - '**/*'
+    - from: ../app/agents
+      to: app/agents
+      filter:
+        - '**/*'
+    - from: ../app/emo.json
+      to: app/emo.json
+    - from: ../app/src/assets/brand
+      to: app/brand
+      filter:
+        - '*.png'
+    - from: ../runtime/dist-native/bin
+      to: runtime
+      filter:
+        - 'YuanpuAgentRuntime-*'
+    - from: ../python-capabilities/dist-artifact/bundle
+      to: capabilities/builtin.python.echo
+      filter:
+        - '**/*'
+    # WordBridge (Word revision bridge) ships only in the macOS bundle; see apps/wordbridge.
     - from: ../wordbridge/dist
       to: wordbridge
       filter:

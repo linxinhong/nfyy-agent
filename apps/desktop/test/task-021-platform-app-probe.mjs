@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { packagedMacExecutable } from './packaged-mac-app.mjs';
 import { DatabaseSync } from 'node:sqlite';
 
 const release = resolve(import.meta.dirname, '../release');
@@ -17,7 +18,7 @@ let providerRequests = 0;
 
 async function packagedExecutable() {
   if (process.platform === 'darwin') {
-    return join(release, `mac-${process.arch}`, '南医小助.app', 'Contents', 'MacOS', 'nanyi-xiaozhu');
+    return packagedMacExecutable();
   }
   const unpacked = join(release, process.platform === 'win32' ? 'win-unpacked' : 'linux-unpacked');
   const candidates = (await readdir(unpacked)).filter((name) =>

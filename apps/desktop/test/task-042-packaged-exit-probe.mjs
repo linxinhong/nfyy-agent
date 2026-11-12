@@ -3,9 +3,10 @@ import { execFileSync, spawn } from 'node:child_process';
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+import { findPackagedMacApp } from './packaged-mac-app.mjs';
 
-const bundle = resolve(import.meta.dirname, '../release/mac-arm64/南医小助.app');
+const bundle = findPackagedMacApp();
 const executable = join(bundle, 'Contents', 'MacOS', 'nanyi-xiaozhu');
 const root = await mkdtemp(join(tmpdir(), 'yuanpu-task-042-app-exit-'));
 const home = join(root, 'home');

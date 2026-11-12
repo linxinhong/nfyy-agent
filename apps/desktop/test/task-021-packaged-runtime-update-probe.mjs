@@ -3,12 +3,13 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+import { packagedResourcesDir } from './packaged-mac-app.mjs';
 import { DatabaseSync } from 'node:sqlite';
 
 import { RuntimeManager } from '../dist/runtime-manager.cjs';
 
-const packagedResources = resolve(import.meta.dirname, '../release/mac-arm64/南医小助.app/Contents/Resources');
+const packagedResources = packagedResourcesDir();
 const bundledSea = join(packagedResources, 'runtime', 'YuanpuAgentRuntime-darwin-arm64');
 const root = await mkdtemp(join(tmpdir(), 'yuanpu-task-021-packaged-update-'));
 const userData = join(root, 'user-data');

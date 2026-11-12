@@ -4,10 +4,11 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { packagedMacExecutable } from './packaged-mac-app.mjs';
 import { DatabaseSync } from 'node:sqlite';
 
 // A packaged Electron/SEA business probe. All content and model responses are synthetic.
-const executable = resolve(import.meta.dirname, '../release/mac-arm64/南医小助.app/Contents/MacOS/nanyi-xiaozhu');
+const executable = packagedMacExecutable();
 const root = await mkdtemp(join(tmpdir(), 'yp-task-050-packaged-'));
 const home = join(root, 'home');
 const userData = join(root, 'user-data');
