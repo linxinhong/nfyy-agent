@@ -11,5 +11,6 @@ export function showNavigation(destination: UiDestination): boolean {
 }
 
 export function brandIconUrl(): string {
-  return brandIcons[`./assets/${emo.brand.icon}`] ?? brandIcons['./assets/brand/app-icon.png'] ?? '';
+  const icon = typeof emo.brand?.icon === 'string' ? emo.brand.icon : '';
+  return icon ? brandIcons[`./assets/${icon}`] ?? '' : '';
 }

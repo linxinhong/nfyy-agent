@@ -6,7 +6,12 @@ const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const appRoot = resolve(desktopRoot, '../app');
 const iconRoot = resolve(appRoot, 'src/assets');
 const config = JSON.parse(await readFile(resolve(appRoot, 'emo.json'), 'utf8'));
-const icon = resolve(iconRoot, config.brand.icon);
+const iconName = typeof config.brand?.icon === 'string' ? config.brand.icon.trim() : '';
+if (!iconName) {
+  // No custom brand icon: electron-builder will use the default Electron icon.
+  process.exit(0);
+}
+const icon = resolve(iconRoot, iconName);
 if (!icon.startsWith(`${iconRoot}${sep}`) || !icon.endsWith('.png')) {
   throw new Error('emo.json brand.icon must point to a PNG under apps/app/src/assets');
 }

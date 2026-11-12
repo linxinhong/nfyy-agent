@@ -41,7 +41,8 @@ function readEmoBrand(): { name: string; icon: string } {
     };
     const name = typeof config.brand?.name === 'string' && config.brand.name.trim()
       ? config.brand.name : '南医小助';
-    const icon = typeof config.brand?.icon === 'string' ? resolve(iconRoot, config.brand.icon) : '';
+    const iconName = typeof config.brand?.icon === 'string' ? config.brand.icon.trim() : '';
+    const icon = iconName ? resolve(iconRoot, iconName) : '';
     return { name, icon: icon.startsWith(`${iconRoot}${sep}`) && existsSync(icon) ? icon : '' };
   } catch {
     return { name: '南医小助', icon: '' };

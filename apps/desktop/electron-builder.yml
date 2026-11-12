@@ -33,7 +33,6 @@ extraResources:
 artifactName: 'nanyi-xiaozhu-${version}-${os}-${arch}.${ext}'
 executableName: nanyi-xiaozhu
 mac:
-  icon: dist/emo-icon.png
   # electron-builder merges platform extraResources with the top-level list.
   # Restating app/runtime/capabilities here copies the PyInstaller bundle twice
   # and fails with EEXIST on the Python.framework symlink.
@@ -54,12 +53,10 @@ mac:
     - dmg
     - zip
 win:
-  icon: dist/emo-icon.png
   target:
     - nsis
     - zip
 linux:
-  icon: dist/emo-icon.png
   target:
     - AppImage
     - tar.gz

@@ -1,7 +1,7 @@
 {
   "brand": {
     "name": "南医小助",
-    "icon": "brand/app-icon.png"
+    "icon": ""
   },
   "navigation": {
     "desktop": true,
